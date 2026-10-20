@@ -128,7 +128,7 @@ if __name__ == "__main__":
     predictions_df = pd.concat([qb_predictions, rb_predictions, wr_predictions, te_predictions])
     predictions_df = compute_value_gap(predictions_df)
     predictions_df = compute_tiers(predictions_df)
-    save(predictions_df, "predictions_df")
+    save(predictions_df, "predictions_table")
     
 
 

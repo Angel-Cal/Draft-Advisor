@@ -6,6 +6,7 @@ class Roster:
         self.qb_ct = qb_ct
         self.flex_ct = flex_ct
         self.bench_size = bench_size
+        self.roster_size = sum([wr_ct, rb_ct, te_ct, qb_ct, flex_ct, bench_size])
         self.qb_list= []
         self.rb_list=[]
         self.wr_list=[]

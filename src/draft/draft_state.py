@@ -8,15 +8,12 @@ class DraftState:
         self.predictions_table = pd.read_parquet(PROCESSED_DIR / "predictions_table.parquet")
         self.available_players = self.predictions_table.copy()
         self.team_list = []
-        for i in range(0, n_teams):
-            roster = Roster()
-            self.team_list.append(roster)
         self.pick_number = 0
         self.round =1
         self.n_teams = n_teams
         for n in range(n_teams):
             team = Roster()   # using defaults for now
-            self.team_list.append(team)
+            self.team_list.append(team)        
 
     def get_current_pick(self):
         if (self.round % 2) == 0:
@@ -37,7 +34,9 @@ class DraftState:
         if(self.pick_number >= self.n_teams):
             self.pick_number =0
             self.round +=1
-        (self.available_players.drop(self.available_players[self.available_players["player_id"] == player_id]
-                                     .index, inplace=True))
+        self.available_players.drop(
+            self.available_players[self.available_players["player_id"] == player_id].index,
+            inplace=True
+        )
+        return True
 
-        
