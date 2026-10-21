@@ -25,25 +25,30 @@ def load_rb():
     schedules = nflread.load_schedules(list(range(2014, 2026))).to_pandas()
     context = build_team_context(seasonal, roster, schedules)
     rb = split_positions(train)[1].drop(columns=ALL_FEATURES, errors="ignore")  # wired-in columns are rebuilt here
-    return rb.merge(context, on=["player_id", "season"], how="left").reset_index(drop=True)
+    return rb.merge(context[["player_id", "season"] + ALL_FEATURES], on=["player_id", "season"],
+                    how="left").reset_index(drop=True)
 
 
-def top150_rb_keys():
+def top150_keys(position):
     keys = []
     for season in SEASONS:
         d = load_season(season)
-        keys.append(d[d["in_top_adp"] & (d["position"] == "RB")][["player_id", "season"]])
+        keys.append(d[d["in_top_adp"] & (d["position"] == position)][["player_id", "season"]])
     return pd.concat(keys)
 
 
-def evaluate(rb, features, seed, top_keys, noise_cols=0):
-    df = rb.drop(columns=[c for c in ALL_FEATURES if c not in features])
+def top150_rb_keys():
+    return top150_keys("RB")
+
+
+def evaluate(rb, features, seed, top_keys, noise_cols=0, position="RB", all_features=ALL_FEATURES):
+    df = rb.drop(columns=[c for c in all_features if c not in features])
     if noise_cols:
         rng = np.random.default_rng(seed)
         for i in range(noise_cols):
             df[f"noise_{i}"] = rng.normal(size=len(df))
-    params = dict(load_params("RB"), random_state=seed)
-    oos = position_oos(df, "RB", Model(), params)
+    params = dict(load_params(position), random_state=seed)
+    oos = position_oos(df, position, Model(), params)
     top = oos.merge(top_keys, on=["player_id", "season"])
     top_rho = np.mean([spearmanr(g["oos_pred_ppr"], g["actual_ppr"])[0] for _, g in top.groupby("season")])
     all_rho = np.mean([spearmanr(g["oos_pred_ppr"], g["actual_ppr"])[0] for _, g in oos.groupby("season")])

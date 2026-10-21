@@ -15,6 +15,8 @@ FEATURE_GROUPS = {
 }
 
 RB_FEATURES = FEATURE_GROUPS["vacated"]
+WR_COMPETITION = ["competing_pass_targets", "incoming_pass_targets"]
+WR_FEATURES = ["vacated_target_share"] + WR_COMPETITION
 
 
 def _norm(team):
@@ -76,6 +78,14 @@ def build_team_context(seasonal, roster, schedules=None):
     now["competing_rb_carries"] = (team_rb_carries - rbs["carries_filled"]).reindex(now.index)
     now["incoming_rb_carries"] = (team_incoming - incoming).reindex(now.index)
 
+    # competing pass-catcher volume: other WR/TE on the season-t roster, and the subset that arrived from other teams
+    catchers = now[now["position"].isin(["WR", "TE"])]
+    team_catcher_targets = catchers.groupby(["team_now", "season"])["targets_filled"].transform("sum")
+    arrived = catchers["targets_filled"].where(catchers["team_prev"] != catchers["team_now"], 0)
+    team_arrived = arrived.groupby([catchers["team_now"], catchers["season"]]).transform("sum")
+    now["competing_pass_targets"] = (team_catcher_targets - catchers["targets_filled"]).reindex(now.index)
+    now["incoming_pass_targets"] = (team_arrived - arrived).reindex(now.index)
+
     # vacated volume: prior-season production of the team's players who are not on its season-t roster
     prior = prev.merge(roster_now[["player_id", "season", "team_now"]], on=["player_id", "season"], how="left")
     prior["left_team"] = prior["team_now"] != prior["team_prev"]
@@ -88,7 +98,7 @@ def build_team_context(seasonal, roster, schedules=None):
     vac = vac.rename(columns={"team_prev": "team_now"})
     now = now.merge(vac, on=["team_now", "season"], how="left")
 
-    cols = [c for group in FEATURE_GROUPS.values() for c in group]
+    cols = [c for group in FEATURE_GROUPS.values() for c in group] + WR_COMPETITION
     if schedules is None:
         cols = [c for c in cols if c not in FEATURE_GROUPS["team_rates"]]
         return now[["player_id", "season"] + cols]
