@@ -29,7 +29,10 @@ ADVANCED_GROUPS = {
     "depth": ["depth_tier_wk1"],
     "team_epa": ["team_pass_epa_prev", "team_rush_epa_prev", "team_success_prev"],
     "ngs": [f"ngs_{kind[:4]}_{col}" for kind, cols in NGS_COLUMNS.items() for col in cols],
+    "ol": ["ol_returning_starters", "ol_snap_continuity", "ol_incoming_starters"],
 }
+OL_STARTERS = 5            # the unit
+OL_STARTER_SNAPS = 500     # plays on the field that mark an OL as a starter-level player
 
 
 def _shift_to_next_season(df):
@@ -46,8 +49,8 @@ def build_xfp_features(opportunity):
     return _shift_to_next_season(g[["player_id", "season"] + ADVANCED_GROUPS["xfp"]])
 
 
-def build_role_features(participation, pbp):
-    """Share of the team's pass and rush plays a player was on the field for, last season."""
+def _on_field_counts(participation, pbp):
+    """Per (player, team, season): offensive plays on the field, split into pass and rush, plus team totals."""
     plays = pbp[(pbp["season_type"] == "REG") & (pbp["pass"] == 1) | (pbp["season_type"] == "REG") & (pbp["rush"] == 1)]
     plays = plays[["game_id", "play_id", "season", "pass"]].rename(columns={"game_id": "nflverse_game_id"})
     on_field = participation.merge(plays, on=["nflverse_game_id", "play_id"], how="inner")
@@ -63,12 +66,52 @@ def build_role_features(participation, pbp):
     counts = players.groupby(["player_id", "team", "season"]).agg(
         pass_plays=("is_pass", "sum"), plays=("is_pass", "size")).reset_index()
     counts["rush_plays"] = counts["plays"] - counts["pass_plays"]
-    counts = counts.merge(team_totals.reset_index()[["team", "season", "team_pass", "team_rush"]], on=["team", "season"])
+    return counts.merge(team_totals.reset_index()[["team", "season", "team_pass", "team_rush"]], on=["team", "season"])
+
+
+def build_role_features(participation, pbp):
+    """Share of the team's pass and rush plays a player was on the field for, last season."""
+    counts = _on_field_counts(participation, pbp)
     counts["pass_snap_share_prev"] = counts["pass_plays"] / counts["team_pass"]
     counts["rush_snap_share_prev"] = counts["rush_plays"] / counts["team_rush"]
     # a traded player keeps the team where he was on the field most
     counts = counts.sort_values("plays", ascending=False).drop_duplicates(["player_id", "season"])
     return _shift_to_next_season(counts[["player_id", "season"] + ADVANCED_GROUPS["role"]])
+
+
+def build_ol_features(participation, pbp, roster):
+    """Offensive-line continuity of the team a player starts season t with, measured in last season's snaps.
+
+    returning_starters: how many of last season's five most-used OL are on the start-of-season roster.
+    snap_continuity:    share of last season's OL snaps played by players still on that roster.
+    incoming_starters:  OL on the roster who were starter-level (>= OL_STARTER_SNAPS plays) for another team.
+    """
+    ol_roster = roster[roster["position"] == "OL"].sort_values(["season", "week"])
+    roster_ol = (ol_roster.groupby(["gsis_id", "season"], as_index=False).first()
+                 .rename(columns={"gsis_id": "player_id"}))
+    roster_ol["team_now"] = _norm(roster_ol["team"])
+    roster_ol = roster_ol[["player_id", "season", "team_now"]]
+    counts = _on_field_counts(participation, pbp)
+    ol = counts[counts["player_id"].isin(set(roster_ol["player_id"]))][["player_id", "team", "season", "plays"]]
+
+    prior = ol.assign(season=ol["season"] + 1)                                        # last season's usage, keyed to t
+    start = _roster_start(roster)                                                      # skill players receive the features
+    on_roster = prior.merge(roster_ol, on=["player_id", "season"], how="left")
+    on_roster["stayed"] = on_roster["team_now"] == on_roster["team"]
+
+    top5 = on_roster.sort_values("plays", ascending=False).groupby(["team", "season"]).head(OL_STARTERS)
+    returning = top5.groupby(["team", "season"])["stayed"].sum().rename("ol_returning_starters")
+    total = on_roster.groupby(["team", "season"])["plays"].sum()
+    kept = on_roster[on_roster["stayed"]].groupby(["team", "season"])["plays"].sum()
+    continuity = (kept / total).reindex(total.index).fillna(0).rename("ol_snap_continuity")
+    arrived = on_roster[(on_roster["plays"] >= OL_STARTER_SNAPS) & on_roster["team_now"].notna() & ~on_roster["stayed"]]
+    incoming = arrived.groupby(["team_now", "season"]).size().rename("ol_incoming_starters")
+    incoming.index = incoming.index.set_names(["team", "season"])
+
+    team = pd.concat([returning, continuity], axis=1).join(incoming).reset_index()
+    team["ol_incoming_starters"] = team["ol_incoming_starters"].fillna(0)
+    team = team.rename(columns={"team": "team_now"})
+    return start.merge(team, on=["team_now", "season"], how="left")[["player_id", "season"] + ADVANCED_GROUPS["ol"]]
 
 
 def _depth_tier(position, rank):
@@ -123,11 +166,13 @@ def load_advanced_context(roster):
     """All groups from the cached raw files, as {group: frame}."""
     pbp = pd.read_parquet(RAW / "pbp_20_25.parquet", columns=["game_id", "play_id", "season", "season_type", "posteam",
                                                                "play_type", "epa", "success", "pass", "rush"])
+    participation = pd.read_parquet(RAW / "participation_16_25.parquet")
     ngs = {kind: pd.read_parquet(RAW / f"ngs_{kind}_16_25.parquet") for kind in NGS_COLUMNS}
     depth_new = {season: pd.read_parquet(RAW / f"depth_new_{season}.parquet") for season in OPENERS}
     return {
         "xfp": build_xfp_features(pd.read_parquet(RAW / "ff_opportunity_14_25.parquet")),
-        "role": build_role_features(pd.read_parquet(RAW / "participation_16_25.parquet"), pbp),
+        "role": build_role_features(participation, pbp),
+        "ol": build_ol_features(participation, pbp, roster),
         "depth": build_depth_features(pd.read_parquet(RAW / "depth_old_14_24.parquet"), depth_new),
         "team_epa": build_team_epa_features(pbp, roster),
         "ngs": build_ngs_features(ngs),
