@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.features.build_features import build_features, build_prediction_features
-from src.features.team_context import build_team_context, add_rb_features
+from src.features.team_context import build_team_context, add_rb_features, TEAM_MAP
 
 
 RAW_DIR = Path(__file__).parent.parent.parent / "data" / "raw"
@@ -85,6 +85,7 @@ def clean_data(roster, season):
         lambda row: (pd.Timestamp(f"{row['season']}-09-01") - pd.Timestamp(row["birth_date"])).days // 365, axis=1
     )
     end_roster = end_roster.drop(columns=["birth_date"])
+    end_roster["team"] = end_roster["team"].replace(TEAM_MAP)  # legacy codes (OAK, SD, ARZ...) -> current
     assert end_roster.groupby(["player_id", "season"]).size().max() == 1
 
 
@@ -124,7 +125,7 @@ def save(df, filename):
     save_data_as_parquet(df, filename)
 
 def load_totals():
-    schedules = nflread.load_schedules(list(range(2015, 2026))).to_pandas()
+    schedules = nflread.load_schedules(list(range(2014, 2026))).to_pandas()
     schedules = schedules[schedules['game_type'] == 'REG']
     schedules['home_implied_total'] = (schedules['total_line'] / 2 + schedules['spread_line'] / 2)
     schedules['away_implied_total'] = (schedules['total_line']/2 - schedules['spread_line']/2)
@@ -135,7 +136,9 @@ def load_totals():
     away_df = schedules[['away_team', 'season', 'away_implied_total']].copy()
     away_df = away_df.rename(columns= {'away_team' : 'team', 'away_implied_total' : "implied_total"})
 
-    totals_df = pd.concat([home_df, away_df]).groupby(['team', 'season']).mean().reset_index()
+    totals_df = pd.concat([home_df, away_df])
+    totals_df['team'] = totals_df['team'].replace(TEAM_MAP)
+    totals_df = totals_df.groupby(['team', 'season']).mean().reset_index()
     return totals_df
 
 

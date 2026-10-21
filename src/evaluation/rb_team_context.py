@@ -24,7 +24,7 @@ def load_rb():
     roster = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_roster_20_25.parquet")
     schedules = nflread.load_schedules(list(range(2014, 2026))).to_pandas()
     context = build_team_context(seasonal, roster, schedules)
-    rb = split_positions(train)[1]
+    rb = split_positions(train)[1].drop(columns=ALL_FEATURES, errors="ignore")  # wired-in columns are rebuilt here
     return rb.merge(context, on=["player_id", "season"], how="left").reset_index(drop=True)
 
 

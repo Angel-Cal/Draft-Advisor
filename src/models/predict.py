@@ -75,10 +75,11 @@ if __name__ == "__main__":
     wr_model = model.train_final_model(wr_x_train, wr_y_train, wr_params)
     te_model = model.train_final_model(te_x_train, te_y_train, te_params)
 
-    qb_prediction = qb_model.predict(qb_prediction_df)
-    rb_prediction = rb_model.predict(rb_prediction_df)
-    wr_prediction = wr_model.predict(wr_prediction_df)
-    te_prediction = te_model.predict(te_prediction_df)
+    # LightGBM predicts positionally, so line the columns up with the training matrix by name
+    qb_prediction = qb_model.predict(qb_prediction_df[qb_x_train.columns])
+    rb_prediction = rb_model.predict(rb_prediction_df[rb_x_train.columns])
+    wr_prediction = wr_model.predict(wr_prediction_df[wr_x_train.columns])
+    te_prediction = te_model.predict(te_prediction_df[te_x_train.columns])
 
     qb_results = qb_meta.copy()
     qb_results['projected_ppr'] = qb_prediction # type: ignore
