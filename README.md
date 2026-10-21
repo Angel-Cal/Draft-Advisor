@@ -1,4 +1,4 @@
-# Fantasy Football Draft Bot
+# Fantasy Football Draft Advisor
 
 An ML-powered fantasy football draft assistant that predicts player performance
 and provides real-time draft recommendations based on value-based drafting,
