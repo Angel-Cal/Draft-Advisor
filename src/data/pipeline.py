@@ -94,7 +94,8 @@ def clean_data(roster, season):
     merged_df = merged_df[merged_df['games'] >= 4]
     print(f"After games filter: {len(merged_df)}")
     merged_df['draft_number'] = merged_df['draft_number'].replace(['nan', 'None'], '300').astype(float)
-    totals_df = load_totals()
+    totals_df = load_totals(range(2013, 2026))
+    totals_df['season'] += 1  # prior-season total: the season's own lines reflect in-season results (leakage)
     merged_df = merged_df.merge(totals_df, on =['team', 'season'])
     print(f"After totals merge: {len(merged_df)}")
 
@@ -147,18 +148,18 @@ def load_totals(seasons=range(2014, 2026)):
 
 
 def advance_to_prediction_season(prediction_df, roster, totals, season=2026):
-    """Prediction rows hold last season's age, experience and team total; swap in the prediction season's.
+    """Prediction rows hold last season's age, experience and team; swap in the prediction season's.
 
-    The implied total blends the new team's prior-season total with its (partial-season) lines for the prediction
-    season. Players missing from the new roster (retired, unsigned) get age/experience advanced by one and no total.
+    implied_total is the new team's prior-season total, matching training. Players missing from the new roster
+    (retired, unsigned) get age/experience advanced by one and no total.
     """
     r = (roster[roster["position"].isin(["QB", "RB", "WR", "TE"])].sort_values("week")
          .groupby("gsis_id", as_index=False).first().rename(columns={"gsis_id": "player_id"}))
     r["age_new"] = (pd.Timestamp(f"{season}-09-01") - pd.to_datetime(r["birth_date"])).dt.days // 365
     r["team"] = r["team"].replace(TEAM_MAP)
-    blended = (totals[totals["season"].isin([season - 1, season])]
-               .groupby("team")["implied_total"].mean().rename("implied_total_new").reset_index())
-    r = r.merge(blended, on="team", how="left")
+    prior = totals[totals["season"] == season - 1][["team", "implied_total"]].rename(
+        columns={"implied_total": "implied_total_new"})
+    r = r.merge(prior, on="team", how="left")
     r = r[["player_id", "age_new", "years_exp", "implied_total_new"]].rename(columns={"years_exp": "years_exp_new"})
 
     df = prediction_df.merge(r, on="player_id", how="left")
@@ -176,7 +177,7 @@ if __name__ == "__main__":
     df = build_features(df, pbp, id, snaps)
 
     roster_2026 = pd.read_parquet(RAW_DIR / "roster_2026.parquet")
-    prediction_df = advance_to_prediction_season(prediction_df, roster_2026, load_totals([2025, 2026]))
+    prediction_df = advance_to_prediction_season(prediction_df, roster_2026, load_totals([2025]))
     context = build_team_context(seasonal, pd.concat([roster, roster_2026], ignore_index=True))
     df = add_rb_features(df, context)
     prediction_df = add_rb_features(prediction_df, context, season_offset=1)
