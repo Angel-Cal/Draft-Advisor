@@ -5,7 +5,7 @@ import sys
 import json
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.models.train import Model
-from src.models.train import split_positions
+from src.models.train import split_positions, drop_non_features
 from src.data.pipeline import save
 
 
@@ -58,16 +58,16 @@ if __name__ == "__main__":
     te_prediction_df = drop_meta(te_prediction_df)
 
     model = Model()
-    qb_x_train = qb_training_df.drop(columns=['target_ppr', 'season'])
+    qb_x_train = drop_non_features(qb_training_df)
     qb_y_train = qb_training_df['target_ppr']
 
-    rb_x_train = rb_training_df.drop(columns=['target_ppr', 'season'])
+    rb_x_train = drop_non_features(rb_training_df)
     rb_y_train = rb_training_df['target_ppr']
 
-    wr_x_train = wr_training_df.drop(columns=['target_ppr', 'season'])
+    wr_x_train = drop_non_features(wr_training_df)
     wr_y_train = wr_training_df['target_ppr']
 
-    te_x_train = te_training_df.drop(columns=['target_ppr', 'season'])
+    te_x_train = drop_non_features(te_training_df)
     te_y_train = te_training_df['target_ppr']
 
     qb_model = model.train_final_model(qb_x_train, qb_y_train, qb_params)

@@ -254,7 +254,6 @@ def build_features(df, pbp, id, snaps):
     df, delta_df = add_lag(df)
     df = compute_deltas(df, delta_df)
     df = remove_cols(df)
-    df = df.drop(columns=['player_id', 'player_name'])
     return df
 
 def build_prediction_features(df, pbp, id, snaps):

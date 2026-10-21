@@ -12,6 +12,12 @@ import json
 
 
 
+ID_COLS = ["player_id", "player_name"]
+
+def drop_non_features(df):
+    return df.drop(columns=["target_ppr", "season"] + ID_COLS, errors="ignore")
+
+
 class Model:
     def __init__(self, train_range = (range(2015, 2024)), val_season = 2024, test_season = 2025):
         self.train_range = train_range
@@ -21,15 +27,15 @@ class Model:
     def temporal_splits(self, df):
         x_train = df[df["season"].isin(self.train_range)]
         y_train = x_train["target_ppr"]
-        x_train = x_train.drop(columns = ["target_ppr", "season"])
+        x_train = drop_non_features(x_train)
 
         x_val = df[df["season"] == self.val_season]
         y_val = x_val["target_ppr"]
-        x_val = x_val.drop(columns =["target_ppr", "season"])
+        x_val = drop_non_features(x_val)
 
         x_test = df[df["season"] == self.test_season]
         y_test = x_test["target_ppr"]
-        x_test = x_test.drop(columns = ["target_ppr", "season"])
+        x_test = drop_non_features(x_test)
 
         return x_train, x_val, x_test, y_train, y_val, y_test
      
@@ -45,15 +51,15 @@ class Model:
 
             x_train = df[df["season"].isin(train_range)]
             y_train = x_train["target_ppr"]
-            x_train = x_train.drop(columns = ["target_ppr", "season"])
+            x_train = drop_non_features(x_train)
 
             x_val = df[df["season"] == val_season]
             y_val = x_val["target_ppr"]
-            x_val = x_val.drop(columns =["target_ppr", "season"])
+            x_val = drop_non_features(x_val)
 
             x_test = df[df["season"] == test_season]
             y_test = x_test["target_ppr"]
-            x_test = x_test.drop(columns = ["target_ppr", "season"])
+            x_test = drop_non_features(x_test)
 
             df_list.append((x_train, x_val, x_test, y_train, y_val, y_test)) 
         return df_list
