@@ -186,6 +186,15 @@ def add_surge_features(df, pbp, id, snaps):
     df[['late_target_pct', 'late_snap_pct']] = df[['late_target_pct', 'late_snap_pct']].fillna(0.35)
     return df
 
+DRAFT_FEATURES = ["early_high_pick", "draft_capital_youth"]
+
+def add_draft_capital_features(df):
+    """Young, high-pick players are the likeliest breakouts; give the model that interaction directly."""
+    df = df.copy()
+    df["early_high_pick"] = ((df["draft_number"] <= 64) & (df["years_exp"] <= 3)).astype(float)
+    df["draft_capital_youth"] = (300 - df["draft_number"]) / (df["years_exp"] + 1)
+    return df
+
 def compute_deltas(df, delta_df):
     for col in DELTA_SHIFT_COLS:
         df[f"{col}_delta"] = df[col] - delta_df[col]
