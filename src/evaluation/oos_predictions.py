@@ -16,9 +16,9 @@ def load_params(position):
         return json.load(f)
 
 
-def position_oos(df, position, model):
+def position_oos(df, position, model, params=None):
     """Walk-forward predictions for one position; one row per player-season in 2021-2025."""
-    params = load_params(position)
+    params = params or load_params(position)
     rows = []
     for i, fold in enumerate(model.rolling_splits(df)):
         x_train, x_val, x_test, y_train, y_val, y_test = fold
