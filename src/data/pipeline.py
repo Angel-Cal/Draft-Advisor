@@ -99,7 +99,8 @@ def clean_data(roster, season):
     merged_df = merged_df.merge(totals_df, on =['team', 'season'])
     print(f"After totals merge: {len(merged_df)}")
 
-    team_stats = (season.groupby(['recent_team', 'season'])
+    team_stats = (season[season['player_id'].notna()]  # junk 'Team' rows (games=256/272) would inflate team_games
+        .groupby(['recent_team', 'season'])
         .agg(team_targets=('targets', 'sum'),
              team_air_yards=('receiving_air_yards', 'sum'),
              team_games=('games', 'max'))
