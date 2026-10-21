@@ -7,14 +7,13 @@ league:
   roster_positions:
     qb: 1
     rb: 2
-    wr: 2
+    wr: 3
     te: 1
-    flex: 1
-    dst: 1
-    k: 1
-    bench: 6
+    flex: 1   # RB/WR/TE eligible
+    bench: 8
+  # K and DST are not modeled
 
-# Scoring Rules (PPR default)
+# Scoring Rules (PPR)
 scoring:
   passing:
     yards_per_point: 25
@@ -30,32 +29,23 @@ scoring:
     td: 6
     reception: 1  # PPR
     two_point_conversion: 2
-  kicking:
-    fg_0_39: 3
-    fg_40_49: 4
-    fg_50_plus: 5
-    extra_point: 1
-  dst:
-    sack: 1
-    interception: 2
-    fumble_recovery: 2
-    td: 6
-    safety: 2
-    block_kick: 2
 
 # Data Settings
 data:
-  seasons: [2021, 2022, 2023, 2024]
-  cache_expiry_hours: 24
+  seasons: [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
 
 # Model Settings
 model:
-  test_size: 0.2
+  walk_forward_folds: 10   # min 6 train seasons per fold
   random_state: 42
-  cv_folds: 5
+  optuna_trials: 100
 
 # Draft Settings
 draft:
-  pick_position: 1  # 1-12
+  pick_position: 1  # 1-12, set before draft
   snake_draft: true
-  auction: false
+  replacement_levels:
+    qb: 12
+    rb: 29
+    wr: 41
+    te: 12

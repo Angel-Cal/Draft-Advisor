@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:nflreadpy.nflverse.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(venv/Scripts/pip install:*)"
+    ]
+  }
+}
