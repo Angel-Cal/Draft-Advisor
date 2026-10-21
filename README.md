@@ -137,6 +137,26 @@ pytest tests/ -v
 Unit tests cover all pure functions in the draft advisor (VOR calculation,
 need scoring, run detection, position safety, tier detection).
 
+## Data Integrity Guardrails
+
+Silent data bugs (dropped rows, leaked features, stale prediction inputs) have been the main source of wrong
+results, so the pipeline checks itself:
+
+- **`src/data/validate.py`** runs inside `pipeline.py` and `predict.py`. Errors stop the run (null/duplicate keys,
+  unknown team codes, a season losing rows in a merge, out-of-range values, prediction rows that differ from
+  training rows or carry last season's age); soft problems (feature drift, column order) warn.
+- **`src/features/manifest.py`** classifies every training column as `prior_season` or `preseason_known`. A new
+  column that is not declared there fails `tests/test_data_integrity.py`.
+- **`tests/test_data_integrity.py`** recomputes lagged features from the raw files and fails if any column matches
+  the target season; it also checks train/serve parity, ADP coverage, out-of-sample files and pinned packages.
+  It skips when `data/` is absent (CI).
+- **`data/processed/run_manifest.json`** records the commit, timestamp, row counts and params checksums of each
+  pipeline, predict and benchmark run. Stale outputs (older than their inputs) raise or warn.
+- **Benchmark standard** (`src/evaluation/benchmark.py`): per-position only, scores averaged over 5 model seeds
+  with their spread, and always shown next to the "last year's PPR" baseline.
+- **Automation:** `.githooks/pre-commit` runs the tests before each commit (`git config core.hooksPath .githooks`),
+  and `.github/workflows/tests.yml` runs them on push.
+
 ---
 
 Built as a machine learning portfolio project demonstrating:

@@ -1,0 +1,6 @@
+#!/bin/sh
+# Runs the test suite (unit tests plus data-integrity checks) before every commit.
+# Enabled with: git config core.hooksPath .githooks   |   skip once with: git commit --no-verify
+PY=venv/Scripts/python
+[ -x "$PY" ] || PY=python
+"$PY" -m pytest -q -x || { echo "pre-commit: tests failed, commit aborted"; exit 1; }

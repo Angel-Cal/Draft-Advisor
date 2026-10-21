@@ -27,6 +27,8 @@ data/external/*
 # Model files
 models/*
 !models/.gitkeep
+# tuned hyperparameters are small JSON and part of the result
+!models/*_params
 
 # Logs
 *.log

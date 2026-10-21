@@ -38,43 +38,7 @@ DELTA_SHIFT_COLS = [
     ]
 
 
-def add_per_game(df):
-    PER_GAME_COLS = [
-    # Passing volume
-    "completions",
-    "attempts",
-    "passing_yards",
-    "passing_tds",
-    "passing_interceptions",
-    "sacks_suffered",
-    "passing_first_downs",
-
-    # Rushing volume
-    "carries",
-    "rushing_yards",
-    "rushing_tds",
-    "rushing_first_downs",
-
-    # Receiving volume
-    "targets",
-    "receptions",
-    "receiving_yards",
-    "receiving_tds",
-    "receiving_first_downs",
-    "receiving_air_yards",
-    "receiving_yards_after_catch",
-
-    # Passing volume
-    "passing_air_yards",
-]
-
-    for col in PER_GAME_COLS:
-        df[f"{col}_pg"] = df[col]/df["games"]
-    df.loc[df["games"] ==0, [f"{c}_pg" for c in PER_GAME_COLS]]= 0
-    return df
-
-def add_lag(df):
-    LAG_COLS = [
+LAG_COLS = [
     # total volume features
     "games",
     "attempts",
@@ -129,15 +93,53 @@ def add_lag(df):
     "late_target_pct",
     "late_snap_pct"
 ]
-    
-    REQUIRED_LAG_COLS = [
-        "games", "attempts", "carries", "targets",
-        "carries_pg", "rushing_yards_pg", "rushing_tds_pg", "rushing_first_downs_pg",
-        "targets_pg", "receptions_pg", "receiving_yards_pg", "receiving_tds_pg",
-        "receiving_first_downs_pg",
-        "fantasy_points", "fantasy_points_ppr",
-        "late_target_pct", "late_snap_pct"
-    ]
+
+REQUIRED_LAG_COLS = [
+    "games", "attempts", "carries", "targets",
+    "carries_pg", "rushing_yards_pg", "rushing_tds_pg", "rushing_first_downs_pg",
+    "targets_pg", "receptions_pg", "receiving_yards_pg", "receiving_tds_pg",
+    "receiving_first_downs_pg",
+    "fantasy_points", "fantasy_points_ppr",
+    "late_target_pct", "late_snap_pct"
+]
+
+
+def add_per_game(df):
+    PER_GAME_COLS = [
+    # Passing volume
+    "completions",
+    "attempts",
+    "passing_yards",
+    "passing_tds",
+    "passing_interceptions",
+    "sacks_suffered",
+    "passing_first_downs",
+
+    # Rushing volume
+    "carries",
+    "rushing_yards",
+    "rushing_tds",
+    "rushing_first_downs",
+
+    # Receiving volume
+    "targets",
+    "receptions",
+    "receiving_yards",
+    "receiving_tds",
+    "receiving_first_downs",
+    "receiving_air_yards",
+    "receiving_yards_after_catch",
+
+    # Passing volume
+    "passing_air_yards",
+]
+
+    for col in PER_GAME_COLS:
+        df[f"{col}_pg"] = df[col]/df["games"]
+    df.loc[df["games"] ==0, [f"{c}_pg" for c in PER_GAME_COLS]]= 0
+    return df
+
+def add_lag(df):
 
     df["target_ppr"] = df["fantasy_points_ppr"]
     delta_df = df.copy()

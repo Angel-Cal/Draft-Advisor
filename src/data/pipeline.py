@@ -4,6 +4,9 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.features.build_features import build_features, build_prediction_features
+from src.data.validate import (drop_junk_rows, check_raw_seasonal, check_raw_roster, check_retention,
+                                check_no_row_loss, check_training, check_prediction, SKILL_POSITIONS)
+from src.data.run_manifest import update_manifest
 from src.features.team_context import (build_team_context, add_rb_features, build_qb_depth_features,
                                        add_qb_features, TEAM_MAP)
 
@@ -18,6 +21,10 @@ def load_data():
     id = pd.read_parquet(RAW_DIR/'ids.parquet')
     snaps = pd.read_parquet(RAW_DIR/'snap_counts_20_25.parquet')
 
+    seasonal = drop_junk_rows(seasonal, "player_id")
+    roster = drop_junk_rows(roster, "gsis_id")
+    check_raw_seasonal(seasonal)
+    check_raw_roster(roster)
     return seasonal, roster, pbp, id, snaps
 
 def load_predictions():
@@ -94,11 +101,15 @@ def clean_data(roster, season):
     print(f"After roster merge: {len(merged_df)}")
     merged_df = merged_df[merged_df['games'] >= 4]
     print(f"After games filter: {len(merged_df)}")
+    eligible = season[season['position'].isin(SKILL_POSITIONS) & (season['games'] >= 4)]
+    check_retention(eligible.groupby('season').size(), merged_df.groupby('season').size(), "season-stats -> roster merge")
+    rows_before_totals = len(merged_df)
     merged_df['draft_number'] = merged_df['draft_number'].replace(['nan', 'None'], '300').astype(float)
     totals_df = load_totals(range(2013, 2026))
     totals_df['season'] += 1  # prior-season total: the season's own lines reflect in-season results (leakage)
     merged_df = merged_df.merge(totals_df, on =['team', 'season'])
     print(f"After totals merge: {len(merged_df)}")
+    check_no_row_loss(rows_before_totals, len(merged_df), "team-totals merge")
 
     team_stats = (season[season['player_id'].notna()]  # junk 'Team' rows (games=256/272) would inflate team_games
         .groupby(['recent_team', 'season'])
@@ -187,6 +198,16 @@ if __name__ == "__main__":
     qb_depth = build_qb_depth_features(seasonal, roster_all)
     df = add_qb_features(df, qb_depth)
     prediction_df = add_qb_features(prediction_df, qb_depth, season_offset=1)
+    # prediction rows must be shaped exactly like training rows: same column order, same dtypes
+    shared = [c for c in df.columns if c in prediction_df.columns]
+    prediction_df = prediction_df[shared + [c for c in prediction_df.columns if c not in df.columns]]
+    prediction_df = prediction_df.astype({c: df[c].dtype for c in shared if df[c].dtype != prediction_df[c].dtype
+                                          and pd.api.types.is_numeric_dtype(df[c])})
+    check_training(df)
+    check_prediction(prediction_df, df)
+    update_manifest("pipeline", {"training_rows": int(len(df)), "prediction_rows": int(len(prediction_df)),
+                                 "training_rows_by_season": {int(k): int(v) for k, v in df.groupby("season").size().items()},
+                                 "raw_seasonal_rows": int(len(seasonal)), "validation": "passed"})
     save(df, "training_data")
     save(prediction_df, "prediction_data")
     print(f"Saved {len(df)} rows to {PROCESSED_DIR}")

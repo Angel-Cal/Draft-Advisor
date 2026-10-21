@@ -7,6 +7,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.models.train import Model
 from src.models.train import split_positions, drop_non_features
 from src.data.pipeline import save
+from src.data.validate import check_prediction_outputs
+from src.data.run_manifest import check_freshness, update_manifest
 
 
 def load_json(filename):
@@ -81,21 +83,21 @@ if __name__ == "__main__":
     wr_prediction = wr_model.predict(wr_prediction_df[wr_x_train.columns])
     te_prediction = te_model.predict(te_prediction_df[te_x_train.columns])
 
-    qb_results = qb_meta.copy()
-    qb_results['projected_ppr'] = qb_prediction # type: ignore
-    save(qb_results, "qb_predictions")
+    results = {}
+    for name, meta, prediction in [("qb", qb_meta, qb_prediction), ("rb", rb_meta, rb_prediction),
+                                   ("wr", wr_meta, wr_prediction), ("te", te_meta, te_prediction)]:
+        results[name] = meta.copy()
+        results[name]['projected_ppr'] = prediction  # type: ignore
 
-    rb_results = rb_meta.copy()
-    rb_results['projected_ppr'] = rb_prediction # type: ignore
-    save(rb_results, "rb_predictions")
+    # validate everything before writing anything, so a bad run can't leave half-updated outputs
+    check_prediction_outputs({name.upper(): df for name, df in results.items()})
+    for name, df in results.items():
+        save(df, f"{name}_predictions")
 
-    wr_results = wr_meta.copy()
-    wr_results['projected_ppr'] = wr_prediction # type: ignore
-    save(wr_results, "wr_predictions")
-
-    te_results = te_meta.copy()
-    te_results['projected_ppr'] = te_prediction # type: ignore
-    save(te_results, "te_predictions")
+    processed = Path(__file__).parent.parent.parent / "data" / "processed"
+    check_freshness(inputs=[processed / "training_data.parquet", processed / "prediction_data.parquet"],
+                    outputs=[processed / f"{name}_predictions.parquet" for name in results], label="predictions")
+    update_manifest("predict", {"rows": {name: int(len(df)) for name, df in results.items()}, "validation": "passed"})
 
 
     

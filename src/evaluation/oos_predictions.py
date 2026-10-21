@@ -9,6 +9,7 @@ ROOT = Path(__file__).parent.parent.parent
 PROCESSED_DIR = ROOT / "data" / "processed"
 MODELS_DIR = ROOT / "models"
 FIRST_TEST_SEASON = 2021
+N_SEEDS = 5  # the benchmark reports score and spread across model seeds, not one lucky draw
 
 
 def load_params(position):
@@ -38,7 +39,12 @@ if __name__ == "__main__":
     model = Model()
     results = []
     for pos, pos_df in zip(["QB", "RB", "WR", "TE"], split_positions(df)):
-        results.append(position_oos(pos_df, pos, model))
+        runs = [position_oos(pos_df, pos, model, dict(load_params(pos), random_state=seed)) for seed in range(N_SEEDS)]
+        combined = runs[0].drop(columns="oos_pred_ppr")
+        for seed, run in enumerate(runs):
+            combined[f"oos_pred_s{seed}"] = run["oos_pred_ppr"]
+        combined["oos_pred_ppr"] = combined[[f"oos_pred_s{seed}" for seed in range(N_SEEDS)]].mean(axis=1)
+        results.append(combined)
     oos = pd.concat(results)
     oos["position"] = oos["position"].astype(str)
 
