@@ -16,15 +16,14 @@ def load_season(season):
     """Model out-of-sample predictions joined to ADP; unranked players tied at last."""
     oos = pd.read_parquet(PROCESSED_DIR / f"season_{season}.parquet")
     adp = pd.read_csv(EXTERNAL_DIR / f"adp_{season}.csv")
-    adp["in_top_adp"] = adp["adp"].rank(method="first") <= TOP_N_ADP
 
-    df = oos.merge(adp[["player_id", "adp", "in_top_adp"]], on="player_id", how="left")
+    df = oos.merge(adp[["player_id", "adp"]], on="player_id", how="left")
+    df["in_top_adp"] = df["adp"].rank(method="first") <= TOP_N_ADP  # top N by ADP among modeled players
     unranked = df["adp"].isna()
     keep_unranked = (df[unranked].nlargest(N_UNRANKED, "actual_ppr").index
                      .union(df[unranked].nlargest(N_UNRANKED, "oos_pred_ppr").index))
     df = df[~unranked | df.index.isin(keep_unranked)].copy()
     df["adp"] = df["adp"].fillna(adp["adp"].max() + 1)
-    df["in_top_adp"] = df["in_top_adp"].fillna(False).astype(bool)
     return df
 
 
