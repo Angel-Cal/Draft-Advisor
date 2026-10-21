@@ -1,9 +1,8 @@
 # DraftBot — Project Status
 
 **Last updated:** 2026-10-21
-**Active branch:** `phase-1-evaluation` (many commits ahead of `main`; **not yet merged** — merge to `main` when ready)
-**Main branch:** `main`
-**Phase:** Phase 0 and Phase 1 complete (see ROADMAP.md; its checkboxes for those phases are not ticked yet). Next: Phase 2 (C# core and simulator).
+**Active branch:** `main` (Phase 1 work merged from `phase-1-evaluation`; merged locally, not yet pushed to `origin`)
+**Phase:** Phase 0 and Phase 1 complete (ROADMAP.md is updated). Next: Phase 2 (C# core and simulator).
 
 ---
 
@@ -123,7 +122,6 @@ Things the simulator will need from Python:
 - 2026 ADP source is a manual Underdog CSV via 4for4 (`data/external/4for4-adp-table.csv`); historical ADP is FantasyPros, so the two differ in how they price positions.
 
 **Housekeeping:**
-- Merge `phase-1-evaluation` into `main`.
-- `Figure_1.png` deletion has been staged-as-deleted in the working tree since before this phase; commit or restore it.
+- `main` is merged locally but **not pushed** to `origin` (`Angel-Cal/Draft-Advisor`); push when ready. The `Model_v2`, `Model_v3`, `draft_logic` and `phase-1-evaluation` branches are all fully merged and can be deleted.
 - `src/app/cli.py`, `src/draft/vbd.py`, `src/draft/simulator.py` were moved to `archive/` in Phase 0.
 - `README.md` documents the pipeline steps and the guardrails.

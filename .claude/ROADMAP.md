@@ -54,20 +54,23 @@ features / train / predict   ---->                       VOR, tiers, recommender
 
 ## Phases
 
-### Phase 0: Housekeeping (Nov 2026)
-- [ ] Fix `config/settings.yaml` (3 WR, 8 bench, no K/DST, correct seasons)
-- [ ] Fix README drift (`recommend.py` vs `recommender.py`, Vegas totals claim)
-- [ ] Move dead scaffolds (`vbd.py`, `simulator.py`, `app/cli.py`) to an `archive/` folder or delete
-- [ ] Draft projection file schema v1
+### Phase 0: Housekeeping (done 2026-10)
+- [x] Fix `config/settings.yaml` (3 WR, 8 bench, no K/DST, correct seasons)
+- [x] Fix README drift (`recommend.py` vs `recommender.py`, Vegas totals claim)
+- [x] Move dead scaffolds (`vbd.py`, `simulator.py`, `app/cli.py`) to an `archive/` folder or delete
+- [x] Draft projection file schema v1 (`.claude/projection_schema_v1.md`; the exporter itself is not written yet, see Phase 2)
 
-### Phase 1: Evaluation data (Nov to Dec 2026)
-- [ ] Check how far back nflverse/ffverse historical FantasyPros ECR goes (possible ADP stand-in)
-- [ ] Wayback Machine ADP scraper for remaining gaps: use the CDX API, one consistent snapshot date per year (closest to Sept 1), one parser per site layout era
-- [ ] Save walk-forward out-of-sample predictions in `train.py` instead of discarding them
-- [ ] Export one season file per held-out season: OOS projections + that year's ADP + actual points
-- [ ] First benchmark: my projections vs ADP on held-out seasons
+### Phase 1: Evaluation data (done 2026-10)
+- [x] ~~Check nflverse/ffverse historical ECR~~ Skipped by decision: the user chose scraped historical ADP over expert rankings.
+- [x] Wayback Machine ADP scraper (`src/data/adp_scraper.py`): FantasyPros PPR consensus ADP, 2021–2025, snapshot closest to (and not after) the day before each season's opener; one CSV per season in `data/external/adp_<year>.csv`. (Fantasy Football Calculator was tried and rejected.)
+- [x] Walk-forward out-of-sample predictions (`src/evaluation/oos_predictions.py`, 5 seeds; kept separate from `train.py`)
+- [x] One season file per held-out season: `data/processed/season_<year>.parquet` (OOS projections + actuals) joined to `adp_<year>.csv` on `player_id`
+- [x] First benchmark (`src/evaluation/benchmark.py`): the model trails ADP on top-150 Spearman at every position (QB −0.10, RB −0.05, WR −0.06, TE −0.01), beats a last-year-PPR baseline everywhere, and matches ADP's ranking over all players for RB/WR/TE. Numbers and caveats in `STATUS.md`.
+
+Also done in Phase 1 (unplanned, but it changed the results): fixed a target-season leak in `implied_total` and several silent data bugs; built a validation layer, feature manifest, run manifest, integrity tests, pre-commit hook and CI workflow; ablated ~12 feature ideas (two survived: RB vacated volume and QB attempt share, plus the process features in `STATUS.md`).
 
 ### Phase 2: C# core and simulator (Dec 2026 to Jan 2027)
+- [ ] **First (Python side):** write the projection exporter that produces `projections_<year>_v1.parquet` per the schema (needs `team`, `position_rmse`, `schema_version`; half/standard are NaN until Phase 3), validated by `validate.py`
 - [ ] Solution with `DraftBot.Core`, `DraftBot.Sim`, test project
 - [ ] League settings model; replacement level, VOR, per-position tiers (by value dropoff, not global quantiles)
 - [ ] Draft state (snake order, all rosters, pool)
@@ -78,9 +81,9 @@ features / train / predict   ---->                       VOR, tiers, recommender
 ### Phase 3: Model v2 (Jan to Feb 2027, after the 2026 regular season ends)
 - [ ] Grade 2026 projections and recommendations against real 2026 results
 - [ ] Pull 2026 data, retrain
-- [ ] Team-context features (target/rush/snap rank within team, QB quality on receivers, team pass rate and pace), all lagged, joined on the player's **current** team so free-agency and trade moves are reflected
+- [x] Team-context features: done early, in Phase 1. Joined on the player's current (start-of-season roster) team and lagged. Only survivors are in the model; team pass rate/pace/EPA, QB quality on receivers, depth ranks within team and OL features all tested null (see `STATUS.md`). Remaining here: re-check with 2026 data
 - [ ] Half-PPR and standard targets
-- [ ] ADP-to-points fallback curve for rookies and missing players
+- [x] ADP-to-points fallback curve for rookies and missing players: done in Phase 1 (`src/draft/market_fallback.py`, rows flagged `market_estimate`)
 
 ### Phase 4: Recommender v2 (Feb to Apr 2027)
 - [ ] Single score across all available players (replaces position-first selection)
@@ -115,6 +118,7 @@ features / train / predict   ---->                       VOR, tiers, recommender
 - Current-season ADP source for 2027 (currently a manual Underdog CSV via 4for4)
 - Code signing
 - Real rookie model (college production, draft capital, landing spot), post-August
-- Vegas implied totals as a feature
+- Coaching tendencies (head-coach pass-over-expected, pace, 4th-down aggression): deferred, needs scoping
+- Vegas implied totals: in the model as the team's PRIOR-season total only (the season's own lines leaked results); a true preseason line source would need a new data feed
 - Component-stat projections for custom scoring
 - Archetype-based RMSE splits for ceiling/floor (from plan.txt V2 list)
