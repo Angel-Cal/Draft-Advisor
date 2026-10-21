@@ -6,7 +6,7 @@ import json
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.models.train import Model
 from src.models.train import split_positions
-from src.data.pipeline import save_data, save_data_as_csv
+from src.data.pipeline import save
 
 
 def load_json(filename):
@@ -26,7 +26,7 @@ def load_data():
     return prediction_df, training_df, qb_params, rb_params, wr_params,te_params
 
 def save_metadata(df):
-    df = df[["player_name", "player_id"]].copy()
+    df = df[["player_name", "player_id", "games", "games_delta", "injury_flag"]].copy()
     return df
 
 def drop_season(df):
@@ -34,8 +34,9 @@ def drop_season(df):
     return df
 
 def drop_meta(df):
-    df = df.drop(columns=['player_id', 'player_name'])
+    df = df.drop(columns=['player_id', 'player_name', "injury_flag"])
     return df
+
 if __name__ == "__main__":
     prediction_df, training_df, qb_params, rb_params, wr_params, te_params = load_data()
     qb_training_df, rb_training_df, wr_training_df, te_training_df = split_positions(training_df)
@@ -81,24 +82,19 @@ if __name__ == "__main__":
 
     qb_results = qb_meta.copy()
     qb_results['projected_ppr'] = qb_prediction # type: ignore
-    save_data(qb_results, "qb_predictions")
-    save_data_as_csv(qb_results, "qb_predictions")
+    save(qb_results, "qb_predictions")
 
     rb_results = rb_meta.copy()
     rb_results['projected_ppr'] = rb_prediction # type: ignore
-    save_data(rb_results, "rb_predictions")
-    save_data_as_csv(rb_results, "rb_predictions")
-
+    save(rb_results, "rb_predictions")
 
     wr_results = wr_meta.copy()
     wr_results['projected_ppr'] = wr_prediction # type: ignore
-    save_data(wr_results, "wr_predictions")
-    save_data_as_csv(wr_results, "wr_predictions")
+    save(wr_results, "wr_predictions")
 
     te_results = te_meta.copy()
     te_results['projected_ppr'] = te_prediction # type: ignore
-    save_data(te_results, "te_predictions")
-    save_data_as_csv(te_results, "te_predictions")
+    save(te_results, "te_predictions")
 
 
     

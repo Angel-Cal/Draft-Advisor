@@ -27,8 +27,9 @@ positional scarcity, opponent roster tracking, and draft run detection.
 
 - Pulls historical NFL data (2015-2025) via nflreadpy: seasonal stats, play-by-play,
   rosters, snap counts, player IDs
-- Cleans and merges datasets, derives age from birth date, computes Vegas implied
-  team totals as offensive context features
+- Cleans and merges datasets, derives age from birth date
+- Computes Vegas implied team totals (from schedule spread/total lines) as offensive
+  context features; recomputes target share and air yards share as per-game rates
 
 ### 2. Feature Engineering (`src/features/build_features.py`)
 
@@ -51,8 +52,7 @@ positional scarcity, opponent roster tracking, and draft run detection.
 ### 4. Draft Advisor (`src/draft/`) — In Development
 
 - Value Over Replacement (VOR) with FLEX-adjusted replacement levels
-- ADP integration: Sleeper API + Underdog CSV (via 4for4) averaged into
-  sharp consensus ADP
+- ADP integration: Underdog ADP CSV (via 4for4)
 - Ceiling/floor bands derived from position-level walk-forward RMSE
 - Adaptive risk profiling by round and roster composition
 - Positional run detection (continuous intensity, not boolean)
@@ -80,9 +80,10 @@ DraftBot/
 │   │   ├── train.py          # Model training, walk-forward validation, Optuna tuning
 │   │   └── predict.py        # Generates 2026 projections from trained models
 │   └── draft/
-│       ├── vor.py            # VOR calculation and ADP integration
-│       ├── roster.py         # Draft state tracking (all 12 rosters)
-│       ├── recommend.py      # Recommendation engine
+│       ├── vor.py            # VOR calculation, ceiling/floor, tiers, ADP integration
+│       ├── roster.py         # Per-team roster needs and flex/bench tracking
+│       ├── draft_state.py    # Snake draft order and 12-team player pool
+│       ├── recommender.py    # Position + player scoring and recommendation
 │       └── advisor.py        # Interactive CLI draft assistant
 ├── plan.txt                  # Draft advisor design spec
 ├── requirements.txt

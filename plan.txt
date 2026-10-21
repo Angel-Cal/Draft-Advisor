@@ -1,0 +1,145 @@
+## Draft Advisor Spec
+
+### Modules
+
+**`src/draft/vor.py`**
+- Load position projection CSVs
+- Load ADP: Sleeper via API + Underdog CSV from 4for4, average into consensus sharp ADP
+- Dynamically derive replacement level from projection pool using corrected constants
+  that account for FLEX: QB13, RB30, WR42, TE13
+- Compute `vor = projected_ppr - replacement_level`, floor at 0
+- Compute ceiling/floor bands using position-level RMSE from walk-forward results
+- Compute availability adjustment for low-sample injury-absence players:
+    Condition: `games < 13 AND games_delta < -5` (missed significant time vs prior season;
+    excludes backups/rotational players who always play limited snaps)
+    `health_ceiling = min(projected_ppr * (17 / games), projected_ppr * 2.0)`
+    Final ceiling = `max(rmse_ceiling, health_ceiling)`
+    Set `availability_flag = True` for these players (used in reasoning string)
+    Note: `games` must be saved alongside projected_ppr in predict.py
+- Compute `value_gap = adp_rank - vor_rank` (positive = undervalued, negative = overvalued)
+- Output: single DataFrame with `player_name, position, projected_ppr, vor, ceiling,
+  floor, adp_rank, value_gap, availability_flag`
+
+**`src/draft/roster.py`**
+- `DraftState` class
+  - `__init__(draft_position, num_teams=12)` — snake draft pick order derived from position
+  - `record_pick(player_name, team)` — updates available pool and all 12 rosters
+  - `get_available()` — returns remaining player pool
+  - `get_your_roster()` — returns your current picks by position
+  - `get_roster_composition()` — returns count per position for any team
+  - `get_all_rosters()` — returns roster composition for all 12 teams
+  - `get_picks_until_next_turn(team)` — returns number of picks until a given team's
+    next pick (needed by position safety and run modeling)
+  - `is_your_pick(pick_number)` — returns bool
+  - `get_current_pick()` — current pick number and round
+
+**`src/draft/recommend.py`**
+- `compute_need_scores(roster_composition, round, available_pool)` — per-position need
+  weights 0-1, accounts for unfilled starting slots, round context, and remaining
+  positional depth. Need influence capped and nonlinear — increases only after round
+  6-7 to avoid over-drafting for need too early.
+- `detect_runs(recent_picks, adp)` — tracks rolling average of (actual_pick -
+  expected_adp_pick) per position over last N picks, giving run intensity as a
+  continuous signal rather than a boolean flag
+- `compute_run_adjustment(position, available_pool, vor)` — cost-of-waiting:
+  simulates next pick window and estimates expected remaining player VOR.
+  run_cost = current_best_vor - expected_vor_at_next_pick
+- `compute_risk_profile(round, roster_composition)` — adaptive risk by round:
+    Rounds 1-3: minimize bust probability, favor floor
+    Rounds 4-8: maximize asymmetric upside, favor ceiling delta
+    Rounds 9+: maximize pure variance
+- `estimate_position_safety(position, available_pool, other_rosters,
+  picks_until_yours)` — probabilistic model:
+    For each team picking before you:
+      P(team drafts position) = f(roster_need, ADP_pressure, positional scarcity)
+    P(player survives) = product(1 - P(team drafts position))
+- `compute_tiers(position, available_pool, vor)` — identifies VOR dropoff boundaries
+  per position and penalizes crossing a tier boundary when waiting
+- `rank_available(available_pool, need_scores, run_adjustment, risk_profile,
+  position_safety, tiers)` — final ranked recommendations with reasoning string
+  per player
+
+  Final recommendation score (additive weighted sum):
+  score =
+      w1 * normalized_vor
+    + w2 * need_score
+    + w3 * run_adjustment
+    + w4 * position_safety
+    + w5 * risk_score
+    + w6 * value_gap
+    + w7 * tier_penalty
+
+**`src/draft/advisor.py`** — CLI entry point
+```
+prompt: draft position (1-12)
+derive snake pick order
+load projections + ADP (vor.py)
+initialize DraftState (roster.py)
+
+loop until roster full:
+    if your pick:
+        call rank_available()
+        display top 5 with: name, position, projected_ppr,
+          vor, adp_rank, value_gap, ceiling/floor, reasoning
+        prompt: who did you pick?
+        record_pick(player, your_team)
+    else:
+        prompt: who was just picked?
+        record_pick(player, other_team)
+        detect_runs()
+```
+
+---
+
+### Roster Settings
+- 12 teams, snake draft
+- Starters: 1 QB, 2 RB, 3 WR, 1 TE, 1 FLEX (RB/WR/TE)
+- Replacement level (FLEX-adjusted): QB13, RB30, WR42, TE13
+- DST/K ignored
+
+---
+
+### Risk Profile (Adaptive)
+- Rounds 1-3: minimize bust probability, favor floor + VOR, value gap must be
+  positive (don't reach)
+- Rounds 4-8: maximize asymmetric upside, begin weighting ceiling delta for skill
+  positions
+- Rounds 9+: maximize pure variance, floor irrelevant at this depth
+
+---
+
+### Other Roster Tracking
+All 12 team rosters are tracked throughout the draft via DraftState. This feeds
+into estimate_position_safety() to determine whether a player at a given position
+is likely to survive to your next pick based on the positional needs of teams
+drafting between your picks.
+
+Example: RB and WR have similar VOR with picks 3.08 and 4.04 coming up.
+If most teams picking between 3.08 and 4.04 are RB-heavy, they are less likely
+to take the RB, making it safer to take the WR first and let the RB drop.
+
+---
+
+### Testing Plan
+- pytest unit tests for all pure functions (VOR calc, need scores, run detection,
+  value gap, position safety, tier calculation)
+- Manual sanity check of interactive loop with a few mock drafts
+- Post-v1 validation: simulate drafts against historical ADP, score rosters with
+  actual stats, benchmark percentile finish against FFPC/Underdog Best Ball Mania
+  historical field. Evaluate using regret metric:
+  regret = best_possible_pick - chosen_pick
+
+---
+
+### V2 Improvements (Deferred)
+- Z-score normalization of value gap:
+    value_gap = zscore(vor) - zscore(adp)
+  Avoids treating RB5 vs RB10 the same as RB40 vs RB45
+- Archetype-based RMSE splits for ceiling/floor bands:
+    High-usage RBs vs committee RBs
+    WR1 vs WR3 archetypes
+  Even a crude top-tier vs rest split improves realism
+- Regret-based evaluation metric for simulation testing:
+    regret = best_possible_pick - chosen_pick
+- Bulk draft input in advisor.py CLI (paste full round or ADP log)
+  to reduce manual entry friction during testing

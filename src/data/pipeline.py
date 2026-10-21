@@ -1,7 +1,6 @@
 import pandas as pd
 import nflreadpy as nflread
 from pathlib import Path
-import numpy as np
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.features.build_features import build_features, build_prediction_features
@@ -18,6 +17,15 @@ def load_data():
     snaps = pd.read_parquet(RAW_DIR/'snap_counts_20_25.parquet')
 
     return seasonal, roster, pbp, id, snaps
+
+def load_predictions():
+    adp_table = pd.read_csv(Path(__file__).parent.parent.parent / "data" / "external" / "4for4-adp-table.csv")
+    qb_predictions = pd.read_parquet(PROCESSED_DIR / "qb_predictions.parquet")
+    rb_predictions = pd.read_parquet(PROCESSED_DIR / "rb_predictions.parquet")
+    wr_predictions = pd.read_parquet(PROCESSED_DIR / "wr_predictions.parquet")
+    te_predictions = pd.read_parquet(PROCESSED_DIR / "te_predictions.parquet")
+
+    return adp_table, qb_predictions, rb_predictions, wr_predictions, te_predictions
 
 def clean_data(roster, season):
     ROSTER_KEEP_COLS = [
@@ -88,17 +96,31 @@ def clean_data(roster, season):
     merged_df = merged_df.merge(totals_df, on =['team', 'season'])
     print(f"After totals merge: {len(merged_df)}")
 
+    team_stats = (season.groupby(['recent_team', 'season'])
+        .agg(team_targets=('targets', 'sum'),
+             team_air_yards=('receiving_air_yards', 'sum'),
+             team_games=('games', 'max'))
+        .reset_index()
+        .rename(columns={'recent_team': 'team'}))
+    merged_df = merged_df.merge(team_stats, on=['team', 'season'], how='left')
+    merged_df['target_share'] = (merged_df['targets'] / merged_df['games']) / (merged_df['team_targets'] / merged_df['team_games'])
+    merged_df['air_yards_share'] = (merged_df['receiving_air_yards'] / merged_df['games']) / (merged_df['team_air_yards'] / merged_df['team_games'])
+    merged_df['wopr'] = 1.5 * merged_df['target_share'] + 0.7 * merged_df['air_yards_share']
+    merged_df = merged_df.drop(columns=['team_targets', 'team_air_yards', 'team_games'])
 
     return merged_df
 
-def save_data(df, file_name):
+def save_data_as_parquet(df, file_name):
     filepath = PROCESSED_DIR / f'{file_name}.parquet'
     df.to_parquet(filepath)
 
 def save_data_as_csv(df, file_name):
     filepath = PROCESSED_DIR / f'{file_name}.csv'
     df.to_csv(filepath, index='false')
-    
+
+def save(df, filename):
+    save_data_as_csv(df, filename)
+    save_data_as_parquet(df, filename)
 
 def load_totals():
     schedules = nflread.load_schedules(list(range(2015, 2026))).to_pandas()
@@ -116,15 +138,26 @@ def load_totals():
     return totals_df
 
 
+
+
+
+
 if __name__ == "__main__":
     seasonal, roster, pbp, id, snaps = load_data()
     df = clean_data(roster, seasonal)
     prediction_df = build_prediction_features(df, pbp, id, snaps)
 
     df = build_features(df, pbp, id, snaps)
-    save_data(df, "training_data")
-    save_data(prediction_df, "prediction_data")
+    save(df, "training_data")
+    save(prediction_df, "prediction_data")
     print(f"Saved {len(df)} rows to {PROCESSED_DIR}")
+
+
+    
+
+
+    
+
 
 
 

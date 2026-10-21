@@ -14,7 +14,8 @@ env/
 *.swp
 *.swo
 
-# Jupyter Notebook checkpoints
+# Jupyter Notebooks
+notebooks/
 .ipynb_checkpoints/
 
 # Data files (large files should not be committed)

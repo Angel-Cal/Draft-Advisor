@@ -190,10 +190,20 @@ def compute_deltas(df, delta_df):
     for col in DELTA_SHIFT_COLS:
         df[f"{col}_delta"] = df[col] - delta_df[col]
     delta_cols = [f"{col}_delta" for col in DELTA_SHIFT_COLS]
-    df[delta_cols] = df[DELTA_SHIFT_COLS].fillna(0)
+    df[delta_cols] = df[delta_cols].fillna(0)
     return df
  
+def add_injury_flag(df):
+    games_per_season = df.groupby(["player_id", "season"])["games"].sum().reset_index()
+    season_counts = games_per_season.groupby("player_id")["season"].nunique()
+    valid_players = season_counts[season_counts >= 2].index
 
+    games_per_season = games_per_season[games_per_season["player_id"].isin(valid_players)]
+    avg_games = games_per_season.groupby("player_id")["games"].mean().reset_index(name="avg_games_played")
+
+    return avg_games[["player_id", "avg_games_played"]].assign(
+        injury_flag=avg_games["avg_games_played"] < 15
+        )[["player_id", "injury_flag"]]
 
 def remove_cols(df):
     DROP_COLS = [
@@ -248,6 +258,8 @@ def build_features(df, pbp, id, snaps):
     return df
 
 def build_prediction_features(df, pbp, id, snaps):
+    injury_flags = add_injury_flag(df)
+
     df_recent = df[df['season'].isin([2024, 2025])].copy()
     df_recent = df_recent.sort_values(['player_id', 'season'])
     df_recent = add_per_game(df_recent)
@@ -259,7 +271,9 @@ def build_prediction_features(df, pbp, id, snaps):
     df_2025 = df_recent[df_recent['season'] == 2025].copy()
     delta_df_2025 = delta_df[delta_df['season'] == 2025].copy()
 
-    df_2025 = add_surge_features(df_2025, pbp, id, snaps)
     df_2025 = compute_deltas(df_2025, delta_df_2025)
+    df_2025 = add_surge_features(df_2025, pbp, id, snaps)
+    df_2025 = df_2025.merge(injury_flags, on="player_id", how="left")
+    df_2025["injury_flag"] = df_2025["injury_flag"].fillna(False)
     df_2025 = remove_cols(df_2025)
     return df_2025
