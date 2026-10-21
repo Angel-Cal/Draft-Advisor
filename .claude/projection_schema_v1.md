@@ -28,7 +28,7 @@ Saved to `data/processed/` locally; published as a GitHub Release asset for dist
 | `projected_standard` | float | Projected standard-scoring points. *(same caveat as half)* |
 | `games` | int | Games played in most recent season (from training data). |
 | `games_delta` | int | Year-over-year change in games played. |
-| `position_rmse` | float | Walk-forward RMSE for this position's model (QB 78.68, RB 62.10, WR 54.87, TE 39.25 as of v1). Used for ceiling/floor in C#. |
+| `position_rmse` | float | Walk-forward RMSE for this position's model (QB 84.28, RB 62.24, WR 56.00, TE 39.56 as of 2026-10, 5-seed mean over test seasons 2021-2025). Used for ceiling/floor in C#. |
 | `underdog_adp` | float | Underdog ADP (source: 4for4 CSV). `NaN` if player not listed. |
 | `injury_flag` | bool | True if `games < 13` AND `games_delta < -5`. Signals a player returning from significant missed time. |
 | `market_estimate` | bool | True if projection is ADP-derived fallback (no NFL history — rookies, etc.). *(set by `src/draft/market_fallback.py` in the advisor table: ADP-derived projection for players the model cannot score; synthetic `market:<name>` IDs when no GSIS ID exists)* |
