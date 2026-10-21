@@ -30,6 +30,8 @@ ADVANCED_GROUPS = {
     "team_epa": ["team_pass_epa_prev", "team_rush_epa_prev", "team_success_prev"],
     "ngs": [f"ngs_{kind[:4]}_{col}" for kind, cols in NGS_COLUMNS.items() for col in cols],
     "ol": ["ol_returning_starters", "ol_snap_continuity", "ol_incoming_starters"],
+    "ol_quality": ["ol_aly_prev", "ol_asr_prev"],
+    "ol_interaction": ["ol_aly_x_cont", "ol_asr_x_cont"],
 }
 OL_STARTERS = 5            # the unit
 OL_STARTER_SNAPS = 500     # plays on the field that mark an OL as a starter-level player
@@ -114,6 +116,45 @@ def build_ol_features(participation, pbp, roster):
     return start.merge(team, on=["team_now", "season"], how="left")[["player_id", "season"] + ADVANCED_GROUPS["ol"]]
 
 
+def _line_yard_credit(yards):
+    """Football Outsiders' adjusted-line-yards weights: losses x1.2, 0-4 yards x1, 5-10 yards x0.5, beyond 10 nothing."""
+    return np.where(yards < 0, 1.2 * yards, np.where(yards <= 4, yards, 4 + 0.5 * (np.minimum(yards, 10) - 4)))
+
+
+def _situation(plays):
+    """Down and distance bucket used to adjust for how hard the situation is."""
+    return plays["down"].astype(int).astype(str) + "_" + pd.cut(plays["ydstogo"], [-1, 2, 5, 9, 99], labels=False).astype(str)
+
+
+def build_ol_quality_features(pbp, roster, ol_features):
+    """Prior-season team adjusted line yards (run) and adjusted sack rate (pass), relative to the league in the same
+    down and distance, for the team a player starts season t with, plus both crossed with that team's OL continuity.
+
+    Rebuilt from play-by-play in the spirit of Football Outsiders; no opponent adjustment. Both are outcomes shared
+    with the back and the quarterback, so they are noisy measures of the line.
+    """
+    plays = pbp[(pbp["season_type"] == "REG") & pbp["down"].notna()].copy()
+    plays["team"] = _norm(plays["posteam"])
+    plays["situation"] = _situation(plays)
+
+    runs = plays[(plays["play_type"] == "run") & (plays["qb_scramble"] != 1) & (plays["qb_kneel"] != 1)
+                 & plays["yards_gained"].notna()].copy()
+    runs["credit"] = _line_yard_credit(runs["yards_gained"].values)
+    runs["aly"] = runs["credit"] - runs.groupby("situation")["credit"].transform("mean")
+
+    dropbacks = plays[plays["qb_dropback"] == 1].copy()
+    dropbacks["asr"] = 100 * (dropbacks["sack"] - dropbacks.groupby("situation")["sack"].transform("mean"))
+
+    team = pd.concat([runs.groupby(["team", "season"])["aly"].mean().rename("ol_aly_prev"),
+                      dropbacks.groupby(["team", "season"])["asr"].mean().rename("ol_asr_prev")], axis=1).reset_index()
+    team = _shift_to_next_season(team).rename(columns={"team": "team_now"})
+    out = _roster_start(roster).merge(team, on=["team_now", "season"], how="left")
+    out = out.merge(ol_features[["player_id", "season", "ol_snap_continuity"]], on=["player_id", "season"], how="left")
+    out["ol_aly_x_cont"] = out["ol_aly_prev"] * out["ol_snap_continuity"]
+    out["ol_asr_x_cont"] = out["ol_asr_prev"] * out["ol_snap_continuity"]
+    return out[["player_id", "season"] + ADVANCED_GROUPS["ol_quality"] + ADVANCED_GROUPS["ol_interaction"]]
+
+
 def _depth_tier(position, rank):
     """Old charts list WRs in pairs per tier; newer snapshots rank every player sequentially."""
     return np.where(position == "WR", np.ceil(rank / 2), rank)
@@ -165,14 +206,20 @@ def build_ngs_features(ngs_by_type):
 def load_advanced_context(roster):
     """All groups from the cached raw files, as {group: frame}."""
     pbp = pd.read_parquet(RAW / "pbp_20_25.parquet", columns=["game_id", "play_id", "season", "season_type", "posteam",
-                                                               "play_type", "epa", "success", "pass", "rush"])
+                                                               "play_type", "epa", "success", "pass", "rush", "down",
+                                                               "ydstogo", "yards_gained", "qb_scramble", "qb_kneel",
+                                                               "qb_dropback", "sack"])
     participation = pd.read_parquet(RAW / "participation_16_25.parquet")
     ngs = {kind: pd.read_parquet(RAW / f"ngs_{kind}_16_25.parquet") for kind in NGS_COLUMNS}
     depth_new = {season: pd.read_parquet(RAW / f"depth_new_{season}.parquet") for season in OPENERS}
+    ol = build_ol_features(participation, pbp, roster)
+    ol_quality = build_ol_quality_features(pbp, roster, ol)
     return {
         "xfp": build_xfp_features(pd.read_parquet(RAW / "ff_opportunity_14_25.parquet")),
         "role": build_role_features(participation, pbp),
-        "ol": build_ol_features(participation, pbp, roster),
+        "ol": ol,
+        "ol_quality": ol_quality,
+        "ol_interaction": ol_quality,
         "depth": build_depth_features(pd.read_parquet(RAW / "depth_old_14_24.parquet"), depth_new),
         "team_epa": build_team_epa_features(pbp, roster),
         "ngs": build_ngs_features(ngs),

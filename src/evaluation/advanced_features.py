@@ -17,10 +17,13 @@ NGS_FOR = {"QB": ["ngs_pass_"], "RB": ["ngs_rush_", "ngs_rece_"], "WR": ["ngs_re
 
 
 def group_columns(group, position):
-    """Candidate columns of a group for a position: not already in that position's model."""
-    columns = ADVANCED_GROUPS[group]
-    if group == "ngs":
-        columns = [c for c in columns if any(c.startswith(prefix) for prefix in NGS_FOR[position])]
+    """Candidate columns of a group (or 'a+b' union of groups) for a position: not already in its model."""
+    columns = []
+    for name in group.split("+"):
+        part = ADVANCED_GROUPS[name]
+        if name == "ngs":
+            part = [c for c in part if any(c.startswith(prefix) for prefix in NGS_FOR[position])]
+        columns += part
     return [c for c in columns if c not in POSITION_FEATURES[position]]
 
 
@@ -41,7 +44,7 @@ if __name__ == "__main__":
     rows = []
     for position in POSITIONS:
         frame = position_frame(position, train, context)
-        candidates = [c for group in ADVANCED_GROUPS for c in group_columns(group, position)]
+        candidates = [c for group in ADVANCED_GROUPS for c in group_columns(group, position)]  # everything testable
         keys = top150_keys(position)
 
         def run(features, noise=0):
@@ -60,7 +63,7 @@ if __name__ == "__main__":
                              rmse_delta=(r[:, 2] - base[:, 2]).mean()))
         print(f"{position} done", flush=True)
     out = pd.DataFrame(rows)
-    name = "advanced_features_ablation.csv" if len(groups) == len(ADVANCED_GROUPS) else f"advanced_{'_'.join(groups)}_ablation.csv"
+    name = "advanced_features_ablation.csv" if len(groups) == len(ADVANCED_GROUPS) else f"advanced_{'_'.join(g.replace('+', '-') for g in groups)}_ablation.csv"
     out.to_csv(ROOT / "data" / "processed" / name, index=False)
     pd.set_option("display.width", 200)
     print(out.round(4).to_string(index=False))
