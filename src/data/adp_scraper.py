@@ -97,5 +97,9 @@ if __name__ == "__main__":
     print(f"{len(adp)} rows, {len(unmatched)} without player_id")
     print(unmatched[["season", "name", "position", "rank"]].sort_values("rank").head(30).to_string())
 
-    adp[["season", "snapshot", "player_id", "name", "position", "team", "rank", "adp"]].to_csv(
-        ROOT / "data" / "processed" / "historical_adp.csv", index=False)
+    out_dir = ROOT / "data" / "external"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    adp = adp.dropna(subset=["player_id"])
+    for season, season_df in adp.groupby("season"):
+        season_df[["season", "snapshot", "player_id", "name", "position", "team", "rank", "adp"]].to_csv(
+            out_dir / f"adp_{season}.csv", index=False)
