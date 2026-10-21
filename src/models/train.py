@@ -9,7 +9,7 @@ import optuna
 import sys
 import json
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from src.features.team_context import RB_FEATURES
+from src.features.team_context import RB_FEATURES, QB_MODEL_FEATURES
 
 
 
@@ -250,13 +250,13 @@ def split_positions(df):
     qb_df = qb_df.drop(columns=QB_DROP_COLS + RB_FEATURES)
 
     rb_df = df[df["position"] == "RB"]
-    rb_df = rb_df.drop(columns=RB_DROP_COLS)
+    rb_df = rb_df.drop(columns=RB_DROP_COLS + QB_MODEL_FEATURES)
 
     wr_df = df[df["position"] == "WR"]
-    wr_df = wr_df.drop(columns=WR_DROP_COLS + RB_FEATURES)
+    wr_df = wr_df.drop(columns=WR_DROP_COLS + RB_FEATURES + QB_MODEL_FEATURES)
 
     te_df = df[df["position"] == "TE"]
-    te_df = te_df.drop(columns=WR_DROP_COLS + RB_FEATURES)
+    te_df = te_df.drop(columns=WR_DROP_COLS + RB_FEATURES + QB_MODEL_FEATURES)
 
     return qb_df, rb_df, wr_df, te_df
 

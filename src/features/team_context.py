@@ -18,6 +18,8 @@ RB_FEATURES = FEATURE_GROUPS["vacated"]
 WR_COMPETITION = ["competing_pass_targets", "incoming_pass_targets"]
 WR_FEATURES = ["vacated_target_share"] + WR_COMPETITION
 QB_FEATURES = ["qb1_ypa_prev", "qb1_epa_per_att_prev", "qb1_unproven", "qb_changed"]
+QB_DEPTH_FEATURES = ["qb_is_expected_starter", "qb_att_share_prev", "qb_rookie_competitor", "qb_proven_competitor"]
+QB_MODEL_FEATURES = ["qb_att_share_prev"]  # the subset that survived ablation
 MIN_QB_ATTEMPTS = 100  # below this a QB1 has no usable prior-season quality estimate
 FIRST_ROUND_PICKS = 32
 
@@ -41,11 +43,8 @@ def _roster_start(roster):
     return r[["player_id", "season", "position", "team_now"]]
 
 
-def _qb_features(seasonal, roster):
-    """Per team-season: the QB1 expected to start and how good he was last season.
-
-    QB1 is a first-round rookie if the roster has one, otherwise the roster QB with the most prior-season attempts.
-    """
+def _roster_qbs(seasonal, roster):
+    """Start-of-season roster QBs with their prior-season stats and whether they are first-round rookies."""
     stats = seasonal[seasonal["position"] == "QB"][["player_id", "season", "recent_team", "attempts",
                                                      "passing_yards", "passing_epa"]].copy()
     stats["team"] = _norm(stats["recent_team"])
@@ -60,9 +59,21 @@ def _qb_features(seasonal, roster):
     qbs = qbs.merge(prev[["player_id", "season", "prev_att", "prev_yds", "prev_epa"]],
                     on=["player_id", "season"], how="left")
     qbs["prev_att"] = qbs["prev_att"].fillna(0)
+    return stats, qbs
 
-    qb1 = (qbs.sort_values(["first_round_rookie", "prev_att"], ascending=False)
-              .groupby(["team_now", "season"], as_index=False).head(1).copy())
+
+def _pick_qb1(qbs):
+    return (qbs.sort_values(["first_round_rookie", "prev_att"], ascending=False)
+               .groupby(["team_now", "season"], as_index=False).head(1))
+
+
+def _qb_features(seasonal, roster):
+    """Per team-season: the QB1 expected to start and how good he was last season.
+
+    QB1 is a first-round rookie if the roster has one, otherwise the roster QB with the most prior-season attempts.
+    """
+    stats, qbs = _roster_qbs(seasonal, roster)
+    qb1 = _pick_qb1(qbs).copy()
     proven = qb1["prev_att"] >= MIN_QB_ATTEMPTS
     qb1["qb1_unproven"] = (~proven).astype(float)
     qb1["qb1_ypa_prev"] = (qb1["prev_yds"] / qb1["prev_att"]).where(proven)
@@ -75,6 +86,23 @@ def _qb_features(seasonal, roster):
     qb1 = qb1.merge(last_starter, on=["team_now", "season"], how="left")
     qb1["qb_changed"] = (qb1["player_id"] != qb1["qb1_last_year"]).astype(float).where(qb1["qb1_last_year"].notna())
     return qb1[["team_now", "season"] + QB_FEATURES]
+
+
+def build_qb_depth_features(seasonal, roster):
+    """Per QB-season: is he the expected starter, his share of the roster's prior attempts, and his competition."""
+    _, qbs = _roster_qbs(seasonal, roster)
+    qbs = qbs.merge(_pick_qb1(qbs)[["team_now", "season", "player_id"]].assign(qb_is_expected_starter=1.0),
+                    on=["team_now", "season", "player_id"], how="left")
+    qbs["qb_is_expected_starter"] = qbs["qb_is_expected_starter"].fillna(0.0)
+    by_team = qbs.groupby(["team_now", "season"])
+    team_att = by_team["prev_att"].transform("sum")
+    qbs["qb_att_share_prev"] = (qbs["prev_att"] / team_att).where(team_att > 0)
+    rookies = by_team["first_round_rookie"].transform("sum") - qbs["first_round_rookie"].astype(int)
+    qbs["qb_rookie_competitor"] = (rookies > 0).astype(float)
+    proven = (qbs["prev_att"] >= MIN_QB_ATTEMPTS)
+    others_proven = proven.groupby([qbs["team_now"], qbs["season"]]).transform("sum") - proven.astype(int)
+    qbs["qb_proven_competitor"] = (others_proven > 0).astype(float)
+    return qbs[["player_id", "season"] + QB_DEPTH_FEATURES]
 
 
 def _team_points_per_game(schedules):
@@ -162,4 +190,10 @@ def build_team_context(seasonal, roster, schedules=None):
 def add_rb_features(df, context, season_offset=0):
     """Merge the RB feature set onto df; season_offset=1 maps a 2025 prediction row to the 2026 context."""
     keyed = context[["player_id", "season"] + RB_FEATURES].assign(season=lambda c: c["season"] - season_offset)
+    return df.merge(keyed, on=["player_id", "season"], how="left")
+
+
+def add_qb_features(df, depth, season_offset=0):
+    """Merge the QB feature set onto df; season_offset=1 maps a 2025 prediction row to the 2026 context."""
+    keyed = depth[["player_id", "season"] + QB_MODEL_FEATURES].assign(season=lambda d: d["season"] - season_offset)
     return df.merge(keyed, on=["player_id", "season"], how="left")

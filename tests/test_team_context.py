@@ -110,3 +110,15 @@ def test_veteran_qb1_quality_uses_prior_season(qb_data):
     assert r["qb1_ypa_prev"] == pytest.approx(7.0)
     assert r["qb1_epa_per_att_prev"] == pytest.approx(0.1)
     assert r["qb_changed"] == 0.0
+
+
+def test_qb_depth_features(qb_data):
+    from src.features.team_context import build_qb_depth_features
+    d = build_qb_depth_features(*qb_data).set_index("player_id")
+    # AAA: first-round rookie1 is expected starter; vet (500 att) is a proven competitor, backup (50) is not
+    assert d.loc["rookie1", "qb_is_expected_starter"] == 1.0 and d.loc["vet", "qb_is_expected_starter"] == 0.0
+    assert d.loc["vet", "qb_rookie_competitor"] == 1.0 and d.loc["rookie1", "qb_rookie_competitor"] == 0.0
+    assert d.loc["rookie1", "qb_proven_competitor"] == 1.0
+    assert d.loc["vet", "qb_att_share_prev"] == pytest.approx(500 / 500)   # rookie1 has no prior attempts; backup is on BBB
+    # BBB: the only roster QB is backup (50 att) and he has no proven competitor
+    assert d.loc["backup", "qb_is_expected_starter"] == 1.0 and d.loc["backup", "qb_proven_competitor"] == 0.0
