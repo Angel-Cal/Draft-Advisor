@@ -92,11 +92,12 @@ def test_prior_season_features_are_lagged_not_leaked(training, raw_seasonal):
 
 @needs(PROCESSED / "training_data.parquet")
 def test_features_are_isolated_to_their_position(training):
-    qb, rb, wr, te = split_positions(training)
-    assert set(QB_MODEL_FEATURES) <= set(qb.columns) and not set(RB_FEATURES) & set(qb.columns)
-    assert set(RB_FEATURES) <= set(rb.columns) and not set(QB_MODEL_FEATURES) & set(rb.columns)
-    for frame in (wr, te):
-        assert not (set(RB_FEATURES) | set(QB_MODEL_FEATURES)) & set(frame.columns)
+    from src.features.registry import POSITION_FEATURES, other_position_features
+    frames = dict(zip(["QB", "RB", "WR", "TE"], split_positions(training)))
+    for position, frame in frames.items():
+        assert set(POSITION_FEATURES[position]) <= set(frame.columns), f"{position} is missing its engineered features"
+        leaked = set(other_position_features(position)) & set(frame.columns)
+        assert not leaked, f"{position} frame carries other positions' features: {sorted(leaked)}"
 
 
 @needs(PROCESSED / "training_data.parquet")
@@ -165,3 +166,13 @@ def test_advisor_rmse_constants_match_the_current_walk_forward_error():
     for position, group in oos.groupby("position"):
         current = np.mean([np.sqrt(((group[c] - group["actual_ppr"]) ** 2).mean()) for c in seed_columns])
         assert RMSE[position] == pytest.approx(current, rel=0.05), f"{position}: vor.py has {RMSE[position]}, current {current:.2f}"
+
+
+@needs(RAW / "ff_opportunity_14_25.parquet", PROCESSED / "training_data.parquet")
+def test_expected_points_feature_is_last_seasons_opportunity(training):
+    opportunity = pd.read_parquet(RAW / "ff_opportunity_14_25.parquet")
+    last_year = opportunity.groupby(["player_id", "season"])["total_fantasy_points_exp"].sum().rename("expected")
+    last_year.index = last_year.index.set_levels(last_year.index.levels[1] + 1, level="season")
+    joined = training.dropna(subset=["xfp_ppr_prev"]).merge(last_year.reset_index(), on=["player_id", "season"])
+    assert len(joined) > 800
+    assert np.allclose(joined["xfp_ppr_prev"], joined["expected"])

@@ -9,6 +9,8 @@ from src.data.validate import (drop_junk_rows, check_raw_seasonal, check_raw_ros
 from src.data.run_manifest import update_manifest
 from src.features.team_context import (build_team_context, add_rb_features, build_qb_depth_features,
                                        add_qb_features, TEAM_MAP)
+from src.features.advanced import load_advanced_context, add_advanced_features
+from src.features.registry import ADVANCED_MODEL_COLUMNS
 
 
 RAW_DIR = Path(__file__).parent.parent.parent / "data" / "raw"
@@ -198,6 +200,9 @@ if __name__ == "__main__":
     qb_depth = build_qb_depth_features(seasonal, roster_all)
     df = add_qb_features(df, qb_depth)
     prediction_df = add_qb_features(prediction_df, qb_depth, season_offset=1)
+    advanced = load_advanced_context(roster_all[roster_all["gsis_id"].notna()])
+    df = add_advanced_features(df, advanced, ADVANCED_MODEL_COLUMNS)
+    prediction_df = add_advanced_features(prediction_df, advanced, ADVANCED_MODEL_COLUMNS, season_offset=1)
     # prediction rows must be shaped exactly like training rows: same column order, same dtypes
     shared = [c for c in df.columns if c in prediction_df.columns]
     prediction_df = prediction_df[shared + [c for c in prediction_df.columns if c not in df.columns]]

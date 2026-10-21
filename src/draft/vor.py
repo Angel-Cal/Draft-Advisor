@@ -8,7 +8,7 @@ from src.data.validate import check_advisor_table
 from src.draft.market_fallback import load_history, fit_position_curves, market_projections
 
 # pooled walk-forward RMSE, test seasons 2021-2025, mean over 5 model seeds (tests/test_data_integrity.py keeps this honest)
-RMSE = {"QB": 84.28, "RB": 62.24, "WR": 56.00, "TE": 39.56}
+RMSE = {"QB": 84.28, "RB": 58.86, "WR": 53.48, "TE": 38.69}
 REPLACEMENT_RANK = {"QB": 12, "RB": 29, "WR": 41, "TE": 12}
 filepath = Path(__file__).parent.parent.parent / "data" / "processed"
 
