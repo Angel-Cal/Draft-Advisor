@@ -3,6 +3,7 @@
 **Last updated:** 2026-10-21
 **Active branch:** `main` (Phase 1 work merged from `phase-1-evaluation`; merged locally, not yet pushed to `origin`)
 **Phase:** Phase 0 and Phase 1 complete (ROADMAP.md is updated). Next: Phase 2 (C# core and simulator).
+**Why we chose things:** see `LOG.md` (decision log). Add an entry when a task produces a decision that rejected an alternative or changed results.
 
 ---
 
