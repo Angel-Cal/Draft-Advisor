@@ -118,5 +118,10 @@ Aug 26 2025 (2022 and 2025 are 6–8 days early; user accepted). **Rejected:** F
 being predicted, so prediction rows must too. Players missing from the roster get age/experience advanced by one.
 
 ## Deferred, not decided
+- **Week 1 line as a preseason team-strength signal** (user may try later): the Week 1 spread/total, already in the
+  schedule data, is the closest legitimate preseason market number (the old full-season average leaked). Test it for
+  QB first. Expected value is low for RB/WR/TE: even the leaky in-season total was worth only +0.007 to +0.027
+  there (QB: 0.61 leaky vs 0.23 prior-season). Preseason win totals would need a new data source (not in nflverse)
+  and overlap with what ADP already prices. Rank it below coaching tendencies.
 - **Coaching tendencies** (head-coach pass-over-expected, pace, 4th-down aggression, using the coach's prior team's
   tendency when the HC changes): the user wants to scope it carefully before any work. Only head coaches are public.

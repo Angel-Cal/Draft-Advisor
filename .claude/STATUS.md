@@ -105,6 +105,7 @@ All tested with the standing protocol: 10-seed ablation + random-noise control, 
 ## Open / Deferred
 
 - **Coaching tendencies** (head-coach pass-over-expected, pace, 4th-down aggression; coach's prior-team tendency when the HC changes): deliberately deferred by the user — "requires more nuance before touching". Only head coaches are in public data (schedules).
+- **Week 1 line as a preseason team-strength feature** (user may try later): test the Week 1 spread/total as the legitimate version of the leaked implied total, QB first (see LOG.md "Deferred"). Low expected value for RB/WR/TE.
 - **PFR advanced stats** skipped (only 2018+, would halve usable training rows). Participation `route` field is mostly empty, so route participation is approximated by on-field share.
 - **ESPN pass/run block win rates** (best public OL measure) are not collected: ESPN/Disney terms of use prohibit scraping and compiling datasets, and there is no download/API. Investigation closed.
 - **Half-PPR / standard targets** not built (Phase 3 item).
