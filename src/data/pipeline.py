@@ -124,8 +124,8 @@ def save(df, filename):
     save_data_as_csv(df, filename)
     save_data_as_parquet(df, filename)
 
-def load_totals():
-    schedules = nflread.load_schedules(list(range(2014, 2026))).to_pandas()
+def load_totals(seasons=range(2014, 2026)):
+    schedules = nflread.load_schedules(list(seasons)).to_pandas()
     schedules = schedules[schedules['game_type'] == 'REG']
     schedules['home_implied_total'] = (schedules['total_line'] / 2 + schedules['spread_line'] / 2)
     schedules['away_implied_total'] = (schedules['total_line']/2 - schedules['spread_line']/2)
@@ -146,6 +146,26 @@ def load_totals():
 
 
 
+def advance_to_prediction_season(prediction_df, roster, totals, season=2026):
+    """Prediction rows hold last season's age, experience and team total; swap in the prediction season's.
+
+    Players missing from the new roster (retired, unsigned) get age/experience advanced by one and no implied total.
+    """
+    r = (roster[roster["position"].isin(["QB", "RB", "WR", "TE"])].sort_values("week")
+         .groupby("gsis_id", as_index=False).first().rename(columns={"gsis_id": "player_id"}))
+    r["age_new"] = (pd.Timestamp(f"{season}-09-01") - pd.to_datetime(r["birth_date"])).dt.days // 365
+    r["team"] = r["team"].replace(TEAM_MAP)
+    r = r.merge(totals[totals["season"] == season][["team", "implied_total"]], on="team", how="left")
+    r = r[["player_id", "age_new", "years_exp", "implied_total"]].rename(
+        columns={"years_exp": "years_exp_new", "implied_total": "implied_total_new"})
+
+    df = prediction_df.merge(r, on="player_id", how="left")
+    df["age"] = df["age_new"].fillna(df["age"] + 1)
+    df["years_exp"] = df["years_exp_new"].fillna(df["years_exp"] + 1)
+    df["implied_total"] = df["implied_total_new"]
+    return df.drop(columns=["age_new", "years_exp_new", "implied_total_new"])
+
+
 if __name__ == "__main__":
     seasonal, roster, pbp, id, snaps = load_data()
     df = clean_data(roster, seasonal)
@@ -154,6 +174,7 @@ if __name__ == "__main__":
     df = build_features(df, pbp, id, snaps)
 
     roster_2026 = pd.read_parquet(RAW_DIR / "roster_2026.parquet")
+    prediction_df = advance_to_prediction_season(prediction_df, roster_2026, load_totals([2026]))
     context = build_team_context(seasonal, pd.concat([roster, roster_2026], ignore_index=True))
     df = add_rb_features(df, context)
     prediction_df = add_rb_features(prediction_df, context, season_offset=1)
