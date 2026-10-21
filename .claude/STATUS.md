@@ -30,7 +30,7 @@ Spearman vs actual season PPR, walk-forward test seasons 2021–2025, mean of 5 
 
 - The model beats the naive "last year's PPR" baseline at every position.
 - Seed spread on top-150 scores is ~0.01–0.03 (TE largest); treat gaps under ~0.03 as noise. Each test season has only ~20–60 players per position.
-- A blend of model and ADP did not beat ADP alone for RB/WR/TE (QB showed +0.023 at 40% model weight, CI includes 0). The model's value for the advisor is calibrated point projections, uncertainty bands and flags, not a better ranking than ADP.
+- Blend test (rerun on the final model; see LOG.md): among draftable players (ADP top-150), ADP alone ranks as well as any model/ADP blend (QB +0.023 at 40% model weight, CI includes 0; RB/WR +0.000). Over the deeper pool the model adds a little for WR (+0.009) and TE (+0.033). A 50/50 average of the model and the ADP-derived curve has the lowest RMSE at all four positions (0.7–1.7% better than the best single source). **The blend is not implemented in the advisor yet** — a candidate Phase 2/3 item.
 - Walk-forward RMSE (2021–2025, 5-seed mean): QB 84.28, RB 58.86, WR 53.48, TE 38.69. Mean per-season R²: QB 0.47, RB 0.59, WR 0.61, TE 0.60.
 
 **Features each position's model uses** (single source of truth: `src/features/registry.py`):

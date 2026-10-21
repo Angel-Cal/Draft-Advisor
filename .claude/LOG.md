@@ -51,11 +51,20 @@ RMSE on the top-150: RB ~63, WR ~67, TE ~62 (QB 119 on 6 players); rookie bias w
 positions; rank within position agrees across sources. Same RMSE as model rows is used for ceiling/floor.
 **Known bias:** the curve is fit on players with ≥4 games, so deep ranks run high. **See:** `src/draft/market_fallback.py`.
 
-## 2026-10-21 — The model is not used to out-rank ADP
-**Decision:** treat the model as a source of calibrated points, uncertainty and flags, not a better ranker than ADP.
-**Why:** blending model and ADP did not beat ADP alone for RB/WR/TE (best model weight 0.0); QB's best blend (weight 0.4)
-gained +0.023 with a bootstrap CI of [−0.12, +0.14]. A calibrated ADP→PPR curve also had lower RMSE than the model for
-QB/RB/WR in the top-150. The model and ADP agree most at RB/WR/TE (rank correlation 0.7–0.8), so blending only dilutes ADP.
+## 2026-10-21 — The model is not used to out-rank ADP among draftable players; point projections average model and ADP curve
+**Decision:** for the draftable pool, ADP alone ranks as well as any blend, so the model is a source of calibrated
+points, uncertainty and flags there. For point projections, averaging the model with the calibrated ADP curve is
+better than either alone.
+**Why (rerun on the FINAL model, after the process features; the first run predated them and said "adds nothing"):**
+- ADP top-150, best model weight: RB 0.0 (+0.000), WR 0.1 (+0.000), TE 0.4 (+0.011, but −0.015 at 0.3), QB 0.4
+  (+0.023; at 0.3 CI [−0.09, +0.11], better in 4 of 5 seasons). Nothing beats ADP alone with confidence.
+- All modeled players with an ADP (deeper pool): WR +0.009 (CI [+0.001, +0.016], 4/5 seasons), TE +0.033 at weight
+  0.6 (the model alone beats ADP there, 0.705 vs 0.686), RB and QB flat. The process features bought the model a
+  small edge at depth for WR and TE only.
+- RMSE on the top-150, model / ADP curve / average: QB 89.9 / 83.5 / 82.7, RB 76.5 / 72.2 / 71.7, WR 71.6 / 71.0 / 69.8,
+  TE 52.0 / 52.8 / 51.2. The average wins at all four (0.7–1.7% better than the best single source).
+**Caveat:** the ADP curve was fit leave-one-season-out, so it saw seasons after the one it predicts; the model is
+walk-forward. That slightly favors the curve. **Not yet done:** the blend is not implemented in the advisor.
 
 ## 2026-10-21 — `implied_total` leaked the target season; now the prior season
 **Decision:** `implied_total` is the team's PRIOR-season average total in training and prediction.
