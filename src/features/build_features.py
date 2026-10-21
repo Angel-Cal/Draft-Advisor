@@ -140,7 +140,6 @@ def add_lag(df):
     ]
 
     df["target_ppr"] = df["fantasy_points_ppr"]
-    df["seasons_since_last"] = df.groupby("player_id")["season"].diff()  # >1 when the lagged stats are not last season's
     delta_df = df.copy()
     delta_df[DELTA_SHIFT_COLS] = (df.groupby("player_id")[DELTA_SHIFT_COLS].shift(2))
     df[LAG_COLS] = (df.groupby("player_id")[LAG_COLS].shift(1))
@@ -264,7 +263,6 @@ def build_prediction_features(df, pbp, id, snaps):
     df_recent = df_recent.sort_values(['player_id', 'season'])
     df_recent = add_per_game(df_recent)
     df_recent = convert_categoricals(df_recent)
-    df_recent["seasons_since_last"] = 1.0  # every prediction row's stats are from the season just played
 
     delta_df = df_recent.copy()
     delta_df[DELTA_SHIFT_COLS] = df_recent.groupby('player_id')[DELTA_SHIFT_COLS].shift(1)
