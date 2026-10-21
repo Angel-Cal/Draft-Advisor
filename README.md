@@ -119,6 +119,9 @@ python src/models/train.py
 
 # 4. Generate 2026 projections
 python src/models/predict.py
+
+# 5. Build the draft advisor's player table (adds ADP-derived projections for rookies/unmodeled players)
+python src/draft/vor.py
 ```
 
 ## League Settings

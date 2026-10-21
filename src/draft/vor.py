@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.data.pipeline import save
+from src.data.validate import check_advisor_table
+from src.draft.market_fallback import load_history, fit_position_curves, market_projections
 
 RMSE = {"QB": 78.68, "RB": 62.10, "WR": 54.87, "TE": 39.25}
 REPLACEMENT_RANK = {"QB": 12, "RB": 29, "WR": 41, "TE": 12}
@@ -23,14 +25,16 @@ def load_predictions():
 
 def add_adp(qb_predictions, rb_predictions, wr_predictions, te_predictions):
     id = pd.read_parquet(filepath.parent / "raw" / "ids.parquet" )
-    adp_table = pd.read_csv(filepath  / "adp_table.csv")
+    adp_table = pd.read_csv(filepath.parent / "external" / "4for4-adp-table.csv")  # source of truth; adp_table.csv is output
 
     id = id[id["position"].isin(["QB", "RB", "WR", "TE"])]
     adp_table = normalize_names(adp_table)
     adp_table = add_player_id(adp_table, id)
     adp_table = fix_duplicates(adp_table)
     adp_table = adp_table.dropna(subset=["Underdog"])
-    adp_table.to_csv(filepath.parent/"processed"/ "adp_table.csv")
+    adp_table = adp_table.sort_values("player_id", na_position="last").drop_duplicates(["Player", "Position"])
+    adp_table = adp_table.sort_values("ADP").reset_index(drop=True)
+    adp_table.to_csv(filepath.parent/"processed"/ "adp_table.csv", index=False)
     qb_predictions = add_adp_helper(adp_table, qb_predictions)
     qb_predictions = qb_predictions.dropna(subset=["underdog"])
     rb_predictions = add_adp_helper(adp_table, rb_predictions)
@@ -68,11 +72,20 @@ def fix_duplicates(adp_table):
     return adp_table
 
 def add_player_id(adp_table, id):
-    adp_table = adp_table.drop(columns=["player_id"], errors="ignore") # prevents duplicate cols being created on each pipeline run 
-    merged_table = adp_table.merge(id[["merge_name", "gsis_id"]], on="merge_name", how="left")
-    merged_table = merged_table.rename(columns={"gsis_id" : "player_id"})
+    """Match on (name, position) with one player per name+position; rows without a gsis_id are never matched.
 
-    return merged_table
+    Falls back to a name-only match for active players when the sources disagree on position (e.g. Taysom Hill).
+    """
+    adp_table = adp_table.drop(columns=["player_id"], errors="ignore") # prevents duplicate cols being created on each pipeline run
+    adp_table["pos"] = adp_table["Position"].str[:2]
+    ids = id.dropna(subset=["gsis_id"]).sort_values("draft_year", ascending=False)  # newest player wins a name clash
+    by_position = ids.drop_duplicates(["merge_name", "position"]).rename(columns={"position": "pos", "gsis_id": "player_id"})
+    merged_table = adp_table.merge(by_position[["merge_name", "pos", "player_id"]], on=["merge_name", "pos"], how="left")
+
+    active = ids[ids["db_season"] >= ids["db_season"].max() - 1]
+    unique_active = active.drop_duplicates("merge_name", keep=False).set_index("merge_name")["gsis_id"]
+    merged_table["player_id"] = merged_table["player_id"].fillna(merged_table["merge_name"].map(unique_active))
+    return merged_table.drop(columns="pos")
 
 
 def compute_vor(df, baseline_pos):
@@ -110,10 +123,20 @@ def compute_tiers(df):
 if __name__ == "__main__":
     qb_predictions, rb_predictions, wr_predictions, te_predictions= load_predictions()
     qb_predictions, rb_predictions, wr_predictions, te_predictions = add_adp(qb_predictions, rb_predictions, wr_predictions, te_predictions)
-    save(qb_predictions, "qb_predictions")  #save positional tables for easier debugging
-    save(rb_predictions, "rb_predictions")
-    save(wr_predictions, "wr_predictions")
-    save(te_predictions, "te_predictions")
+    save(qb_predictions, "qb_with_adp")  #positional debugging tables; predict.py's *_predictions files stay untouched
+    save(rb_predictions, "rb_with_adp")
+    save(wr_predictions, "wr_with_adp")
+    save(te_predictions, "te_with_adp")
+
+    # players the model cannot score (rookies, no prior NFL season) get an ADP-derived projection
+    adp_table = pd.read_csv(filepath / "adp_table.csv")
+    modeled_ids = set(pd.concat([qb_predictions, rb_predictions, wr_predictions, te_predictions])["player_id"])
+    fallback = market_projections(adp_table, modeled_ids, fit_position_curves(load_history()))
+    frames = []
+    for position, frame in zip(["QB", "RB", "WR", "TE"], [qb_predictions, rb_predictions, wr_predictions, te_predictions]):
+        frames.append(pd.concat([frame.assign(market_estimate=False), fallback[fallback["position"] == position]],
+                                ignore_index=True))
+    qb_predictions, rb_predictions, wr_predictions, te_predictions = frames
 
     qb_predictions = compute_vor(qb_predictions, REPLACEMENT_RANK["QB"])
     rb_predictions = compute_vor(rb_predictions, REPLACEMENT_RANK["RB"])
@@ -128,6 +151,7 @@ if __name__ == "__main__":
     predictions_df = pd.concat([qb_predictions, rb_predictions, wr_predictions, te_predictions])
     predictions_df = compute_value_gap(predictions_df)
     predictions_df = compute_tiers(predictions_df)
+    check_advisor_table(predictions_df)
     save(predictions_df, "predictions_table")
     
 

@@ -146,3 +146,11 @@ def test_installed_packages_match_the_pins():
     for package in ("lightgbm", "pandas", "numpy", "scikit-learn", "optuna", "scipy", "pyarrow", "nflreadpy"):
         assert package in pins, f"{package} is not pinned in requirements.txt"
         assert version(package) == pins[package], f"{package} {version(package)} != pinned {pins[package]}"
+
+
+@needs(PROCESSED / "predictions_table.parquet")
+def test_advisor_table_has_one_row_per_player_and_flags_market_rows():
+    table = pd.read_parquet(PROCESSED / "predictions_table.parquet")
+    v.check_advisor_table(table)
+    assert table["market_estimate"].any() and not table["market_estimate"].all()
+    assert table.loc[table["market_estimate"], "player_id"].map(lambda i: isinstance(i, str)).all()

@@ -20,6 +20,9 @@ WR_FEATURES = ["vacated_target_share"] + WR_COMPETITION
 QB_FEATURES = ["qb1_ypa_prev", "qb1_epa_per_att_prev", "qb1_unproven", "qb_changed"]
 QB_DEPTH_FEATURES = ["qb_is_expected_starter", "qb_att_share_prev", "qb_rookie_competitor", "qb_proven_competitor"]
 QB_MODEL_FEATURES = ["qb_att_share_prev"]  # the subset that survived ablation
+RB_DEPTH_FEATURES = ["rb_carry_share_prev", "rb_is_expected_lead", "rb_proven_competitor", "rb_rookie_competitor"]
+MIN_RB_CARRIES = 100   # a back with this many prior carries is a proven competitor for the job
+EARLY_ROUND_PICKS = 64
 MIN_QB_ATTEMPTS = 100  # below this a QB1 has no usable prior-season quality estimate
 FIRST_ROUND_PICKS = 32
 
@@ -197,3 +200,30 @@ def add_qb_features(df, depth, season_offset=0):
     """Merge the QB feature set onto df; season_offset=1 maps a 2025 prediction row to the 2026 context."""
     keyed = depth[["player_id", "season"] + QB_MODEL_FEATURES].assign(season=lambda d: d["season"] - season_offset)
     return df.merge(keyed, on=["player_id", "season"], how="left")
+
+
+def build_rb_depth_features(seasonal, roster):
+    """Per RB-season: his share of the roster RBs' prior carries, whether he is the lead back, and his competition."""
+    stats = _prior_season_stats(seasonal)
+    prev = (stats.assign(season=stats["season"] + 1)[["player_id", "season", "carries"]]
+            .rename(columns={"carries": "prev_carries"}))
+    rbs = roster[roster["position"] == "RB"].sort_values(["season", "week"])
+    rbs = rbs.groupby(["gsis_id", "season"], as_index=False).first().rename(columns={"gsis_id": "player_id"})
+    rbs["team_now"] = _norm(rbs["team"])
+    rbs = rbs.merge(prev, on=["player_id", "season"], how="left")
+    rbs["prev_carries"] = rbs["prev_carries"].fillna(0)
+    rbs["early_rookie"] = ((rbs["rookie_year"] == rbs["season"])
+                           & (pd.to_numeric(rbs["draft_number"], errors="coerce") <= EARLY_ROUND_PICKS))
+
+    by_team = rbs.groupby(["team_now", "season"])
+    team_carries = by_team["prev_carries"].transform("sum")
+    rbs["rb_carry_share_prev"] = (rbs["prev_carries"] / team_carries).where(team_carries > 0)
+    team_lead = by_team["prev_carries"].transform("max")
+    rbs["rb_is_expected_lead"] = ((rbs["prev_carries"] == team_lead) & (team_lead > 0)).astype(float)
+    proven = (rbs["prev_carries"] >= MIN_RB_CARRIES).astype(int)
+    others_proven = proven.groupby([rbs["team_now"], rbs["season"]]).transform("sum") - proven
+    rbs["rb_proven_competitor"] = (others_proven > 0).astype(float)
+    rookies = rbs["early_rookie"].astype(int)
+    others_rookies = rookies.groupby([rbs["team_now"], rbs["season"]]).transform("sum") - rookies
+    rbs["rb_rookie_competitor"] = (others_rookies > 0).astype(float)
+    return rbs[["player_id", "season"] + RB_DEPTH_FEATURES]

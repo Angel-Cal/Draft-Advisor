@@ -181,3 +181,17 @@ def check_adp_matches(adp, top_n=200):
     if dupes.any():
         errors.append(f"{int(dupes.sum())} duplicate (season, player_id) ADP rows")
     _raise_if(errors, "adp")
+
+
+def check_advisor_table(table):
+    """The draft advisor's player table: one row per player, every value present, market rows flagged."""
+    errors = []
+    dupes = table["player_id"].duplicated()
+    if dupes.any():
+        errors.append(f"{int(dupes.sum())} duplicate player_id rows, e.g. {table.loc[dupes, 'player_id'].head(3).tolist()}")
+    for col in ["projected_ppr", "vor", "tier", "underdog", "position", "market_estimate"]:
+        if col in table.columns and table[col].isna().any():
+            errors.append(f"{int(table[col].isna().sum())} nulls in {col}")
+    if "market_estimate" in table.columns and not table["market_estimate"].isin([True, False]).all():
+        errors.append("market_estimate must be True/False")
+    _raise_if(errors, "advisor table")

@@ -122,3 +122,22 @@ def test_qb_depth_features(qb_data):
     assert d.loc["vet", "qb_att_share_prev"] == pytest.approx(500 / 500)   # rookie1 has no prior attempts; backup is on BBB
     # BBB: the only roster QB is backup (50 att) and he has no proven competitor
     assert d.loc["backup", "qb_is_expected_starter"] == 1.0 and d.loc["backup", "qb_proven_competitor"] == 0.0
+
+
+def test_rb_depth_features():
+    from src.features.team_context import build_rb_depth_features
+    seasonal = pd.DataFrame([
+        stat("rb1", 2020, "AAA", "RB", carries=100),
+        stat("rb2", 2020, "AAA", "RB", carries=50),
+    ])
+    roster = pd.DataFrame([
+        roster_row("rb1", 2021, "AAA", "RB"),
+        roster_row("rb2", 2021, "AAA", "RB"),
+        roster_row("rb3", 2021, "AAA", "RB", rookie_year=2021, draft_number="20"),   # early-round rookie
+    ])
+    d = build_rb_depth_features(seasonal, roster).set_index("player_id")
+    assert d.loc["rb1", "rb_carry_share_prev"] == pytest.approx(100 / 150)
+    assert d.loc["rb2", "rb_carry_share_prev"] == pytest.approx(50 / 150) and d.loc["rb3", "rb_carry_share_prev"] == 0
+    assert list(d["rb_is_expected_lead"]) == [1.0, 0.0, 0.0]
+    assert d.loc["rb1", "rb_proven_competitor"] == 0.0 and d.loc["rb2", "rb_proven_competitor"] == 1.0
+    assert d.loc["rb1", "rb_rookie_competitor"] == 1.0 and d.loc["rb3", "rb_rookie_competitor"] == 0.0

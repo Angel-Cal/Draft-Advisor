@@ -31,7 +31,7 @@ Saved to `data/processed/` locally; published as a GitHub Release asset for dist
 | `position_rmse` | float | Walk-forward RMSE for this position's model (QB 78.68, RB 62.10, WR 54.87, TE 39.25 as of v1). Used for ceiling/floor in C#. |
 | `underdog_adp` | float | Underdog ADP (source: 4for4 CSV). `NaN` if player not listed. |
 | `injury_flag` | bool | True if `games < 13` AND `games_delta < -5`. Signals a player returning from significant missed time. |
-| `market_estimate` | bool | True if projection is ADP-derived fallback (no NFL history — rookies, etc.). *(v1: always False; rookies excluded until fallback model is built)* |
+| `market_estimate` | bool | True if projection is ADP-derived fallback (no NFL history — rookies, etc.). *(set by `src/draft/market_fallback.py` in the advisor table: ADP-derived projection for players the model cannot score; synthetic `market:<name>` IDs when no GSIS ID exists)* |
 | `schema_version` | string | Literal `"v1"`. Allows C# to validate compatibility on load. |
 
 ---
