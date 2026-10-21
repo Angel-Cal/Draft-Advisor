@@ -5,11 +5,13 @@ from src.features.team_context import build_team_context, add_rb_features, RB_FE
 
 def stat(player_id, season, team, position, carries=0, targets=0, attempts=0):
     return dict(player_id=player_id, season=season, recent_team=team, position=position,
-                carries=carries, targets=targets, attempts=attempts, games=16)
+                carries=carries, targets=targets, attempts=attempts, games=16,
+                passing_yards=attempts * 7.0, passing_epa=attempts * 0.1)
 
 
-def roster_row(player_id, season, team, position, week=1):
-    return dict(gsis_id=player_id, season=season, week=week, team=team, position=position)
+def roster_row(player_id, season, team, position, week=1, rookie_year=2015, draft_number="100"):
+    return dict(gsis_id=player_id, season=season, week=week, team=team, position=position,
+                rookie_year=rookie_year, draft_number=draft_number)
 
 
 @pytest.fixture
@@ -68,3 +70,43 @@ def test_add_rb_features_offsets_prediction_season(seasonal, roster):
     merged = add_rb_features(prediction_rows, context, season_offset=1)
     assert merged.loc[0, "competing_rb_carries"] == 80
     assert set(RB_FEATURES) <= set(merged.columns)
+
+
+@pytest.fixture
+def qb_data():
+    seasonal = pd.DataFrame([
+        stat("vet", 2020, "AAA", "QB", attempts=500),
+        stat("backup", 2020, "AAA", "QB", attempts=50),
+        stat("old_starter", 2020, "BBB", "QB", attempts=400),
+        stat("young", 2020, "CCC", "QB", attempts=60),
+    ])
+    roster = pd.DataFrame([
+        roster_row("vet", 2021, "AAA", "QB"),
+        roster_row("rookie1", 2021, "AAA", "QB", rookie_year=2021, draft_number="3"),   # first-round rookie
+        roster_row("backup", 2021, "BBB", "QB"),                                         # BBB lost its starter
+        roster_row("rookie2", 2021, "DDD", "QB", rookie_year=2021, draft_number="70"),  # day-2 rookie, no vets
+        roster_row("young", 2021, "CCC", "QB"),
+        roster_row("wr", 2021, "AAA", "WR"),
+    ])
+    return seasonal, roster
+
+
+def qb_row(context, team_player, season=2021):
+    return context[(context["player_id"] == team_player) & (context["season"] == season)].iloc[0]
+
+
+def test_first_round_rookie_overrides_veteran_as_qb1(qb_data):
+    r = qb_row(build_team_context(*qb_data), "wr")
+    assert r["qb1_unproven"] == 1.0
+    assert pd.isna(r["qb1_ypa_prev"]) and pd.isna(r["qb1_epa_per_att_prev"])
+    assert r["qb_changed"] == 1.0
+
+
+def test_veteran_qb1_quality_uses_prior_season(qb_data):
+    seasonal, roster = qb_data
+    roster = roster[roster["gsis_id"] != "rookie1"]
+    r = qb_row(build_team_context(seasonal, roster), "wr")
+    assert r["qb1_unproven"] == 0.0
+    assert r["qb1_ypa_prev"] == pytest.approx(7.0)
+    assert r["qb1_epa_per_att_prev"] == pytest.approx(0.1)
+    assert r["qb_changed"] == 0.0

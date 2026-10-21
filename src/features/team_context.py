@@ -17,6 +17,9 @@ FEATURE_GROUPS = {
 RB_FEATURES = FEATURE_GROUPS["vacated"]
 WR_COMPETITION = ["competing_pass_targets", "incoming_pass_targets"]
 WR_FEATURES = ["vacated_target_share"] + WR_COMPETITION
+QB_FEATURES = ["qb1_ypa_prev", "qb1_epa_per_att_prev", "qb1_unproven", "qb_changed"]
+MIN_QB_ATTEMPTS = 100  # below this a QB1 has no usable prior-season quality estimate
+FIRST_ROUND_PICKS = 32
 
 
 def _norm(team):
@@ -36,6 +39,42 @@ def _roster_start(roster):
           .rename(columns={"gsis_id": "player_id"}))
     r["team_now"] = _norm(r["team"])
     return r[["player_id", "season", "position", "team_now"]]
+
+
+def _qb_features(seasonal, roster):
+    """Per team-season: the QB1 expected to start and how good he was last season.
+
+    QB1 is a first-round rookie if the roster has one, otherwise the roster QB with the most prior-season attempts.
+    """
+    stats = seasonal[seasonal["position"] == "QB"][["player_id", "season", "recent_team", "attempts",
+                                                     "passing_yards", "passing_epa"]].copy()
+    stats["team"] = _norm(stats["recent_team"])
+    prev = stats.assign(season=stats["season"] + 1).rename(
+        columns={"attempts": "prev_att", "passing_yards": "prev_yds", "passing_epa": "prev_epa"})
+
+    qbs = roster[roster["position"] == "QB"].sort_values(["season", "week"])
+    qbs = qbs.groupby(["gsis_id", "season"], as_index=False).first().rename(columns={"gsis_id": "player_id"})
+    qbs["team_now"] = _norm(qbs["team"])
+    qbs["first_round_rookie"] = ((qbs["rookie_year"] == qbs["season"])
+                                 & (pd.to_numeric(qbs["draft_number"], errors="coerce") <= FIRST_ROUND_PICKS))
+    qbs = qbs.merge(prev[["player_id", "season", "prev_att", "prev_yds", "prev_epa"]],
+                    on=["player_id", "season"], how="left")
+    qbs["prev_att"] = qbs["prev_att"].fillna(0)
+
+    qb1 = (qbs.sort_values(["first_round_rookie", "prev_att"], ascending=False)
+              .groupby(["team_now", "season"], as_index=False).head(1).copy())
+    proven = qb1["prev_att"] >= MIN_QB_ATTEMPTS
+    qb1["qb1_unproven"] = (~proven).astype(float)
+    qb1["qb1_ypa_prev"] = (qb1["prev_yds"] / qb1["prev_att"]).where(proven)
+    qb1["qb1_epa_per_att_prev"] = (qb1["prev_epa"] / qb1["prev_att"]).where(proven)
+
+    last_starter = (stats.sort_values("attempts", ascending=False).groupby(["team", "season"]).head(1)
+                         [["team", "season", "player_id"]]
+                    .assign(season=lambda d: d["season"] + 1)
+                    .rename(columns={"team": "team_now", "player_id": "qb1_last_year"}))
+    qb1 = qb1.merge(last_starter, on=["team_now", "season"], how="left")
+    qb1["qb_changed"] = (qb1["player_id"] != qb1["qb1_last_year"]).astype(float).where(qb1["qb1_last_year"].notna())
+    return qb1[["team_now", "season"] + QB_FEATURES]
 
 
 def _team_points_per_game(schedules):
@@ -98,7 +137,9 @@ def build_team_context(seasonal, roster, schedules=None):
     vac = vac.rename(columns={"team_prev": "team_now"})
     now = now.merge(vac, on=["team_now", "season"], how="left")
 
-    cols = [c for group in FEATURE_GROUPS.values() for c in group] + WR_COMPETITION
+    now = now.merge(_qb_features(seasonal, roster), on=["team_now", "season"], how="left")
+
+    cols = [c for group in FEATURE_GROUPS.values() for c in group] + WR_COMPETITION + QB_FEATURES
     if schedules is None:
         cols = [c for c in cols if c not in FEATURE_GROUPS["team_rates"]]
         return now[["player_id", "season"] + cols]
