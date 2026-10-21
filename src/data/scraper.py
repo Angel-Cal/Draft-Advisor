@@ -47,6 +47,15 @@ def _import_data():
     
 
 
+def _import_roster_2026():
+    """Start-of-season roster for the prediction season (vacated-volume features)."""
+    raw_roster = nflread.load_rosters([2026]).to_pandas()
+    for col in ['jersey_number', 'draft_number', 'draft_club']:
+        raw_roster[col] = raw_roster[col].astype(str)
+    raw_roster.to_parquet(DATA_DIR / "roster_2026.parquet")
+
+
 if __name__ == "__main__":
     _import_data()
+    _import_roster_2026()
 

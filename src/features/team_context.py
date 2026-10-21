@@ -14,6 +14,8 @@ FEATURE_GROUPS = {
     "team_rates": ["team_pass_rate_prev", "team_plays_pg_prev", "team_ppg_prev"],
 }
 
+RB_FEATURES = FEATURE_GROUPS["vacated"]
+
 
 def _norm(team):
     return team.replace(TEAM_MAP)
@@ -43,7 +45,7 @@ def _team_points_per_game(schedules):
     return pts.groupby(["team", "season"])["points"].mean().rename("team_ppg_prev").reset_index()
 
 
-def build_team_context(seasonal, roster, schedules):
+def build_team_context(seasonal, roster, schedules=None):
     stats = _prior_season_stats(seasonal)
     roster_now = _roster_start(roster)
 
@@ -86,6 +88,11 @@ def build_team_context(seasonal, roster, schedules):
     vac = vac.rename(columns={"team_prev": "team_now"})
     now = now.merge(vac, on=["team_now", "season"], how="left")
 
+    cols = [c for group in FEATURE_GROUPS.values() for c in group]
+    if schedules is None:
+        cols = [c for c in cols if c not in FEATURE_GROUPS["team_rates"]]
+        return now[["player_id", "season"] + cols]
+
     # team pass rate / pace / scoring of the team the player is on now, last season
     team_games = stats.groupby(["team", "season"]).agg(
         attempts=("attempts", "sum"), carries=("carries", "sum"), games=("games", "max")).reset_index()
@@ -98,5 +105,10 @@ def build_team_context(seasonal, roster, schedules):
     now = now.merge(team_rates[["team_now", "season", "team_pass_rate_prev", "team_plays_pg_prev", "team_ppg_prev"]],
                     on=["team_now", "season"], how="left")
 
-    cols = [c for group in FEATURE_GROUPS.values() for c in group]
     return now[["player_id", "season"] + cols]
+
+
+def add_rb_features(df, context, season_offset=0):
+    """Merge the RB feature set onto df; season_offset=1 maps a 2025 prediction row to the 2026 context."""
+    keyed = context[["player_id", "season"] + RB_FEATURES].assign(season=lambda c: c["season"] - season_offset)
+    return df.merge(keyed, on=["player_id", "season"], how="left")

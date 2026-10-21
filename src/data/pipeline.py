@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.features.build_features import build_features, build_prediction_features
+from src.features.team_context import build_team_context, add_rb_features
 
 
 RAW_DIR = Path(__file__).parent.parent.parent / "data" / "raw"
@@ -148,6 +149,11 @@ if __name__ == "__main__":
     prediction_df = build_prediction_features(df, pbp, id, snaps)
 
     df = build_features(df, pbp, id, snaps)
+
+    roster_2026 = pd.read_parquet(RAW_DIR / "roster_2026.parquet")
+    context = build_team_context(seasonal, pd.concat([roster, roster_2026], ignore_index=True))
+    df = add_rb_features(df, context)
+    prediction_df = add_rb_features(prediction_df, context, season_offset=1)
     save(df, "training_data")
     save(prediction_df, "prediction_data")
     print(f"Saved {len(df)} rows to {PROCESSED_DIR}")

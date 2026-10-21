@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import optuna 
 import sys
 import json
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.features.team_context import RB_FEATURES
 
 
 
@@ -147,10 +149,10 @@ class Model:
             rmse_scores.append(rmse)
         return float(np.mean(rmse_scores))
 
-    def tune(self, df, position):
+    def tune(self, df, position, n_trials=100):
         optuna.logging.set_verbosity(optuna.logging.WARNING)
         study = optuna.create_study(direction="minimize")
-        study.optimize(lambda trial: self.objective(trial, df), n_trials=100)
+        study.optimize(lambda trial: self.objective(trial, df), n_trials=n_trials)
         best_params = study.best_params
         best_params.update({
             "n_estimators": 1000,
@@ -245,16 +247,16 @@ def split_positions(df):
     ]
     
     qb_df = df[df["position"] == "QB"] 
-    qb_df = qb_df.drop(columns=QB_DROP_COLS)
+    qb_df = qb_df.drop(columns=QB_DROP_COLS + RB_FEATURES)
 
     rb_df = df[df["position"] == "RB"]
     rb_df = rb_df.drop(columns=RB_DROP_COLS)
 
     wr_df = df[df["position"] == "WR"]
-    wr_df = wr_df.drop(columns=WR_DROP_COLS)
+    wr_df = wr_df.drop(columns=WR_DROP_COLS + RB_FEATURES)
 
     te_df = df[df["position"] == "TE"]
-    te_df = te_df.drop(columns=WR_DROP_COLS)
+    te_df = te_df.drop(columns=WR_DROP_COLS + RB_FEATURES)
 
     return qb_df, rb_df, wr_df, te_df
 
