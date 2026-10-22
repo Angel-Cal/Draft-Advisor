@@ -1,7 +1,7 @@
 # DraftBot — Project Status
 
 **Last updated:** 2026-10-21
-**Active branch:** `phase-2-csharp` (Phase 2 work, uncommitted; `main` has Phases 0-1 and is not pushed to `origin`)
+**Active branch:** `phase-2-csharp` (Phase 2 work, committed, not merged to `main`; `main` has Phases 0-1 and is not pushed to `origin`)
 **Phase:** Phases 0, 1 and 2 complete (ROADMAP.md is updated). Next: Phase 3 (model v2, after the 2026 season) or Phase 4 (recommender v2, which Phase 2's simulator now lets us evaluate).
 **Why we chose things:** see `LOG.md` (decision log). Add an entry when a task produces a decision that rejected an alternative or changed results.
 
@@ -214,7 +214,7 @@ writes `data/processed/projections_<season>_v1.json` (live 2026 and backtests 20
 - The `csharp/` tests are not in the pre-commit hook; CI runs them (`.github/workflows/tests.yml`).
 
 **Housekeeping:**
-- Phase 2 work is on branch `phase-2-csharp`, **uncommitted**. `main` is merged locally but **not pushed** to `origin`
+- Phase 2 work is on branch `phase-2-csharp`, committed (3 commits) but not yet merged to `main`. `main` is merged locally but **not pushed** to `origin`
   (`Angel-Cal/Draft-Advisor`). The `Model_v2`, `Model_v3`, `draft_logic` and `phase-1-evaluation` branches are fully merged
   and can be deleted.
 - `src/app/cli.py`, `src/draft/vbd.py`, `src/draft/simulator.py` live in `archive/`.
