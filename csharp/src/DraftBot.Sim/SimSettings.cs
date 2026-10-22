@@ -10,6 +10,8 @@ namespace DraftBot.Sim;
 /// <param name="NoisePerAdp">Extra SD per ADP slot (late picks disagree more).</param>
 /// <param name="MaxQb">Position caps for every drafter, so no roster ends up with five QBs.</param>
 /// <param name="ForceStartersAfterRound">After this round a drafter with an open starter slot must fill it.</param>
+/// <param name="WeeklyLineups">Score rosters with the best lineup each week (byes and injuries matter) when the file has weekly points; false scores season totals.</param>
+/// <param name="StrategyFollowsRules">False lifts the caps and forced fills for the strategy being evaluated only (opponents keep them).</param>
 public sealed record SimSettings(
     LeagueSettings League,
     double NoiseBase = 1.0,
@@ -18,7 +20,9 @@ public sealed record SimSettings(
     int MaxQb = 2,
     int MaxTe = 2,
     int ForceStartersAfterRound = 10,
-    double TierGapRmse = 0.1)
+    double TierGapRmse = 0.1,
+    bool StrategyFollowsRules = true,
+    bool WeeklyLineups = true)
 {
     public double NoiseSd(double adp) => (NoiseBase + NoisePerAdp * adp) * NoiseScale;
 }

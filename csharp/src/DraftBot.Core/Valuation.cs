@@ -9,7 +9,8 @@ public sealed record ValuedPlayer(
     bool AvailabilityFlag,
     double VorRank,
     double ValueGap,
-    int Tier)
+    int Tier,
+    double Rmse = 0)
 {
     public string Id => Player.PlayerId;
     public Position Position => Player.Position;
@@ -39,7 +40,7 @@ public static class Valuator
             var (ceiling, floor, availability) = CeilingFloor(player, rmse[player.Position]);
             var vorRank = 1 + ordered.Count(other => vor[other.PlayerId] > vor[player.PlayerId]);   // ties share the best rank
             valued.Add(new ValuedPlayer(player, vor[player.PlayerId], ceiling, floor, availability, vorRank,
-                (player.Adp ?? unrankedAdp) - vorRank, tiers[player.PlayerId]));
+                (player.Adp ?? unrankedAdp) - vorRank, tiers[player.PlayerId], rmse[player.Position]));
         }
         return valued;
     }

@@ -25,13 +25,13 @@ public static class DraftSimulator
         while (!state.IsComplete)
         {
             var team = state.CurrentTeam;
-            var legal = DraftRules.LegalPicks(state, team, settings);
+            var legal = team == slot && !settings.StrategyFollowsRules ? state.Available : DraftRules.LegalPicks(state, team, settings);
             var pick = bots[team]?.Pick(legal) ?? strategy.Pick(state, team, legal);
             if (team == slot && regret is not null) regrets.Add(regret.Evaluate(legal, pick, state.Round));
             state.Draft(pick.Id);
         }
 
-        var points = state.Teams.Select(roster => LineupScorer.Score(roster, league)).ToList();
+        var points = state.Teams.Select(roster => LineupScorer.Score(roster, league, settings.WeeklyLineups)).ToList();
         var finish = 1 + points.Count(p => p > points[slot]);
         return new DraftResult(slot, points[slot], finish, points, regrets, state.Teams[slot].Picks);
     }
