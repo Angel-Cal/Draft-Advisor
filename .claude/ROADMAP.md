@@ -75,7 +75,7 @@ Also done in Phase 1 (unplanned, but it changed the results): fixed a target-sea
 - [x] League settings model; replacement level (greedy FLEX fill), VOR, per-position tiers by value dropoff (new tier where the projection drops by more than 0.10 x position RMSE; tuned in Phase 2 follow-up, see `LOG.md`)
 - [x] Draft state (snake order, all rosters, pool)
 - [x] Port the current recommender as the baseline (same rules, new inputs; not output-identical to Python because VOR and tiers changed)
-- [x] Simulator: opponents draft by ADP plus a per-opponent bias per player, with position caps and forced starter fill; rosters scored with actual points (best lineup from season totals)
+- [x] Simulator: opponents draft by ADP plus a per-opponent bias per player, with position caps and forced starter fill; rosters scored with actual points (best lineup each week from weekly PPR; season totals available via `--season-totals`)
 - [x] Baseline results for pure ADP, pure VOR and the current recommender. **Plain ADP wins; the current recommender is last** (numbers in `STATUS.md` and `LOG.md`)
 - [x] Regret per round (hindsight actual, hindsight over replacement, foresight VOR) added to the simulator
 
@@ -86,11 +86,11 @@ Also done in Phase 1 (unplanned, but it changed the results): fixed a target-sea
 - [ ] Half-PPR and standard targets
 - [x] ADP-to-points fallback curve for rookies and missing players: done in Phase 1 (`src/draft/market_fallback.py`, rows flagged `market_estimate`)
 
-### Phase 4: Recommender v2 (Feb to Apr 2027)
-- [x] Single score across all available players (replaces position-first selection): `value` variant = VOR minus a reach cost; no roster need yet (done 2026-10-21, see `LOG.md`)
+### Phase 4: Recommender v2 (Feb to Apr 2027; started early, 2026-10)
+- [x] Single score across all available players (replaces position-first selection): `value` variant = VOR minus an ADP-reach cost (done 2026-10-21, see `LOG.md`). Roster need and bench value then made it the `need` recommender, +48 over ADP in the simulator
 - [ ] Add components one at a time; keep each only if the simulator shows improvement:
   - roster need (nonlinear, ramps up mid-draft): done 2026-10-22 as marginal lineup gain over replacement plus position-specific bench value (structural k-th-backup weights, option value over the waiver level, dead-pick exclusion), see `LOG.md`
-  - tier cliff / cost of waiting until next pick
+  - tier cliff / cost of waiting until next pick (not started)
   - position safety (P(player survives to my next pick) from teams picking in between)
   - run detection (continuous intensity)
   - adaptive risk by round (floor early, ceiling mid, variance late)

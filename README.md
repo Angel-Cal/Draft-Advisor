@@ -1,8 +1,8 @@
 # Fantasy Football Draft Advisor
 
-An ML-powered fantasy football draft assistant that predicts player performance
-and provides real-time draft recommendations based on value-based drafting,
-positional scarcity, opponent roster tracking, and draft run detection.
+An ML-powered fantasy football draft assistant. Python models project player points; a C# core turns those
+projections into draft recommendations (points over replacement, roster need, position-specific bench value, and an
+ADP-reach cost) and a simulator measures them against ADP-following opponents with real results.
 
 ## Project Status
 
@@ -10,16 +10,23 @@ positional scarcity, opponent roster tracking, and draft run detection.
   NFL data from 2015-2025
 - **Prediction pipeline**: Complete — generates 2026 season projections for all
   active players
-- **Draft advisor**: In development
+- **Draft recommender (C#)**: Working in the simulator: the `need` recommender is +48 starter points over plain ADP
+  (weekly lineups, calibrated opponents, 2021-2025 backtests). Interactive mock drafts run on past seasons.
+- **Desktop app / live draft sync**: Not started (roadmap Phase 5)
 
-## Model Performance (Walk-Forward Validation, 2015-2025)
+The projections do not beat ADP at ranking players; the edge comes from how the recommender uses them. See
+`.claude/STATUS.md` (current state and hand-off), `.claude/LOG.md` (why each choice was made) and `.claude/ROADMAP.md`.
 
-| Position | R²    | RMSE  |
-|----------|-------|-------|
-| QB       | 0.539 | 78.68 |
-| RB       | 0.543 | 62.10 |
-| WR       | 0.585 | 54.87 |
-| TE       | 0.591 | 39.25 |
+## Model Performance (Walk-Forward Validation, test seasons 2021-2025)
+
+| Position | Mean per-season R² | RMSE (5-seed mean) | Top-150 Spearman: model | Top-150 Spearman: ADP |
+|----------|--------------------|--------------------|-------------------------|-----------------------|
+| QB       | 0.47               | 84.28              | 0.305                   | 0.401                 |
+| RB       | 0.59               | 58.86              | 0.532                   | 0.589                 |
+| WR       | 0.61               | 53.48              | 0.511                   | 0.569                 |
+| TE       | 0.60               | 38.69              | 0.406                   | 0.418                 |
+
+An earlier version of this table reported higher R² from a leaked feature (see `.claude/STATUS.md`, Data Integrity).
 
 ## How It Works
 
@@ -49,17 +56,17 @@ positional scarcity, opponent roster tracking, and draft run detection.
   using walk-forward RMSE as the objective
 - Final models trained on all historical data (2015-2025) for 2026 projections
 
-### 4. Draft Advisor (`src/draft/`) — In Development
+### 4. Draft Recommender (`csharp/`)
 
-- Value Over Replacement (VOR) with FLEX-adjusted replacement levels
-- ADP integration: Underdog ADP CSV (via 4for4)
-- Ceiling/floor bands derived from position-level walk-forward RMSE
-- Adaptive risk profiling by round and roster composition
-- Positional run detection (continuous intensity, not boolean)
-- Opponent roster tracking across all 12 teams
-- Probabilistic position safety estimation
-- VOR tier detection with crossing-penalty
-- Additive weighted scoring model for final recommendations
+- One score across all positions: points over replacement (greedy FLEX-adjusted replacement levels from the league settings), measured as
+  the gain to your best lineup so redundant players are worth nothing
+- Position-specific bench value: the k-th backup at a position is worth the chance enough starters are out the same week, times his upside
+  over a free agent; a third QB or TE is never recommended
+- ADP-reach cost that grows with the draft position (ADP is less predictive later); ADP: Underdog CSV via 4for4 (live), FantasyPros (backtests)
+- Ceiling/floor bands from position-level walk-forward RMSE; per-position tiers by value dropoff
+- A simulator drafts against ADP-plus-noise opponents calibrated to real mock drafts and scores rosters by weekly lineups with actual results
+- Not yet built: tier-cliff cost of waiting, position safety, run detection, plain-language reasoning (roadmap Phase 4)
+- The earlier Python advisor in `src/draft/` is superseded by the C# core
 
 ## Project Structure
 
@@ -73,7 +80,11 @@ DraftBot/
 ├── src/
 │   ├── data/
 │   │   ├── scraper.py        # Pulls and saves raw data via nflreadpy
-│   │   └── pipeline.py       # Cleans, merges, and saves processed data
+│   │   ├── pipeline.py       # Cleans, merges, and saves processed data
+│   │   ├── validate.py       # Data-integrity checks that stop a run on silent problems
+│   │   ├── adp_scraper.py    # Historical ADP (FantasyPros via the Wayback Machine)
+│   │   ├── ffc_scraper.py    # Real pick-spread data (FFC mock drafts) for simulator calibration
+│   │   └── export_projections.py  # projections_<season>_v1.json for the C# side
 │   ├── features/
 │   │   └── build_features.py # Feature engineering and prediction features
 │   ├── models/
@@ -83,9 +94,10 @@ DraftBot/
 │       ├── vor.py            # VOR calculation, ceiling/floor, tiers, ADP integration
 │       ├── roster.py         # Per-team roster needs and flex/bench tracking
 │       ├── draft_state.py    # Snake draft order and 12-team player pool
-│       ├── recommender.py    # Position + player scoring and recommendation
-│       └── advisor.py        # Interactive CLI draft assistant
-├── csharp/                   # DraftBot.Core (draft logic), DraftBot.Sim (simulator), DraftBot.Tests
+│       ├── recommender.py    # Position + player scoring and recommendation (superseded by csharp/)
+│       └── advisor.py        # Interactive CLI draft assistant (superseded by csharp/)
+├── csharp/                   # DraftBot.Core (draft logic), DraftBot.Sim (simulator + CLI), DraftBot.Tests (xUnit)
+├── .claude/                  # STATUS.md (hand-off), LOG.md (decision log), ROADMAP.md, projection schema
 ├── plan.txt                  # Draft advisor design spec
 ├── requirements.txt
 └── README.md

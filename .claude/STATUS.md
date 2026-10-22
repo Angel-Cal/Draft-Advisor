@@ -1,8 +1,8 @@
 # DraftBot — Project Status
 
-**Last updated:** 2026-10-21
-**Active branch:** `phase-2-csharp` (Phase 2 work, committed, not merged to `main`; `main` has Phases 0-1 and is not pushed to `origin`)
-**Phase:** Phases 0, 1 and 2 complete (ROADMAP.md is updated). Next: Phase 3 (model v2, after the 2026 season) or Phase 4 (recommender v2, which Phase 2's simulator now lets us evaluate).
+**Last updated:** 2026-10-22
+**Active branch:** `phase-2-csharp` (Phase 2 plus the first Phase 4 steps; pushed to `origin`, not merged to `main`; `main` has Phases 0-1)
+**Phase:** Phases 0, 1 and 2 complete; Phase 4 (recommender v2) in progress: single score, reach control, roster need and bench value are done (see "Hand-off" at the bottom). Phase 3 (model v2) waits for the 2026 season to end.
 **Why we chose things:** see `LOG.md` (decision log). Add an entry when a task produces a decision that rejected an alternative or changed results.
 
 ---
@@ -215,37 +215,55 @@ All tested with the standing protocol: 10-seed ablation + random-noise control, 
   Nabers played only weeks 1-4; Robinson saw 9.4 targets / 14.3 expected PPR per game without him vs 6.8 / 11.5 with him. The model
   projects 219 (= his 2025 total) vs an ADP-curve 147 (ADP 102, WR47): his edge over the market is the largest of all 123 WRs.
   FPOE measures conversion efficiency, not volume sustainability; a volume-sustainability signal (expected points vs his own prior
-  seasons, vs teammates available, team change) is what the idea needs. WR vacated/competing targets were tested null earlier.- **Half-PPR / standard targets** not built (Phase 3 item).
+  seasons, vs teammates available, team change) is what the idea needs. WR vacated/competing targets were tested null earlier.
+- **Half-PPR / standard targets** not built (Phase 3 item).
 - Roadmap Phase 3 "team-context features" were largely done and tested in Phase 1 (see lists above); only features that survived are in the model. Phase 3 still needs: 2026 data retrain after the season ends, grading 2026 projections, half/standard targets.
 - Model-vs-ADP gaps remain QB −0.10, RB −0.05, WR −0.06, TE −0.01 (top-150). Remaining gap is likely information the data lacks (camp news, injuries, depth-chart changes). Untested ideas are in the memory file `project_feature_ideas.md`.
 
 ---
 
-## Hand-off after Phase 2
+## Hand-off (read this first in a new session)
 
-**What exists.** `csharp/DraftBot.sln`: `DraftBot.Core` (projection loader, league settings, replacement level, VOR,
-ceiling/floor, per-position tiers, rosters, snake draft state, ported baseline recommender), `DraftBot.Sim` (opponent bots,
-roster rules, lineup scorer, ADP/VOR/recommender strategies, experiment runner, CLI) and `DraftBot.Tests` (xUnit). Python
-writes `data/processed/projections_<season>_v1.json` (live 2026 and backtests 2021-2025); the contract is
-`.claude/projection_schema_v1.md`. Everything in `csharp/` reads only those files.
+**Where the project is (2026-10-22).** Python research side and the C# product core both work and are tested (137 pytest, 121 xUnit). The model
+still does not beat ADP at ranking players (Phase 1). The recommender, however, now beats plain ADP in the simulator: the `need` recommender
+(single score = lineup gain + position-specific bench value, minus an ADP-reach cost) is +48 +/- 2 starter points over ADP with weekly lineup
+scoring (see the table above and `LOG.md`). The old Python recommender was the worst strategy (about -326 vs ADP).
 
-**Things the next phase should know:**
-- The Python advisor (`src/draft/recommender.py`, `roster.py`, `draft_state.py`, `advisor.py`, and the VOR/tier code in
-  `vor.py`) is now superseded by C#. `vor.py` is still needed to build `predictions_table.parquet`, which the exporter reads.
-  Nothing was archived yet.
-- Half-PPR and standard columns are `null` (Phase 3). The 50/50 model + ADP-curve blend is not implemented; testing it in the
-  simulator is a clean next experiment. The live ADP is Underdog and the backtest ADP is FantasyPros (they price positions
-  differently), so live recommendations have no backtest equivalent for ADP-sensitive logic.
-- Opponent noise is calibrated (1 + 0.12 x ADP, from FFC mock-draft pick spread); what stays untested is how representative hobbyist mock drafts are of
-  your league. The tier threshold (0.10 x RMSE) was tuned but gap-based tiers did
-  not beat equal-size tiers at usable counts; Phase 4 can try equal-size or capped-size tiers.
-- Phase 4 should keep the ported recommender as a baseline in the simulator and judge changes on starter points vs ADP first;
-  hindsight regret is noisy.
-- The `csharp/` tests are not in the pre-commit hook; CI runs them (`.github/workflows/tests.yml`).
+**Code map.**
+- Python: `src/data/export_projections.py` writes `data/processed/projections_<season>_v1.json` (live 2026 + backtests 2021-2025 with `actual_ppr`
+  and `weekly_ppr`); `src/data/ffc_scraper.py` pulls real pick-spread data used to calibrate the simulator. Contract: `.claude/projection_schema_v1.md`.
+- C# (`csharp/`, net9.0): `DraftBot.Core` = projection loader, league settings, replacement/VOR/tiers, rosters, snake draft state, the ported old
+  recommender (`BaselineRecommender`), `ValueRecommender` + `NeedSettings` (the new one), `LineupValue` (lineup gain, replacement, waiver level);
+  `DraftBot.Sim` = opponent bots, roster rules, weekly lineup scorer, strategies, experiments and the CLI; `DraftBot.Tests`.
+- CLI (`dotnet run -c Release --project csharp/src/DraftBot.Sim -- <command>`): `backtest`, `draft` (interactive mock draft; `--recommender
+  need|value|position`), `diagnose`, `decompose`, `describe`, `calibrate-noise`, `fit-noise`, `tune-tiers`, `tune-reach`, `tune-value`, `tune-need`,
+  `tune-bench`. Options worth knowing: `--seeds N`, `--noise X`, `--unrestricted true` (lifts the sim's roster rules for the drafter only),
+  `--season-totals true` (old scoring).
 
-**Housekeeping:**
-- Phase 2 work is on branch `phase-2-csharp`, committed (3 commits) but not yet merged to `main`. `main` is merged locally but **not pushed** to `origin`
-  (`Angel-Cal/Draft-Advisor`). The `Model_v2`, `Model_v3`, `draft_logic` and `phase-1-evaluation` branches are fully merged
-  and can be deleted.
-- `src/app/cli.py`, `src/draft/vbd.py`, `src/draft/simulator.py` live in `archive/`.
-- `README.md` documents the pipeline steps and the guardrails.
+**Settled decisions (details and numbers in `LOG.md`).** Tier threshold 0.10 x position RMSE; ADP-reach cost lambda 1000 with a 4-sigma cap; opponent
+bias SD 1 + 0.12 x ADP (calibrated to FFC mock drafts); weekly hindsight-optimal lineup scoring; bench value = structural k-th-backup weights (q = 0.23)
+x option value over the waiver level, with dead picks (3rd QB/TE) ranked last; the position-first step was dropped because it caused the 2025 loss
+(it favors WR by unfilled slots).
+
+**What to do next (candidates, none started).** Phase 4 remainder: tier-cliff / cost of waiting, position safety (will he last to my next pick),
+run detection, adaptive risk by round, and plain-language reasoning strings for beginners (probably the most valuable for the "friends and
+beginners" goal). Then Phase 5 (WPF + BlazorWebView app, Sleeper sync). Model side: half-PPR/standard targets and the 50/50 model + ADP-curve blend
+(Phase 3); the efficiency / volume-sustainability feature idea (Wan'Dale Robinson case study above) was only explored, not built.
+
+**Open questions / unvalidated.** How representative FFC hobbyist mock drafts are of the user's league; the option-value bench term assumes normal
+projection errors and a crude waiver level; weekly lineups are hindsight-optimal; the live ADP is Underdog but backtests use FantasyPros; the
+simulator's QB/TE caps for opponents are an assumption; hindsight regret is mostly luck (foresight regret is the informative one).
+
+**Working agreements with the user.** Ask before any design decision that was not specified (memory: `feedback_ask_design_decisions`); fix mistakes as
+they are found, even while exploring (`feedback_fix_mistakes_when_found`); commit and push only when asked; log decisions that rejected an
+alternative or changed results in `LOG.md`.
+
+**Housekeeping.**
+- Branches: `phase-2-csharp` is the working branch (pushed). `main` (Phases 0-1) is pushed too. `Model_v2`, `Model_v3`, `draft_logic` and
+  `phase-1-evaluation` are fully merged history and can be deleted. Merge `phase-2-csharp` into `main` when the user decides.
+- `src/app/cli.py`, `src/draft/vbd.py`, `src/draft/simulator.py` live in `archive/`. The Python advisor in `src/draft/` (recommender, roster,
+  draft_state, advisor) is superseded by C#; `vor.py` is still needed to build `predictions_table.parquet`, which the exporter reads.
+- `data/raw`, `data/processed`, `data/external` are gitignored; rebuild with the pipeline above (`ffc_scraper.py` and the exporter are the newest steps).
+- Tooling gotchas: piping `dotnet run ... | head` can leave a `DraftBot.Sim` process holding the build output (kill it before rebuilding); long
+  multi-line shell heredocs containing apostrophes can fail in this harness, so write files with the file tool.
+- `README.md` documents the pipeline steps and the guardrails; CI runs pytest and `dotnet test` (`.github/workflows/tests.yml`, not yet exercised on GitHub).
