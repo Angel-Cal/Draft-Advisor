@@ -52,3 +52,7 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+
+# .NET build output
+bin/
+obj/

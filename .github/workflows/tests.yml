@@ -16,3 +16,7 @@ jobs:
       - run: pip install -r requirements.txt
       # data-integrity tests skip themselves when data/ is absent; unit tests and validator tests always run
       - run: python -m pytest -q
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+      - run: dotnet test csharp/DraftBot.sln
