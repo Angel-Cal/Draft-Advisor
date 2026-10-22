@@ -26,6 +26,7 @@ def load_history():
         adp = pd.read_csv(ROOT / "data" / "external" / f"adp_{season}.csv")[["player_id", "position", "adp"]]
         actual = seasonal[seasonal["season"] == season][["player_id", "fantasy_points_ppr", "games"]]
         frame = adp.merge(actual, on="player_id")
+        frame["season"] = season
         frame["position_rank"] = frame.groupby("position")["adp"].rank(method="first")
         frames.append(frame[(frame["games"] >= 4) & (frame["adp"] <= MAX_FIT_ADP)])
     return pd.concat(frames).rename(columns={"fantasy_points_ppr": "actual_ppr"})

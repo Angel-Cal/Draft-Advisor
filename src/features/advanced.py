@@ -41,8 +41,14 @@ def _shift_to_next_season(df):
     return df.assign(season=df["season"] + 1)
 
 
+def last_regular_season_week(season):
+    """Regular seasons ran 17 weeks through 2020 and 18 from 2021; ff_opportunity also carries the playoffs after that."""
+    return np.where(season <= 2020, 17, 18)
+
+
 def build_xfp_features(opportunity):
-    """Expected PPR from opportunity (ff_opportunity) and how far actual PPR was above it."""
+    """Expected PPR from opportunity (ff_opportunity) and how far actual PPR was above it. Regular season only, like the other features."""
+    opportunity = opportunity[opportunity["week"] <= last_regular_season_week(opportunity["season"])]
     g = opportunity.groupby(["player_id", "season"]).agg(
         xfp=("total_fantasy_points_exp", "sum"), fp=("total_fantasy_points", "sum"), weeks=("week", "nunique")).reset_index()
     g["xfp_ppr_prev"] = g["xfp"]

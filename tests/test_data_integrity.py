@@ -171,6 +171,7 @@ def test_advisor_rmse_constants_match_the_current_walk_forward_error():
 @needs(RAW / "ff_opportunity_14_25.parquet", PROCESSED / "training_data.parquet")
 def test_expected_points_feature_is_last_seasons_opportunity(training):
     opportunity = pd.read_parquet(RAW / "ff_opportunity_14_25.parquet")
+    opportunity = opportunity[opportunity["week"] <= np.where(opportunity["season"] <= 2020, 17, 18)]     # regular season only
     last_year = opportunity.groupby(["player_id", "season"])["total_fantasy_points_exp"].sum().rename("expected")
     last_year.index = last_year.index.set_levels(last_year.index.levels[1] + 1, level="season")
     joined = training.dropna(subset=["xfp_ppr_prev"]).merge(last_year.reset_index(), on=["player_id", "season"])

@@ -4,6 +4,15 @@ import pytest
 from src.features import advanced as adv
 
 
+def test_xfp_features_ignore_playoff_weeks():
+    # regular seasons ran 17 weeks through 2020 and 18 from 2021: weeks beyond that are playoff games
+    opp = pd.DataFrame({"player_id": ["a"] * 5, "season": [2020, 2020, 2021, 2021, 2021], "week": [17, 18, 18, 19, 22],
+                        "total_fantasy_points": [10.0, 99.0, 5.0, 99.0, 99.0], "total_fantasy_points_exp": [12.0, 99.0, 6.0, 99.0, 99.0]})
+    out = adv.build_xfp_features(opp).set_index("season")
+    assert out.loc[2021, "xfp_ppr_prev"] == 12.0 and out.loc[2021, "fp_over_exp_prev"] == -2.0 and out.loc[2021, "xfp_pg_prev"] == 12.0
+    assert out.loc[2022, "xfp_ppr_prev"] == 6.0 and out.loc[2022, "xfp_pg_prev"] == 6.0
+
+
 def test_xfp_features_are_lagged_one_season():
     opp = pd.DataFrame({"player_id": ["a", "a", "a"], "season": [2020, 2020, 2021], "week": [1, 2, 1],
                         "total_fantasy_points": [10.0, 20.0, 5.0], "total_fantasy_points_exp": [12.0, 14.0, 6.0]})

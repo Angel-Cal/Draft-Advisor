@@ -17,6 +17,7 @@ SKILL_POSITIONS = ["QB", "RB", "WR", "TE"]
 CANONICAL_TEAMS = {"ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "DET", "GB", "HOU", "IND",
                    "JAX", "KC", "LA", "LAC", "LV", "MIA", "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF",
                    "TB", "TEN", "WAS"}
+NO_TEAM = "FA"  # projection files: rookie not yet drafted, unsigned veteran, or team unknown
 MIN_ROWS_PER_SEASON = 250
 RETENTION_MIN = 0.97
 DRIFT_IGNORE = {"rookie_year"}  # calendar-driven: the prediction season is always the newest
@@ -181,6 +182,48 @@ def check_adp_matches(adp, top_n=200):
     if dupes.any():
         errors.append(f"{int(dupes.sum())} duplicate (season, player_id) ADP rows")
     _raise_if(errors, "adp")
+
+
+def check_projection_file(doc):
+    """doc: the dict written to projections_<season>_v1.json (header + players). C# trusts these guarantees."""
+    errors = []
+    if doc.get("schema_version") != "v1":
+        errors.append(f"schema_version {doc.get('schema_version')!r} is not 'v1'")
+    if doc.get("kind") not in ("live", "backtest"):
+        errors.append(f"kind {doc.get('kind')!r} must be 'live' or 'backtest'")
+    rmse = doc.get("position_rmse", {})
+    if set(rmse) != set(SKILL_POSITIONS) or not all(v > 0 for v in rmse.values()):
+        errors.append(f"position_rmse must hold a positive value for each of {SKILL_POSITIONS}, got {rmse}")
+    players = pd.DataFrame(doc.get("players", []))
+    if players.empty:
+        errors.append("no players")
+        _raise_if(errors, "projection file")
+    required = ["player_id", "player_name", "position", "team", "projected_ppr", "games", "games_delta", "adp",
+                "injury_flag", "market_estimate"]
+    missing = [c for c in required if c not in players.columns]
+    _raise_if(errors + ([f"missing columns {missing}"] if missing else []), "projection file")
+
+    if players["player_id"].duplicated().any():
+        errors.append(f"{int(players['player_id'].duplicated().sum())} duplicate player_id rows")
+    for col in required:
+        if players[col].isna().any():
+            errors.append(f"{int(players[col].isna().sum())} nulls in {col}")
+    if not set(players["position"]) <= set(SKILL_POSITIONS):
+        errors.append(f"unexpected positions {sorted(set(players['position']) - set(SKILL_POSITIONS))}")
+    unknown_teams = set(players["team"].dropna()) - CANONICAL_TEAMS - {NO_TEAM}
+    if unknown_teams:
+        errors.append(f"unknown team codes {sorted(unknown_teams)}")
+    if not players["projected_ppr"].dropna().between(-50, 600).all():
+        errors.append("projected_ppr outside [-50, 600]")
+    synthetic = players["player_id"].str.startswith("market:")
+    if (synthetic & ~players["market_estimate"].astype(bool)).any():
+        errors.append("synthetic market: ids on rows not flagged market_estimate")
+    if doc.get("kind") == "backtest":
+        if "actual_ppr" not in players.columns or players["actual_ppr"].isna().any():
+            errors.append("backtest file needs a non-null actual_ppr on every player")
+        elif (players["actual_ppr"] < -20).any():
+            errors.append("actual_ppr below -20")
+    _raise_if(errors, "projection file")
 
 
 def check_advisor_table(table):
