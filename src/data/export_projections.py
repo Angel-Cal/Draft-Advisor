@@ -24,6 +24,7 @@ ROOT = Path(__file__).parent.parent.parent
 PROCESSED = ROOT / "data" / "processed"
 POSITIONS = ["QB", "RB", "WR", "TE"]
 BACKTEST_SEASONS = range(2021, 2026)
+WEEKS = 18
 POOL_RANK = 300  # the live advisor table holds the ~300 players ranked by Underdog
 TEAM_FIXES = {**TEAM_MAP, "JAC": "JAX", "LAR": "LA"}  # FantasyPros / 4for4 spellings -> nflverse
 SCHEMA_COLUMNS = ["player_id", "player_name", "position", "team", "projected_ppr", "projected_half",
@@ -46,7 +47,8 @@ def _finish(df):
     df["market_estimate"] = df["market_estimate"].astype(bool)
     for col in ["projected_ppr", "adp", "actual_ppr"]:
         df[col] = df[col].astype(float).round(2)
-    return df[SCHEMA_COLUMNS].sort_values("adp").reset_index(drop=True)
+    columns = SCHEMA_COLUMNS + (["weekly_ppr"] if "weekly_ppr" in df.columns else [])
+    return df[columns].sort_values("adp").reset_index(drop=True)
 
 
 def durability_flag(seasonal, before_season):
@@ -72,7 +74,16 @@ def build_live(table, roster, adp_table):
     return _finish(df)
 
 
-def build_backtest(season, oos, adp, training, seasonal, curves):
+def weekly_lists(weekly, season):
+    """player_id -> 18 values, regular-season PPR for weeks 1-18; None where the player did not play (bye, injury, inactive)."""
+    w = weekly[(weekly["season"] == season) & (weekly["season_type"] == "REG")]
+    by_player = {}
+    for player_id, week, points in zip(w["player_id"], w["week"], w["fantasy_points_ppr"]):
+        by_player.setdefault(player_id, [None] * WEEKS)[int(week) - 1] = round(float(points), 2)
+    return by_player
+
+
+def build_backtest(season, oos, adp, training, seasonal, curves, weekly=None):
     """oos: season_<year>.parquet; adp: adp_<year>.csv; training: training_data; seasonal: raw season stats.
 
     curves must NOT have seen this season (market rows would otherwise be fit on their own outcome).
@@ -99,7 +110,11 @@ def build_backtest(season, oos, adp, training, seasonal, curves):
     market["actual_ppr"] = market["actual_ppr"].fillna(0.0)  # drafted, never played: that is what a real roster scores
     print(f"  {season}: {len(scored)} model-scored + {len(market)} market rows ({int(zero_games.sum())} played zero games)")
 
-    return _finish(pd.concat([scored, market], ignore_index=True))
+    result = pd.concat([scored, market], ignore_index=True)
+    if weekly is not None:      # a player with no weekly rows never played: all weeks empty
+        by_player = weekly_lists(weekly, season)
+        result["weekly_ppr"] = [by_player.get(player_id, [None] * WEEKS) for player_id in result["player_id"]]
+    return _finish(result)
 
 
 def to_document(df, season, kind, adp_source):
@@ -133,6 +148,7 @@ if __name__ == "__main__":
     training = pd.read_parquet(PROCESSED / "training_data.parquet")
     seasonal = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_20_25.parquet")
     seasonal = seasonal[seasonal["player_id"].notna()]
+    weekly = pd.read_parquet(ROOT / "data" / "raw" / "weekly_20_25.parquet", columns=["player_id", "season", "week", "season_type", "fantasy_points_ppr"])
     history = load_history()
     for season in BACKTEST_SEASONS:
         oos_path = PROCESSED / f"season_{season}.parquet"
@@ -140,7 +156,7 @@ if __name__ == "__main__":
         curves = fit_position_curves(history[history["season"] != season])
         backtest = build_backtest(season, pd.read_parquet(oos_path),
                                   pd.read_csv(ROOT / "data" / "external" / f"adp_{season}.csv"),
-                                  training, seasonal, curves)
+                                  training, seasonal, curves, weekly)
         written.append(write(to_document(backtest, season, "backtest", "fantasypros")))
 
     update_manifest("export", {"files": [p.name for p in written], "validation": "passed"})

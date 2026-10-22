@@ -223,6 +223,14 @@ def check_projection_file(doc):
             errors.append("backtest file needs a non-null actual_ppr on every player")
         elif (players["actual_ppr"] < -20).any():
             errors.append("actual_ppr below -20")
+        if "weekly_ppr" in players.columns:      # optional: 18 regular-season weeks, null where the player did not play
+            lengths = players["weekly_ppr"].map(lambda w: len(w) if isinstance(w, list) else -1)
+            if (lengths != 18).any():
+                errors.append("weekly_ppr must be a list of 18 weeks on every player")
+            else:
+                gap = (players["weekly_ppr"].map(lambda w: sum(x for x in w if x is not None)) - players["actual_ppr"]).abs()
+                if (gap > 0.05).any():
+                    errors.append(f"weekly_ppr does not add up to actual_ppr for {int((gap > 0.05).sum())} players")
     _raise_if(errors, "projection file")
 
 

@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from src.data import validate as v
-from src.data.export_projections import PROCESSED, build_backtest, durability_flag, to_document
+from src.data.export_projections import PROCESSED, build_backtest, durability_flag, to_document, weekly_lists
 from src.draft.market_fallback import fit_position_curves
 
 
@@ -79,6 +79,38 @@ def test_backtest_flags_and_team_spelling():
     assert not df.loc["m1", "injury_flag"] and df.loc["m2", "injury_flag"]  # avg 8.5 games before 2024
     assert df.loc["m2", "games"] == 8 and df.loc["m2", "games_delta"] == -7
     assert df["adp"].is_monotonic_increasing                                # sorted by ADP
+
+
+def weekly_frame():
+    rows = [("m1", 2024, w, "REG", 10.0) for w in range(1, 18) if w != 9] + [("r1", 2024, 3, "REG", 180.0),
+            ("m1", 2024, 19, "POST", 50.0)]                           # playoff rows are not part of the season
+    return pd.DataFrame(rows, columns=["player_id", "season", "week", "season_type", "fantasy_points_ppr"])
+
+
+def test_weekly_lists_are_regular_season_with_gaps_where_the_player_did_not_play():
+    weekly = weekly_lists(weekly_frame(), 2024)
+
+    assert len(weekly["m1"]) == 18 and weekly["m1"][8] is None and weekly["m1"][0] == 10.0
+    assert weekly["m1"][17] is None                                     # nothing in week 18, and the playoff week is ignored
+    assert weekly["r1"][2] == 180.0 and weekly["r1"].count(None) == 17
+
+
+def test_backtest_carries_weekly_points_and_a_player_who_never_played_has_none():
+    oos, adp, training, seasonal = backtest_inputs()
+    oos = oos.assign(actual_ppr=[160.0, 100.0])                          # m1's weekly points sum to 16 x 10
+    df = build_backtest(2024, oos, adp, training, seasonal, curves(), weekly_frame()).set_index("player_id")
+
+    assert df.loc["m1", "weekly_ppr"][0] == 10.0 and sum(x for x in df.loc["m1", "weekly_ppr"] if x is not None) == 160.0
+    assert df.loc["z1", "weekly_ppr"] == [None] * 18
+
+
+def test_validator_checks_weekly_points_against_the_season_total():
+    players = [{**p, "actual_ppr": 20.0, "weekly_ppr": [10.0, 10.0] + [None] * 16} for p in valid_doc()["players"]]
+    v.check_projection_file(valid_doc(kind="backtest", players=players))
+    with pytest.raises(v.DataIntegrityError, match="add up"):
+        v.check_projection_file(valid_doc(kind="backtest", players=[{**players[0], "actual_ppr": 25.0}, players[1]]))
+    with pytest.raises(v.DataIntegrityError, match="18 weeks"):
+        v.check_projection_file(valid_doc(kind="backtest", players=[{**players[0], "weekly_ppr": [20.0]}, players[1]]))
 
 
 def test_backtest_document_passes_validation():
