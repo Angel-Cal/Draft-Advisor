@@ -138,8 +138,10 @@ live in .NET 9. They read only the exported `projections_<season>_v1.json` files
 cd csharp
 dotnet test                                                         # unit tests
 dotnet run -c Release --project src/DraftBot.Sim -- backtest        # ADP / VOR / recommender baselines + regret per round
-dotnet run --project src/DraftBot.Sim -- draft --season 2024 --slot 6   # interactive mock draft with the recommender's reasoning (--window true adds the reach control)
+dotnet run --project src/DraftBot.Sim -- draft --season 2024 --slot 6   # interactive mock draft with the recommender's reasoning (--window true adds the reach control, --recommender value uses the single-score recommender)
 dotnet run --project src/DraftBot.Sim -- tune-reach                 # sweep the recommender's ADP-reach penalty and cap
+dotnet run --project src/DraftBot.Sim -- tune-value                 # lambda sweep for the single-score recommender
+dotnet run --project src/DraftBot.Sim -- calibrate-noise            # compare simulated opponents' pick spread with real mock drafts (needs python src/data/ffc_scraper.py)
 dotnet run --project src/DraftBot.Sim -- diagnose --season 2025     # why one strategy trails another in a season (players, positions)
 dotnet run --project src/DraftBot.Sim -- decompose                  # recommender split into position rule vs player rule
 dotnet run --project src/DraftBot.Sim -- tune-tiers                 # tier threshold sweep (leave-one-season-out)

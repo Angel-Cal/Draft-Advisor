@@ -48,14 +48,16 @@ Spearman vs actual season PPR, walk-forward test seasons 2021–2025, mean of 5 
 
 Backtest seasons 2021-2025, 12 teams, 12 draft slots x 100 opponent seeds per season (6,000 drafts per strategy per noise
 level), opponents draft by ADP + a personal bias per player, rosters scored by the best lineup from actual season PPR.
-Same opponents face every strategy, so differences are paired. Opponent noise is a guess, so it is swept (x0.5 / x1 / x2).
+Same opponents face every strategy, so differences are paired. Opponent noise is calibrated to real mock drafts (x1 = bias SD 1 + 0.12 x ADP,
+see `LOG.md`); x0.5 and x2 are run as a check.
 
 | Strategy (noise x1) | Starter points | Mean finish (of 12) | Top 3 | 1st | vs ADP (paired, +/- 1 SE) |
 |---|---|---|---|---|---|
 | Plain ADP | 1796 | 5.8 | 31% | 10% | |
-| Pure VOR | 1694 | 7.7 | 10% | 1% | -102 +/- 3 |
-| Current recommender (ported) | 1547 | 10.3 | 1% | 0% | -249 +/- 3 |
-| Recommender + reach control (`windowed`) | 1755 | 6.4 | 24% | 6% | -41 +/- 3 |
+| Pure VOR | 1674 | 8.1 | 10% | 1% | -122 +/- 3 |
+| Current recommender (ported) | 1502 | 10.8 | 0% | 0% | -294 +/- 3 |
+| Recommender + reach control (`windowed`) | 1737 | 6.7 | 22% | 5% | -59 +/- 3 |
+| Single-score recommender (`value`, lambda 1000) | 1823 | 5.3 | 38% | 15% | +27 +/- 2 |
 
 The order is the same at x0.5 and x2. **The bar for Phase 4 is plain ADP, not the old recommender.** VOR beats ADP in 2021
 and 2022 but loses by 237 points in 2023, so it is season-dependent. The recommender reaches for model-vs-ADP disagreements
@@ -66,6 +68,13 @@ Decisions behind all of this are in `LOG.md`.
 **Reach control** (`ReachSettings`, default lambda 0.3 / cap 4 sigma, provisional): the baseline recommended ADP 70-112 players
 at pick 6; the windowed variant stays near the pick (Jefferson, St. Brown, Chase). It recovers about 210 of the 249 points lost
 to ADP, beats ADP in 2021, 2023 and 2024 and loses in 2022 and 2025 (-243). Still below plain ADP overall. Mock draft: `--window true`.
+**Single-score recommender (`value`, Phase 4 step 1):** one score across positions, VOR minus a reach cost in points, no roster need yet.
+At the calibrated opponent noise it is +27 over plain ADP (+29 at x0.5, -19 at x2), winning 4 of 5 seasons (2025 is -10) and ~+320 over
+the old recommender. The edge fades as opponents get noisier and breaks even at about 1.65x the calibrated noise; the lambda plateau is
+wide (400 and up all gain 16-23). The reach cost at the best setting is very high (a player one pick past his ADP loses ~100 points).
+The opponent noise itself is now calibrated against real mock drafts (FFC pick spread); the remaining uncertainty is how well hobbyist mock
+drafts represent your league. See `LOG.md`.
+
 **Why 2025 is the bad year (investigated):** not the model (it out-ranked ADP that year). 2025 was an RB-premium season (first 12
 RBs by ADP averaged 293 vs 215-258 elsewhere) and the recommender's position rule always favors WR (most unfilled slots), so it
 drafts 2.7 RBs per team vs ADP's 5.4. The position rule alone reproduces the season-to-season swings (+73/-152/+9/+85/-224 vs
@@ -105,23 +114,27 @@ python src/models/predict.py                     # 2026 projections -> *_predict
 python src/draft/vor.py                          # advisor table -> predictions_table.parquet (adds ADP fallback rows)
 python src/data/export_projections.py            # projections_<season>_v1.json: live 2026 + backtests 2021-2025 (C# reads these)
 python src/data/adp_scraper.py                   # only to refresh historical ADP (Wayback Machine, cached in data/raw/adp_html)
+python src/data/ffc_scraper.py                   # real pick-spread data from FFC mock drafts (cached in data/raw/ffc); used to calibrate the simulator
 ```
 
 C# (needs the exported JSON files; .NET 9 SDK):
 
 ```bash
 cd csharp
-dotnet test                                                          # 81 tests
+dotnet test                                                          # 94 tests
 dotnet run -c Release --project src/DraftBot.Sim -- backtest --seeds 100   # baselines + regret -> data/processed/sim_baseline.csv, sim_regret.csv
-dotnet run --project src/DraftBot.Sim -- draft --season 2024 --slot 6 [--seed 0] [--reveal true] [--window true]   # interactive mock draft
+dotnet run --project src/DraftBot.Sim -- draft --season 2024 --slot 6 [--seed 0] [--reveal true] [--window true] [--recommender value]   # interactive mock draft
 dotnet run -c Release --project src/DraftBot.Sim -- tune-reach --seeds 30   # reach penalty / cap sweep, leave-one-season-out
+dotnet run -c Release --project src/DraftBot.Sim -- tune-value --seeds 60 [--noise 2]   # lambda sweep for the single-score recommender
+dotnet run -c Release --project src/DraftBot.Sim -- calibrate-noise   # simulated vs real (FFC) pick spread by ADP bucket
+dotnet run -c Release --project src/DraftBot.Sim -- fit-noise         # grid-fit the opponent noise formula to the real spread
 dotnet run -c Release --project src/DraftBot.Sim -- diagnose --season 2025 --a adp --b windowed   # which players/positions explain a gap
 dotnet run -c Release --project src/DraftBot.Sim -- decompose --seeds 50   # recommender split into position rule vs player rule
 dotnet run --project src/DraftBot.Sim -- tune-tiers                  # tier threshold sweep, leave-one-season-out
 dotnet run --project src/DraftBot.Sim -- describe [--tier-gap 0.2]  # starters, replacement and tier sizes of the live file
 ```
 
-Tests: `pytest -q` (133 tests; the data-integrity and export-file tests skip when `data/` is absent). A git pre-commit hook (`.githooks/pre-commit`, enabled with `git config core.hooksPath .githooks`) runs them before every commit.
+Tests: `pytest -q` (134 tests; the data-integrity and export-file tests skip when `data/` is absent). A git pre-commit hook (`.githooks/pre-commit`, enabled with `git config core.hooksPath .githooks`) runs them before every commit.
 
 `data/raw`, `data/processed`, `data/external` are gitignored. `models/*_params` (tuned hyperparameters) **are tracked**.
 
@@ -207,7 +220,8 @@ writes `data/processed/projections_<season>_v1.json` (live 2026 and backtests 20
 - Half-PPR and standard columns are `null` (Phase 3). The 50/50 model + ADP-curve blend is not implemented; testing it in the
   simulator is a clean next experiment. The live ADP is Underdog and the backtest ADP is FantasyPros (they price positions
   differently), so live recommendations have no backtest equivalent for ADP-sensitive logic.
-- Opponent noise (1 + 0.1 x ADP) is an unvalidated guess. The tier threshold (0.10 x RMSE) was tuned but gap-based tiers did
+- Opponent noise is calibrated (1 + 0.12 x ADP, from FFC mock-draft pick spread); what stays untested is how representative hobbyist mock drafts are of
+  your league. The tier threshold (0.10 x RMSE) was tuned but gap-based tiers did
   not beat equal-size tiers at usable counts; Phase 4 can try equal-size or capped-size tiers.
 - Phase 4 should keep the ported recommender as a baseline in the simulator and judge changes on starter points vs ADP first;
   hindsight regret is noisy.

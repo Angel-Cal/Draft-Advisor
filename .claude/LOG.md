@@ -14,6 +14,42 @@ Standing rules (apply to every entry below):
 
 ---
 
+## 2026-10-21 — Opponent noise calibrated against real drafts: bias SD = 1 + 0.12 x ADP (was 1 + 0.10 x ADP)
+**Decision:** the simulator's opponent bias SD default is now 1 pick + 0.12 per ADP slot. This supersedes the earlier "cannot be
+calibrated" note in the simulator-design entry and the noise caveat in the single-score entry; ADP/VOR/recommender baselines were rerun.
+**How the sim was compared with reality:** Fantasy Football Calculator's public ADP API (`src/data/ffc_scraper.py`, cached in
+`data/raw/ffc`) reports, per player, the mean pick and the SD of his pick across 1,371-8,470 real 12-team PPR mock drafts per season
+(2021-2025, all in the days before the opener). That SD (about 0.108 x ADP: 1.1 picks at ADP 3, 3.0 at 18, 5.4 at 48, 9.5 at 102, the
+same every year) is compared with the SD of each player's pick across seeded all-bot simulated drafts (`calibrate-noise`), by ADP
+bucket. The BIAS parameter is not the observable: the realized pick spread comes out of 11 independent biases plus availability, so
+the old setting (1 + 0.1 x ADP) produced only 0.84x the real spread (1.02x at the top, 0.75x deep). A grid fit (`fit-noise`) over base
+and slope gave 1 + 0.12 x ADP, within 0.90-1.06x of real in every bucket (rms log ratio 0.074 vs 0.197). The cross-platform SD
+(0.16 x ADP) used earlier was NOT the right target: it mixes platform quirks with draft-to-draft spread.
+**Effect (100 seeds, noise x1 = calibrated):** ADP 1796, pure VOR -122, old recommender -294, windowed -59, single-score `value`
++27 +/- 2 (wins 4 of 5 seasons; 2025 is -10). The lambda plateau is wide (lambda 400 and up: +16 to +23; best 1000). The edge fades
+with opponent noise: +22 at x1.25, +12 at x1.5, -7 at x1.75, -19 at x2, so break-even is about 1.65x the calibrated noise, a margin
+larger than the fit error (~7-20%).
+**Caveats:** FFC drafters are hobbyists in mock lobbies (some auto-drafting), not necessarily your league; real drafters also reach
+for positional needs, which the bots only imitate through caps. The calibration fixes spread, not correlated behavior (runs).
+**Rejected:** keeping a guessed noise; matching the bias parameter to the cross-platform SD. **See:** `NoiseCalibration.cs`.
+
+## 2026-10-21 — Single-score recommender (Phase 4 step 1): beats everything but ADP is not beaten robustly
+**Decision:** the position-first step is replaced, as a new `value` variant beside the old ones, by one score across all players:
+score = projected VOR (points over replacement) - lambda x z^2 (reach cost in points, z in sigmas past the pick, sigma = 2 + 0.16 x
+pick) with the same far cap at 4 sigma. The old rank and ADP-gap terms (position-relative) and the injury-risk penalty are dropped;
+roster need is NOT in it yet (step 2, measured separately). Provisional default lambda = 1000, cap 4.
+**Why / results (5 seasons x 12 slots x 60-100 seeds):** lambda sweep at opponent noise x1: 0 -> 1689 (-104 vs ADP), 10 -> 1757, 100 ->
+1793 (ADP), 400 -> 1810, 1000 -> 1814 (+21 +/- 3, beats ADP in 4 of 5 seasons; 2025 is -36), 10000 -> 1803, infinity -> 1799 (+6).
+At the default over 100 seeds: +31 / +25 / -1 vs ADP at noise x0.5 / x1 / x2 (windowed -57 / -59 / -66, old recommender -271 / -288 /
+-315). Leave-one-season-out: +16 +/- 22 vs ADP, +80 +/- 45 vs windowed.
+**Robustness caveat (superseded by the calibration entry above, which puts the real noise near x1 and the break-even near x1.65):** the edge depends on the simulator's opponents following ADP closely. At noise x2 (closer to the
+measured platform spread, 0.16 x ADP vs the x1 assumption 1 + 0.1 x ADP) the best lambda is infinity and the gain is +3 +/- 3; at x4
+every lambda loses ~91 points to ADP. The model's VOR adds nothing beyond ADP when players slide at random, consistent with Phase 1.
+So: a large improvement over the old recommender (+300), not yet a robust edge over plain ADP. The optimal lambda is so high that
+a player one pick past his ADP is penalized ~100 points, much stricter than the user's intuition that reaching is not strictly bad.
+**Next:** roster need as its own step; calibrate the opponent noise (the biggest unknown); lambda is only meaningful relative to it.
+**See:** `ValueRecommender.cs`, `tune-value --noise`, `draft --recommender value`.
+
 ## 2026-10-21 — Fixed: playoff weeks in expected-points features; dead `passing_cpoe_delta` column
 **Decision:** `build_xfp_features` keeps regular-season weeks only (<= 17 through 2020, <= 18 from 2021); `passing_cpoe_delta` is
 dropped from the RB/WR/TE models. Found while explaining points-over-expected; the user asked to fix mistakes as they are found.
