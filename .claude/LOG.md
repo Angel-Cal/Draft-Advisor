@@ -14,6 +14,66 @@ Standing rules (apply to every entry below):
 
 ---
 
+## 2026-10-22 — Bench value settled: structural weights + option value over the waiver level + dead-pick exclusion is the default `need`
+**Decision:** `NeedSettings.Default` is now `Option`: lineup gain, plus the k-th-backup weight P(Binomial(S, q) >= k) (q = 0.23) times the option value
+E[max(0, X - waiver)] of the part of the player that does not start (X ~ Normal(projection, position RMSE), waiver = best undrafted projection
+at the position, capped at replacement), and any player with zero lineup gain AND zero backup weight is a dead pick (score offset -1,000,000, so
+he is chosen only if nothing else exists). `NoBench` (lineup gain only) remains as a comparison arm. User choice: waiver level + option value.
+**Why / results (weekly scoring, 40 seeds, calibrated noise):** rules lifted for the drafter: option q=0.23 2210 (+94 over ADP 2115) vs no bench 2167
+(+52) vs value 2155 (+40); structural-without-option 2207, so the option value itself adds ~3 (noise) and the structural weights plus the
+dead-pick exclusion carry the gain; q hardly matters (0.15 / 0.23 / 0.35: 2210 / 2210 / 2207); flat weights do not help (flat 0.25 2163, flat
+option 2153 and 2116). Beats no-bench in every configuration: rules on +16 (2208 vs 2192), season-total scoring +20, noise x0.5 +56, x2 +16, x3 +10
+(all vs ADP-relative same arms), and wins all five seasons with the rules lifted (+73 / +26 / +30 / +24 / +60). Default full backtest (100 seeds,
+rules on, noise x1): need 2212 (+48 +/- 2.3, wins every season) vs value 2198 (+34), ADP 2164. Edge over ADP vs opponent noise (rules lifted): +49 at
+x2, -26 at x3, so break-even is about x2.5 the calibrated noise. Leave-one-season-out over all arms: +14 +/- 28 vs no bench, +66 +/- 42 vs ADP.
+**Roster construction (rules lifted, 2024 / 2025):** QBs per team 2.0 / 2.2 (ADP 3.8 / 4.4), TEs 2.0 / 2.0, RBs 5.0 / 4.8, WRs 7.0 / 6.9; the earlier
+version drafted 3.6-4.5 QBs. The first cause I tested was wrong: a gentler reach cost (lambda 10-300) did not change the QB count. Opponents cap
+QB/TE at 2, so surplus QBs and TEs slide past their ADP and look free to a reach-averse drafter, and by round 15 every candidate is worth about 0;
+only an explicit "this player can never be needed" signal stops the third QB.
+**Caveats:** the option-value term assumes a normal projection error and a crude waiver level; late picks are lottery tickets the point
+projection cannot rank well; weekly lineups are hindsight-optimal.
+
+## 2026-10-22 — Position-specific bench value explored; weekly-lineup scoring added; the structural rule alone is harmless but cannot act
+**Decision:** (1) rosters are now scored by the best lineup each week from actual weekly PPR (backtest files carry an optional
+`weekly_ppr`, 18 weeks, null where the player did not play; it sums exactly to `actual_ppr` for all 10,044 player-seasons), because season
+totals cannot see depth. `--season-totals true` keeps the old scoring. (2) `NeedSettings.Structural` implements the user-approved structural
+bench rule: with q = P(a starter is out in a given week) = 0.23 (draftable players missed 3.1 of 17 games, nearly equal across QB 2.9, RB 3.2,
+WR 3.1, TE 3.1, plus one bye in 18) and S = the slots a backup could fill (QB 1, TE 1, RB 2 + FLEX, WR 3 + FLEX), the k-th backup is worth
+P(Binomial(S, q) >= k) of his non-lineup VOR: first backup QB/TE 0.23, second 0, first RB 0.54, first WR 0.65.
+**Why the user asked:** the season-total sim could not value depth, and the roster-need recommender drafted 2-3 backup QBs/TEs in a mock
+draft, which is bad roster construction; beta = 0 winning looked like an artifact of how we scored, not evidence depth is worthless.
+**Results (weekly scoring, 40 seeds, rules lifted for the drafter):** need with no bench value 2167 (+52 +/- 4 over ADP 2115), structural
+q=0.15 / 0.23 / 0.35: 2165 / 2165 / 2163, scale x0.5 and x2: 2165 / 2162, flat 0.25: 2163, `value`: 2155. Held-out gain of the best arm
+over no bench: -2 +/- 2. Depth is worth almost nothing in aggregate even with weekly lineups. Baselines under weekly scoring (100 seeds, rules
+on, noise x1): ADP 2164, VOR -118, old recommender -326, windowed -33, value +34, need +35 (season totals were +27 / +30): every conclusion
+survives, edges slightly larger.
+**What it did NOT fix:** with the rules lifted, need and the structural rule still draft 3.6 QBs and 2.6 TEs per team (ADP 3.8 / 2.6). Cause
+(seen in a mock draft): VOR is measured against starter-level replacement (e.g. the 13th QB), so by round 11 every remaining player has VOR <= 0;
+every bench candidate is worth 0, the k-th-backup weights multiply 0, and the pick falls back to the reach cost, i.e. ADP order. A third QB
+(weight 0.00) is still taken because nothing else scores above 0.
+**Open options (resolved in the entry above):** value a bench player against the WAIVER level (best undrafted player at the position, which is much higher for QB/TE than
+for RB/WR) with an option-value term E[max(0, X - waiver)], X ~ N(projection, position RMSE), times the k-th-backup weight; or a tie-break
+that prefers positions with a larger weight among zero-value candidates; or hard caps. **Rejected so far:** fitting four per-position bench
+fractions on the season-total sim (it returns zeros). **See:** `LineupScorer.ScoreWeekly`, `NeedSettings.Weight`, `tune-bench`.
+
+## 2026-10-22 — Roster need (Phase 4 step 2): lineup gain over replacement, no bench value; makes the recommender self-sufficient
+**Decision:** the `need` variant values a player at the points he adds to the team's best lineup (1 QB / 2 RB / 3 WR / 1 TE / 1 FLEX,
+open slots filled by replacement-level "ghosts", so a first RB is worth his full VOR and a redundant QB is worth 0), plus a bench
+fraction beta of the part of his VOR that does not improve the lineup, minus the same reach cost. Provisional default beta = 0, lambda
+1000, cap 4 sigma. beta = 1 reproduces the plain single-score recommender (`value`), so the sweep includes the previous step as its control.
+**Why (40 seeds, calibrated noise x1, 15 arms):** two setups, as the user asked. Simulator rules ON (caps of 2 QB / 2 TE, forced starters
+after round 10, for every drafter): need b=0 1820 vs value 1816 vs ADP 1796, no measurable difference (leave-one-season-out -3 +/- 10),
+because the rules already supply the discipline. Rules LIFTED for the drafter only: ADP 1770, value 1789 (it stacks redundant players),
+need b=0 1811 (+41 +/- 4 over ADP): need recovers 20 of the 27 points the rules were worth, so it is self-sufficient (leave-one-season-out
++10 +/- 11 vs value, +30 +/- 29 vs ADP). The result is monotone in beta (0 > 0.1 > 0.25 > 0.5 > 1), i.e. bench value hurts in the sim.
+**Robustness (rules lifted):** need is +44 / +41 / +48 / +26 over ADP at opponent noise x0.5 / x1 / x1.5 / x2 and -4 at x3 (break-even about
+x2.9 of the calibrated noise), against value's +34 / +20 / +7 / -32 / -110: need roughly doubles the noise margin (x1.65 -> x2.9).
+With rules on, full backtest (100 seeds, noise x1): need 1827 (+30 +/- 2) vs value 1823 (+27), ADP 1796.
+**Product caveat:** with beta = 0, late bench picks have no value and fall back to ADP order, so an unconstrained mock draft still takes
+2-3 backup QBs/TEs. The sim is indifferent to that (season-total scoring has no bye weeks or injuries); position-specific bench values were
+rejected as four more parameters on five seasons. **Rejected:** a ramp by round (the lineup gain is already ~VOR early and ~0 late),
+hard position rules inside the recommender. **See:** `LineupValue.cs`, `ValueRecommender.cs`, `tune-need`.
+
 ## 2026-10-21 — Opponent noise calibrated against real drafts: bias SD = 1 + 0.12 x ADP (was 1 + 0.10 x ADP)
 **Decision:** the simulator's opponent bias SD default is now 1 pick + 0.12 per ADP slot. This supersedes the earlier "cannot be
 calibrated" note in the simulator-design entry and the noise caveat in the single-score entry; ADP/VOR/recommender baselines were rerun.

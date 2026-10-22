@@ -89,7 +89,7 @@ Also done in Phase 1 (unplanned, but it changed the results): fixed a target-sea
 ### Phase 4: Recommender v2 (Feb to Apr 2027)
 - [x] Single score across all available players (replaces position-first selection): `value` variant = VOR minus a reach cost; no roster need yet (done 2026-10-21, see `LOG.md`)
 - [ ] Add components one at a time; keep each only if the simulator shows improvement:
-  - roster need (nonlinear, ramps up mid-draft)
+  - roster need (nonlinear, ramps up mid-draft): done 2026-10-22 as marginal lineup gain over replacement plus position-specific bench value (structural k-th-backup weights, option value over the waiver level, dead-pick exclusion), see `LOG.md`
   - tier cliff / cost of waiting until next pick
   - position safety (P(player survives to my next pick) from teams picking in between)
   - run detection (continuous intensity)

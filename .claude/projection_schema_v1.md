@@ -44,6 +44,7 @@ Strict JSON (no `NaN`; missing values are `null`).
 | `injury_flag` | bool | Durability flag: averaged under 15 games over their qualifying seasons (>= 2 seasons of >= 4 games) before `season`. The recommender's risk penalty reads this. Always `false` for market-estimate rows. |
 | `market_estimate` | bool | `true` if the projection is the ADP-derived fallback (rookies, anyone the model cannot score). |
 | `actual_ppr` | float\|null | Backtest files only: the player's actual season PPR (`0` if they never played). `null` in live files. |
+| `weekly_ppr` | array(18) | Backtest files only, optional: regular-season PPR for weeks 1-18, `null` where the player did not play (bye, injury, inactive). Sums to `actual_ppr`; the simulator uses it for weekly lineup scoring. Absent in live files. |
 
 ---
 
@@ -61,7 +62,7 @@ Strict JSON (no `NaN`; missing values are `null`).
 
 | Version | Date | Changes |
 |---------|------|---------|
-| v1 | 2026-10 | Initial schema, drafted in Phase 0 as parquet + CSV. Finalized in Phase 2 as JSON with a header: `underdog_adp` became `adp` + header `adp_source`; `position_rmse` and `schema_version` moved from per-row to the header; added `kind`, `season`, `actual_ppr`; `injury_flag` redefined to match the code (durability flag; the old "games < 13" rule is the availability adjustment, now derived in C#); `team` may be `"FA"`. |
+| v1 | 2026-10 | Initial schema, drafted in Phase 0 as parquet + CSV. Finalized in Phase 2 as JSON with a header: `underdog_adp` became `adp` + header `adp_source`; `position_rmse` and `schema_version` moved from per-row to the header; added `kind`, `season`, `actual_ppr`, optional backtest `weekly_ppr`; `injury_flag` redefined to match the code (durability flag; the old "games < 13" rule is the availability adjustment, now derived in C#); `team` may be `"FA"`. |
 
 ---
 

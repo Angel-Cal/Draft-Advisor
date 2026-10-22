@@ -47,22 +47,25 @@ Spearman vs actual season PPR, walk-forward test seasons 2021–2025, mean of 5 
 ## Phase 2 result: the simulator's baselines
 
 Backtest seasons 2021-2025, 12 teams, 12 draft slots x 100 opponent seeds per season (6,000 drafts per strategy per noise
-level), opponents draft by ADP + a personal bias per player, rosters scored by the best lineup from actual season PPR.
+level), opponents draft by ADP + a personal bias per player, rosters scored by the best lineup EACH WEEK from actual weekly PPR (weeks 1-18,
+chosen with hindsight; byes and injuries cost points, so depth is worth something). Until 2026-10-22 rosters were scored on season totals;
+`--season-totals true` reproduces that (the season-total numbers are in `LOG.md`).
 Same opponents face every strategy, so differences are paired. Opponent noise is calibrated to real mock drafts (x1 = bias SD 1 + 0.12 x ADP,
 see `LOG.md`); x0.5 and x2 are run as a check.
 
 | Strategy (noise x1) | Starter points | Mean finish (of 12) | Top 3 | 1st | vs ADP (paired, +/- 1 SE) |
 |---|---|---|---|---|---|
-| Plain ADP | 1796 | 5.8 | 31% | 10% | |
-| Pure VOR | 1674 | 8.1 | 10% | 1% | -122 +/- 3 |
-| Current recommender (ported) | 1502 | 10.8 | 0% | 0% | -294 +/- 3 |
-| Recommender + reach control (`windowed`) | 1737 | 6.7 | 22% | 5% | -59 +/- 3 |
-| Single-score recommender (`value`, lambda 1000) | 1823 | 5.3 | 38% | 15% | +27 +/- 2 |
+| Plain ADP | 2164 | 5.6 | 34% | 14% | |
+| Pure VOR | 2047 | 7.5 | 9% | 1% | -118 +/- 3 |
+| Current recommender (ported) | 1839 | 10.5 | 1% | 0% | -326 +/- 3 |
+| Recommender + reach control (`windowed`) | 2132 | 6.0 | 28% | 8% | -33 +/- 3 |
+| Single-score recommender (`value`, lambda 1000) | 2198 | 5.0 | 42% | 18% | +34 +/- 2 |
+| Single-score + roster need and bench value (`need`) | 2212 | 4.8 | 44% | 19% | +48 +/- 2 |
 
 The order is the same at x0.5 and x2. **The bar for Phase 4 is plain ADP, not the old recommender.** VOR beats ADP in 2021
 and 2022 but loses by 237 points in 2023, so it is season-dependent. The recommender reaches for model-vs-ADP disagreements
-(its `value_gap` term), and the model does not beat ADP. Caveats: SEs assume independent drafts; lineups use season totals
-(no byes or weekly moves); `injury_flag` marks 40-50% of the pool, which makes the recommender's risk penalty blunt.
+(its `value_gap` term), and the model does not beat ADP. Weekly scoring left every conclusion unchanged (same order, edges a little larger).
+Caveats: SEs assume independent drafts; weekly lineups are hindsight-optimal; `injury_flag` marks 40-50% of the pool, which makes the recommender's risk penalty blunt.
 Decisions behind all of this are in `LOG.md`.
 
 **Reach control** (`ReachSettings`, default lambda 0.3 / cap 4 sigma, provisional): the baseline recommended ADP 70-112 players
@@ -72,6 +75,17 @@ to ADP, beats ADP in 2021, 2023 and 2024 and loses in 2022 and 2025 (-243). Stil
 At the calibrated opponent noise it is +27 over plain ADP (+29 at x0.5, -19 at x2), winning 4 of 5 seasons (2025 is -10) and ~+320 over
 the old recommender. The edge fades as opponents get noisier and breaks even at about 1.65x the calibrated noise; the lambda plateau is
 wide (400 and up all gain 16-23). The reach cost at the best setting is very high (a player one pick past his ADP loses ~100 points).
+**Roster need and bench value (`need`, Phase 4 step 2, now the recommended recommender):** a player's value is the points he adds to the team's
+best lineup (open slots = replacement-level ghosts) plus position-specific BENCH value. The k-th backup at a position is worth P(at least k of
+its S starter slots out in the same week) (q = 0.23, measured: draftable players miss ~3.1 of 17 games at every position, plus one bye; S = QB 1,
+TE 1, RB 2 + FLEX, WR 3 + FLEX) times his option value above the waiver level, E[max(0, X - waiver)] with X normal around his projection (spread =
+the position RMSE) and waiver = the best undrafted player at the position. A player who can never start and, at his position, can never be needed
+as cover (a 3rd QB or TE) is a dead pick and ranks below everything useful. This builds sane rosters without any caps (about 2 QBs and 2 TEs;
+ADP drafts 3.8 QBs) and beats no-bench-value in every configuration tried (rules on/off, weekly or season-total scoring, noise x0.5 to x3),
+and wins all five seasons with the rules lifted. Flat bench fractions do not help; the position-specific weights and the dead-pick exclusion do
+the work (option value on top of the structural weights adds only ~3 points). Edge over ADP stays positive until opponent noise reaches ~2.5x
+the calibrated level. Scoring is weekly lineups since 2026-10-22. See `LOG.md`.
+
 The opponent noise itself is now calibrated against real mock drafts (FFC pick spread); the remaining uncertainty is how well hobbyist mock
 drafts represent your league. See `LOG.md`.
 
@@ -121,11 +135,13 @@ C# (needs the exported JSON files; .NET 9 SDK):
 
 ```bash
 cd csharp
-dotnet test                                                          # 94 tests
+dotnet test                                                          # 121 tests
 dotnet run -c Release --project src/DraftBot.Sim -- backtest --seeds 100   # baselines + regret -> data/processed/sim_baseline.csv, sim_regret.csv
-dotnet run --project src/DraftBot.Sim -- draft --season 2024 --slot 6 [--seed 0] [--reveal true] [--window true] [--recommender value]   # interactive mock draft
+dotnet run --project src/DraftBot.Sim -- draft --season 2024 --slot 6 [--seed 0] [--reveal true] [--window true] [--recommender value|need|bench|option]   # interactive mock draft
 dotnet run -c Release --project src/DraftBot.Sim -- tune-reach --seeds 30   # reach penalty / cap sweep, leave-one-season-out
 dotnet run -c Release --project src/DraftBot.Sim -- tune-value --seeds 60 [--noise 2]   # lambda sweep for the single-score recommender
+dotnet run -c Release --project src/DraftBot.Sim -- tune-bench --seeds 40 [--unrestricted true] [--season-totals true]   # bench value: flat vs structural
+dotnet run -c Release --project src/DraftBot.Sim -- tune-need --seeds 40 [--unrestricted true] [--noise 1]   # roster-need sweep (bench fraction x lambda)
 dotnet run -c Release --project src/DraftBot.Sim -- calibrate-noise   # simulated vs real (FFC) pick spread by ADP bucket
 dotnet run -c Release --project src/DraftBot.Sim -- fit-noise         # grid-fit the opponent noise formula to the real spread
 dotnet run -c Release --project src/DraftBot.Sim -- diagnose --season 2025 --a adp --b windowed   # which players/positions explain a gap
@@ -134,7 +150,7 @@ dotnet run --project src/DraftBot.Sim -- tune-tiers                  # tier thre
 dotnet run --project src/DraftBot.Sim -- describe [--tier-gap 0.2]  # starters, replacement and tier sizes of the live file
 ```
 
-Tests: `pytest -q` (134 tests; the data-integrity and export-file tests skip when `data/` is absent). A git pre-commit hook (`.githooks/pre-commit`, enabled with `git config core.hooksPath .githooks`) runs them before every commit.
+Tests: `pytest -q` (137 tests; the data-integrity and export-file tests skip when `data/` is absent). A git pre-commit hook (`.githooks/pre-commit`, enabled with `git config core.hooksPath .githooks`) runs them before every commit.
 
 `data/raw`, `data/processed`, `data/external` are gitignored. `models/*_params` (tuned hyperparameters) **are tracked**.
 
