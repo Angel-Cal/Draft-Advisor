@@ -19,16 +19,19 @@ public sealed class MockDraft
     readonly TextReader input;
     readonly TextWriter output;
     readonly ReachSettings? reach;
+    readonly bool singleScore;
 
     /// <param name="reach">If given, the recommender runs with the ADP-reach penalty and cap instead of as the plain baseline.</param>
+    /// <param name="singleScore">Use the single-score value recommender (needs <paramref name="reach"/>) instead of position-first.</param>
     public MockDraft(ProjectionFile file, SimSettings settings, int slot, int seed, bool reveal, TextReader input, TextWriter output,
-        ReachSettings? reach = null)
+        ReachSettings? reach = null, bool singleScore = false)
     {
+        if (singleScore && reach is null) throw new ArgumentException("the single-score recommender needs reach settings", nameof(reach));
         if (file.Players.Any(p => p.ActualPpr is null))
             throw new InvalidDataException("mock drafts need a backtest file with actual_ppr (the live file has none)");
         if (slot < 0 || slot >= settings.League.Teams)
             throw new ArgumentOutOfRangeException(nameof(slot), $"slot must be 1-{settings.League.Teams}");
-        (this.file, this.settings, this.slot, this.seed, this.reveal, this.input, this.output, this.reach) = (file, settings, slot, seed, reveal, input, output, reach);
+        (this.file, this.settings, this.slot, this.seed, this.reveal, this.input, this.output, this.reach, this.singleScore) = (file, settings, slot, seed, reveal, input, output, reach, singleScore);
     }
 
     /// <summary>Runs the draft. False if the user quit before it finished.</summary>
@@ -78,8 +81,7 @@ public sealed class MockDraft
     (ValuedPlayer Player, bool TookTop)? HumanTurn(DraftState state, IReadOnlyList<ValuedPlayer> legal, List<string> recent)
     {
         var roster = state.Teams[slot];
-        var choice = BaselineRecommender.ChoosePosition(state, slot, reach);
-        var candidates = BaselineRecommender.SelectPlayers(choice.Position, state, slot, reach);
+        var suggestions = new List<ValuedPlayer>();       // the recommender's top picks in display order, filled below
         var adpPick = new AdpStrategy().Pick(state, slot, legal);
         var vorPick = new VorStrategy().Pick(state, slot, legal);
 
@@ -92,6 +94,54 @@ public sealed class MockDraft
         var (needs, bench) = roster.GetNeeds();
         output.WriteLine($"Open starter slots: {(needs.Count == 0 ? "none" : string.Join(", ", needs))}.  Bench spots left: {bench}");
 
+        if (singleScore) PrintValueRecommendation(state, legal, suggestions);
+        else PrintPositionRecommendation(state, legal, suggestions);
+
+        output.WriteLine();
+        output.WriteLine($"  a  ADP would take: {Describe(adpPick)}");
+        output.WriteLine($"  v  VOR would take: {Describe(vorPick)}");
+
+        while (true)
+        {
+            output.Write("Your pick> ");
+            var line = input.ReadLine();
+            if (line is null) return null;
+            line = line.Trim();
+
+            if (line.Equals("q", StringComparison.OrdinalIgnoreCase)) return null;
+            if (line == "" || line == "1")
+            {
+                if (suggestions.Count > 0) return (suggestions[0], true);
+                output.WriteLine("  The recommender has no candidates; choose a, v or a name.");
+            }
+            else if (int.TryParse(line, out var n) && n >= 2 && n <= suggestions.Count)
+                return (suggestions[n - 1], false);
+            else if (line.Equals("a", StringComparison.OrdinalIgnoreCase)) return (adpPick, suggestions.FirstOrDefault() == adpPick);
+            else if (line.Equals("v", StringComparison.OrdinalIgnoreCase)) return (vorPick, suggestions.FirstOrDefault() == vorPick);
+            else
+            {
+                var matches = state.Available.Where(p => p.Player.PlayerName.Contains(line, StringComparison.OrdinalIgnoreCase)).Take(10).ToList();
+                if (matches.Count == 0) output.WriteLine($"  No available player matches '{line}'.");
+                else if (matches.Count == 1) return (matches[0], suggestions.FirstOrDefault() == matches[0]);
+                else
+                {
+                    output.WriteLine("  Several match:");
+                    for (var i = 0; i < matches.Count; i++) output.WriteLine($"    {i + 1}. {Describe(matches[i])}");
+                    output.Write("  Which one (number, or Enter to go back)> ");
+                    var answer = input.ReadLine();
+                    if (answer is null) return null;
+                    if (int.TryParse(answer.Trim(), out var which) && which >= 1 && which <= matches.Count)
+                        return (matches[which - 1], suggestions.FirstOrDefault() == matches[which - 1]);
+                }
+            }
+        }
+    }
+
+    void PrintPositionRecommendation(DraftState state, IReadOnlyList<ValuedPlayer> legal, List<ValuedPlayer> suggestions)
+    {
+        var choice = BaselineRecommender.ChoosePosition(state, slot, reach);
+        var candidates = BaselineRecommender.SelectPlayers(choice.Position, state, slot, reach);
+        suggestions.AddRange(candidates.Select(c => c.Player));
         if (reach is not null)
         {
             var pick = state.OverallPick + 1;
@@ -121,44 +171,27 @@ public sealed class MockDraft
                              + (legal.Contains(p) ? "" : "   blocked by the simulator's roster rules"));
         }
         if (candidates.Count == 0) output.WriteLine($"  (no {choice.Position}s left; pick another way)");
+    }
 
+    void PrintValueRecommendation(DraftState state, IReadOnlyList<ValuedPlayer> legal, List<ValuedPlayer> suggestions)
+    {
+        var settings = reach!;
+        var pick = state.OverallPick + 1;
+        var candidates = ValueRecommender.Recommend(state, settings);
+        suggestions.AddRange(candidates.Select(c => c.Player));
+
+        output.WriteLine($"Single-score recommender: score = VOR - {settings.Lambda:0.##} x z^2, where z is how many sigma past the pick a player's ADP is.");
+        output.WriteLine($"At pick {pick} one sigma is {settings.Sigma(pick):F1} picks; players with ADP past {pick + settings.CapSigmas * settings.Sigma(pick):F0} ({settings.CapSigmas:0.#} sigma) are out. "
+                         + "Roster need is not in the score yet.");
         output.WriteLine();
-        output.WriteLine($"  a  ADP would take: {Describe(adpPick)}");
-        output.WriteLine($"  v  VOR would take: {Describe(vorPick)}");
-
-        while (true)
+        output.WriteLine($"  {"#",2} {"player",-22}{"pos",-4}{"team",-5}{"ADP",6}{"proj",6}{"VOR",6}{"z",6}{"reach",8}{"score",8}  {"inj",-4}");
+        for (var i = 0; i < candidates.Count; i++)
         {
-            output.Write("Your pick> ");
-            var line = input.ReadLine();
-            if (line is null) return null;
-            line = line.Trim();
-
-            if (line.Equals("q", StringComparison.OrdinalIgnoreCase)) return null;
-            if (line == "" || line == "1")
-            {
-                if (candidates.Count > 0) return (candidates[0].Player, true);
-                output.WriteLine("  The recommender has no candidates; choose a, v or a name.");
-            }
-            else if (int.TryParse(line, out var n) && n >= 2 && n <= candidates.Count)
-                return (candidates[n - 1].Player, false);
-            else if (line.Equals("a", StringComparison.OrdinalIgnoreCase)) return (adpPick, candidates.FirstOrDefault()?.Player == adpPick);
-            else if (line.Equals("v", StringComparison.OrdinalIgnoreCase)) return (vorPick, candidates.FirstOrDefault()?.Player == vorPick);
-            else
-            {
-                var matches = state.Available.Where(p => p.Player.PlayerName.Contains(line, StringComparison.OrdinalIgnoreCase)).Take(10).ToList();
-                if (matches.Count == 0) output.WriteLine($"  No available player matches '{line}'.");
-                else if (matches.Count == 1) return (matches[0], candidates.FirstOrDefault()?.Player == matches[0]);
-                else
-                {
-                    output.WriteLine("  Several match:");
-                    for (var i = 0; i < matches.Count; i++) output.WriteLine($"    {i + 1}. {Describe(matches[i])}");
-                    output.Write("  Which one (number, or Enter to go back)> ");
-                    var answer = input.ReadLine();
-                    if (answer is null) return null;
-                    if (int.TryParse(answer.Trim(), out var which) && which >= 1 && which <= matches.Count)
-                        return (matches[which - 1], candidates.FirstOrDefault()?.Player == matches[which - 1]);
-                }
-            }
+            var c = candidates[i];
+            var p = c.Player;
+            output.WriteLine($"  {i + 1,2} {p.Player.PlayerName,-22}{p.Position,-4}{p.Player.Team,-5}{p.Player.Adp,6:F0}{p.Player.ProjectedPpr,6:F0}{c.Vor,6:F0}"
+                             + $"{c.ReachSigmas,6:F1}{(c.ReachPenalty == 0 ? 0 : -c.ReachPenalty),8:F1}{c.Score,8:F1}  {(p.Player.InjuryFlag ? "yes" : "-"),-4}"
+                             + (legal.Contains(p) ? "" : "   blocked by the simulator's roster rules"));
         }
     }
 
@@ -188,7 +221,7 @@ public sealed class MockDraft
         output.WriteLine();
         output.WriteLine("Same slot and opponents, but the strategy drafts the whole way:");
         var strategies = new List<IDraftStrategy> { new AdpStrategy(), new VorStrategy(), new RecommenderStrategy() };
-        if (reach is not null) strategies.Add(new WindowedRecommenderStrategy("windowed", reach));
+        if (reach is not null) strategies.Add(singleScore ? new ValueRecommenderStrategy("value", reach) : new WindowedRecommenderStrategy("windowed", reach));
         foreach (var strategy in strategies)
         {
             var result = DraftSimulator.Run(pool, settings, slot, strategy, seed);

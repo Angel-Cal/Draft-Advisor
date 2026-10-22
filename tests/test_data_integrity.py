@@ -177,3 +177,16 @@ def test_expected_points_feature_is_last_seasons_opportunity(training):
     joined = training.dropna(subset=["xfp_ppr_prev"]).merge(last_year.reset_index(), on=["player_id", "season"])
     assert len(joined) > 800
     assert np.allclose(joined["xfp_ppr_prev"], joined["expected"])
+
+
+@needs(RAW / "ffc")
+def test_ffc_pick_spread_files_are_complete():
+    import json
+    for season in range(2021, 2026):
+        data = json.loads((RAW / "ffc" / f"ffc_ppr12_{season}.json").read_text())
+        players = data["players"]
+        assert data["meta"]["teams"] == 12 and data["meta"]["total_drafts"] > 1000
+        assert len(players) > 100 and {"adp", "stdev", "times_drafted"} <= set(players[0])
+        top = [p for p in players if p["adp"] <= 12 and p["times_drafted"] >= 30]
+        assert top and all(0 < p["stdev"] < 6 for p in top), "early picks should have a small, positive spread"
+

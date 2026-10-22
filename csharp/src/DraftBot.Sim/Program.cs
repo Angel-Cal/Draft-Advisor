@@ -4,9 +4,11 @@ using DraftBot.Sim;
 // dotnet run --project csharp/src/DraftBot.Sim -- backtest [--data DIR] [--seasons 2021-2025] [--seeds 50] [--out FILE.csv] [--tier-gap 0.1]
 // dotnet run --project csharp/src/DraftBot.Sim -- diagnose [--season 2025] [--a adp] [--b windowed] [--seeds 30]
 // dotnet run --project csharp/src/DraftBot.Sim -- decompose [--seeds 30]
+// dotnet run --project csharp/src/DraftBot.Sim -- calibrate-noise [--drafts 150] [--scales 0.5,1,2,3] [--ffc data/raw/ffc]
+// dotnet run --project csharp/src/DraftBot.Sim -- tune-value [--seeds 30] [--noise 1]
 // dotnet run --project csharp/src/DraftBot.Sim -- tune-reach [--seeds 30] [--seasons 2021-2025]
 // dotnet run --project csharp/src/DraftBot.Sim -- tune-tiers [--data DIR] [--seasons 2021-2025]
-// dotnet run --project csharp/src/DraftBot.Sim -- draft [--season 2024] [--slot 6] [--seed 0] [--reveal true] [--window true|L,CAP[,nogap]] [--data DIR]
+// dotnet run --project csharp/src/DraftBot.Sim -- draft [--season 2024] [--slot 6] [--seed 0] [--reveal true] [--recommender position|value] [--window true|L,CAP[,nogap]] [--data DIR]
 // dotnet run --project csharp/src/DraftBot.Sim -- describe [--file projections_2026_v1.json] [--data DIR] [--tier-gap 0.1]
 
 var command = args.FirstOrDefault() ?? "backtest";
@@ -36,6 +38,23 @@ switch (command)
             ParseSeasons(options.GetValueOrDefault("seasons") ?? "2021-2025").ToDictionary(y => y, y => ProjectionFile.Load(Path.Combine(dataDir, $"projections_{y}_v1.json"))),
             settings, int.Parse(options.GetValueOrDefault("seeds") ?? "30")));
         break;
+    case "calibrate-noise":
+        Console.WriteLine(NoiseCalibration.Report(
+            ParseSeasons(options.GetValueOrDefault("seasons") ?? "2021-2025").ToDictionary(y => y, y => ProjectionFile.Load(Path.Combine(dataDir, $"projections_{y}_v1.json"))),
+            options.GetValueOrDefault("ffc") ?? Path.Combine(dataDir, "..", "raw", "ffc"), settings, int.Parse(options.GetValueOrDefault("drafts") ?? "150"),
+            (options.GetValueOrDefault("scales") ?? "0.5,1,1.5,2,3,4").Split(',').Select(double.Parse).ToList()));
+        break;
+    case "fit-noise":
+        Console.WriteLine(NoiseCalibration.Fit(
+            ParseSeasons(options.GetValueOrDefault("seasons") ?? "2021-2025").ToDictionary(y => y, y => ProjectionFile.Load(Path.Combine(dataDir, $"projections_{y}_v1.json"))),
+            options.GetValueOrDefault("ffc") ?? Path.Combine(dataDir, "..", "raw", "ffc"), settings, int.Parse(options.GetValueOrDefault("drafts") ?? "150"),
+            [0, 0.5, 1, 1.5], [0.08, 0.1, 0.12, 0.14, 0.16, 0.18]));
+        break;
+    case "tune-value":
+        Console.WriteLine(ReachTuning.ReportValue(
+            ParseSeasons(options.GetValueOrDefault("seasons") ?? "2021-2025").ToDictionary(y => y, y => ProjectionFile.Load(Path.Combine(dataDir, $"projections_{y}_v1.json"))),
+            settings, int.Parse(options.GetValueOrDefault("seeds") ?? "30"), double.Parse(options.GetValueOrDefault("noise") ?? "1")));
+        break;
     case "tune-reach":
         TuneReach(dataDir, options, settings);
         break;
@@ -54,7 +73,8 @@ static void Backtest(string dataDir, Dictionary<string, string> options, SimSett
     var seeds = int.Parse(options.GetValueOrDefault("seeds") ?? "50");
     var files = seasons.ToDictionary(s => s, s => ProjectionFile.Load(Path.Combine(dataDir, $"projections_{s}_v1.json")));
 
-    IDraftStrategy[] strategies = [new AdpStrategy(), new VorStrategy(), new RecommenderStrategy(), new WindowedRecommenderStrategy("windowed", ReachSettings.Default)];
+    IDraftStrategy[] strategies = [new AdpStrategy(), new VorStrategy(), new RecommenderStrategy(), new WindowedRecommenderStrategy("windowed", ReachSettings.Default),
+        new ValueRecommenderStrategy("value", ValueRecommender.DefaultReach)];
     var result = Experiment.Run(files, settings, strategies, noiseScales: [0.5, 1.0, 2.0], seeds);
 
     Console.WriteLine(Experiment.Summarize(result.Rows));
@@ -80,7 +100,9 @@ static int Draft(string dataDir, Dictionary<string, string> options, SimSettings
     var slot = int.Parse(options.GetValueOrDefault("slot") ?? "6") - 1;
     var seed = int.Parse(options.GetValueOrDefault("seed") ?? "0");
     var reveal = bool.Parse(options.GetValueOrDefault("reveal") ?? "false");
-    return new MockDraft(file, settings, slot, seed, reveal, Console.In, Console.Out, ParseWindow(options.GetValueOrDefault("window"))).Run() ? 0 : 1;
+    var value = (options.GetValueOrDefault("recommender") ?? "position") == "value";
+    var reach = ParseWindow(options.GetValueOrDefault("window")) ?? (value ? ValueRecommender.DefaultReach : null);
+    return new MockDraft(file, settings, slot, seed, reveal, Console.In, Console.Out, reach, value).Run() ? 0 : 1;
 }
 
 static void TuneReach(string dataDir, Dictionary<string, string> options, SimSettings settings)

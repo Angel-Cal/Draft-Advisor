@@ -14,7 +14,8 @@ public static class PickDiagnostics
         "vor" => new VorStrategy(),
         "recommender" => new RecommenderStrategy(),
         "windowed" => new WindowedRecommenderStrategy("windowed", ReachSettings.Default),
-        _ => throw new ArgumentException($"unknown strategy '{name}' (adp, vor, recommender, windowed)"),
+        "value" => new ValueRecommenderStrategy("value", ValueRecommender.DefaultReach),
+        _ => throw new ArgumentException($"unknown strategy '{name}' (adp, vor, recommender, windowed, value)"),
     };
 
     public static string Report(ProjectionFile file, SimSettings settings, string nameA, string nameB, int seeds)

@@ -59,3 +59,17 @@ public sealed class WindowedRecommenderStrategy(string name, ReachSettings reach
         return suggested ?? legal.MaxBy(p => p.Vor)!;
     }
 }
+
+/// <summary>The single-score recommender (<see cref="ValueRecommender"/>): its best legal suggestion, else the best VOR.</summary>
+public sealed class ValueRecommenderStrategy(string name, ReachSettings reach) : IDraftStrategy
+{
+    public string Name => name;
+    public ReachSettings Reach => reach;
+
+    public ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)
+    {
+        var allowed = legal.Select(p => p.Id).ToHashSet();
+        return ValueRecommender.Rank(state, reach).Select(c => c.Player).FirstOrDefault(p => allowed.Contains(p.Id))
+               ?? legal.MaxBy(p => p.Vor)!;
+    }
+}

@@ -3,8 +3,8 @@ using DraftBot.Core;
 namespace DraftBot.Sim;
 
 /// <summary>
-/// Simulator knobs. Opponent noise is a guess, not calibrated: we only have mean ADP, not its spread, which is why the
-/// experiment also runs half and double <see cref="NoiseScale"/>.
+/// Simulator knobs. The opponent noise formula (base 1 pick + 0.12 per ADP slot) is fit to the real spread of pick positions across
+/// thousands of mock drafts (`calibrate-noise`, `fit-noise`); the experiment still runs half and double <see cref="NoiseScale"/> as a check.
 /// </summary>
 /// <param name="NoiseBase">Per-player bias SD at ADP 0, in picks.</param>
 /// <param name="NoisePerAdp">Extra SD per ADP slot (late picks disagree more).</param>
@@ -13,7 +13,7 @@ namespace DraftBot.Sim;
 public sealed record SimSettings(
     LeagueSettings League,
     double NoiseBase = 1.0,
-    double NoisePerAdp = 0.1,
+    double NoisePerAdp = 0.12,
     double NoiseScale = 1.0,
     int MaxQb = 2,
     int MaxTe = 2,
