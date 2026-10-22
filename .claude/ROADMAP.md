@@ -69,14 +69,15 @@ features / train / predict   ---->                       VOR, tiers, recommender
 
 Also done in Phase 1 (unplanned, but it changed the results): fixed a target-season leak in `implied_total` and several silent data bugs; built a validation layer, feature manifest, run manifest, integrity tests, pre-commit hook and CI workflow; ablated ~12 feature ideas (two survived: RB vacated volume and QB attempt share, plus the process features in `STATUS.md`).
 
-### Phase 2: C# core and simulator (Dec 2026 to Jan 2027)
-- [ ] **First (Python side):** write the projection exporter that produces `projections_<year>_v1.parquet` per the schema (needs `team`, `position_rmse`, `schema_version`; half/standard are NaN until Phase 3), validated by `validate.py`
-- [ ] Solution with `DraftBot.Core`, `DraftBot.Sim`, test project
-- [ ] League settings model; replacement level, VOR, per-position tiers (by value dropoff, not global quantiles)
-- [ ] Draft state (snake order, all rosters, pool)
-- [ ] Port the current recommender as the baseline
-- [ ] Simulator: opponents draft by ADP plus noise with basic roster constraints; score rosters with actual points
-- [ ] Baseline results for pure ADP, pure VOR and current recommender
+### Phase 2: C# core and simulator (done 2026-10; planned Dec 2026 to Jan 2027)
+- [x] Python projection exporter (`src/data/export_projections.py`): `projections_<season>_v1.json` for the live season plus one backtest file per held-out season 2021-2025 (same schema + `actual_ppr`), validated by `validate.py`. Schema finalized as JSON in `.claude/projection_schema_v1.md`
+- [x] Solution `csharp/DraftBot.sln` with `DraftBot.Core`, `DraftBot.Sim`, `DraftBot.Tests` (net9.0, xUnit)
+- [x] League settings model; replacement level (greedy FLEX fill), VOR, per-position tiers by value dropoff (new tier where the projection drops by more than 0.10 x position RMSE; tuned in Phase 2 follow-up, see `LOG.md`)
+- [x] Draft state (snake order, all rosters, pool)
+- [x] Port the current recommender as the baseline (same rules, new inputs; not output-identical to Python because VOR and tiers changed)
+- [x] Simulator: opponents draft by ADP plus a per-opponent bias per player, with position caps and forced starter fill; rosters scored with actual points (best lineup from season totals)
+- [x] Baseline results for pure ADP, pure VOR and the current recommender. **Plain ADP wins; the current recommender is last** (numbers in `STATUS.md` and `LOG.md`)
+- [x] Regret per round (hindsight actual, hindsight over replacement, foresight VOR) added to the simulator
 
 ### Phase 3: Model v2 (Jan to Feb 2027, after the 2026 regular season ends)
 - [ ] Grade 2026 projections and recommendations against real 2026 results

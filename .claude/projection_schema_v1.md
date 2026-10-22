@@ -1,38 +1,49 @@
 # Projection File Schema — v1
 
-**Status:** Draft (Phase 0)
+**Status:** Implemented in Phase 2 (`src/data/export_projections.py`, validated by `check_projection_file` in `validate.py`)
 **Contract:** Python writes this file; C# reads it. Neither side needs to know the other's internals.
 
 ---
 
 ## File
 
-`projections_<year>_v<N>.parquet` (+ `.csv` mirror for inspection)
+`projections_<season>_v1.json`, saved to `data/processed/` locally; the live file is published as a GitHub Release asset.
 
-Example: `projections_2026_v1.parquet`
+- **Live file** (`kind: "live"`): next season's projections, e.g. `projections_2026_v1.json`. ADP is the Underdog CSV.
+- **Backtest files** (`kind: "backtest"`): one per held-out season 2021–2025. Projections are walk-forward (out of
+  sample), ADP is FantasyPros (day before the opener), and every player carries `actual_ppr` for the simulator.
+  Same schema as the live file, so the simulator runs the code path the app ships.
 
-Saved to `data/processed/` locally; published as a GitHub Release asset for distribution.
+Strict JSON (no `NaN`; missing values are `null`).
 
----
+## Header
 
-## Columns
+| Field | Type | Notes |
+|-------|------|-------|
+| `schema_version` | string | Literal `"v1"`. C# refuses a file it does not understand. |
+| `kind` | string | `"live"` or `"backtest"`. |
+| `season` | int | The season being projected (2026 for the live file). |
+| `adp_source` | string | `"underdog"` (live) or `"fantasypros"` (backtest). The two price positions differently. |
+| `position_rmse` | object | Walk-forward RMSE per position, `{QB, RB, WR, TE}` (QB 84.28, RB 58.86, WR 53.48, TE 38.69 as of 2026-10; 5-seed mean over test seasons 2021–2025). Used for ceiling/floor and tier thresholds in C#. |
+| `generated_utc`, `git_commit` | string | Provenance. |
+| `players` | array | One object per player, below. |
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `player_id` | string | GSIS ID (nflverse). Primary key for matching across seasons. |
-| `player_name` | string | Display name (e.g. "CeeDee Lamb"). |
-| `position` | string | One of: `QB`, `RB`, `WR`, `TE`. |
-| `team` | string | Most recent team abbreviation (nflverse format). |
-| `projected_ppr` | float | Projected full-season PPR fantasy points. |
-| `projected_half` | float | Projected half-PPR points. *(v1: derived as `projected_ppr - 0.5 * receptions_proj`; deferred until component-stat model exists)* |
-| `projected_standard` | float | Projected standard-scoring points. *(same caveat as half)* |
-| `games` | int | Games played in most recent season (from training data). |
-| `games_delta` | int | Year-over-year change in games played. |
-| `position_rmse` | float | Walk-forward RMSE for this position's model (QB 84.28, RB 58.86, WR 53.48, TE 38.69 as of 2026-10, 5-seed mean over test seasons 2021-2025). Used for ceiling/floor in C#. |
-| `underdog_adp` | float | Underdog ADP (source: 4for4 CSV). `NaN` if player not listed. |
-| `injury_flag` | bool | True if `games < 13` AND `games_delta < -5`. Signals a player returning from significant missed time. |
-| `market_estimate` | bool | True if projection is ADP-derived fallback (no NFL history — rookies, etc.). *(set by `src/draft/market_fallback.py` in the advisor table: ADP-derived projection for players the model cannot score; synthetic `market:<name>` IDs when no GSIS ID exists)* |
-| `schema_version` | string | Literal `"v1"`. Allows C# to validate compatibility on load. |
+## Player fields
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `player_id` | string | GSIS ID (nflverse). Primary key. Players with no GSIS ID get a synthetic `market:<name>` ID (always `market_estimate: true`). |
+| `player_name` | string | Display name. |
+| `position` | string | One of `QB`, `RB`, `WR`, `TE`. |
+| `team` | string | Most recent team, nflverse spelling. `"FA"` = no team on file (pre-draft rookie, unsigned veteran, unknown). |
+| `projected_ppr` | float | Projected full-season PPR points. Pure model output (no ADP blend), or the ADP-curve estimate when `market_estimate`. |
+| `projected_half`, `projected_standard` | float\|null | Always `null` in v1 (Phase 3). |
+| `games` | int | Games played in the most recent qualifying season (the season before `season`). |
+| `games_delta` | int | Change in games vs the season before that. C# derives the availability adjustment from `games < 13 AND games_delta < -5`. |
+| `adp` | float | ADP from `adp_source`. Present for every player the exporter writes (the pool is the ADP-ranked players); readers still treat `null` as unranked. |
+| `injury_flag` | bool | Durability flag: averaged under 15 games over their qualifying seasons (>= 2 seasons of >= 4 games) before `season`. The recommender's risk penalty reads this. Always `false` for market-estimate rows. |
+| `market_estimate` | bool | `true` if the projection is the ADP-derived fallback (rookies, anyone the model cannot score). |
+| `actual_ppr` | float\|null | Backtest files only: the player's actual season PPR (`0` if they never played). `null` in live files. |
 
 ---
 
@@ -40,9 +51,9 @@ Saved to `data/processed/` locally; published as a GitHub Release asset for dist
 
 - One row per player. No duplicates on `player_id`.
 - Positions limited to QB / RB / WR / TE. K and DST excluded.
-- Players with fewer than 4 games in their most recent season are excluded (same threshold as training data filter).
-- `projected_ppr` is always present and non-null. Other projected formats may be NaN in v1 if the component model is not yet built.
-- `underdog_adp` is NaN for players not in the ADP source; C# treats NaN as unranked (place at the end of the pool).
+- `projected_ppr` is always present and finite.
+- Pool = players ranked by ADP (about 300 in the live file, ADP rank <= 300 in backtests).
+- Backtest `actual_ppr` is never `null`. Players drafted but with no stats row (injured all year) score `0`, not dropped.
 
 ---
 
@@ -50,12 +61,11 @@ Saved to `data/processed/` locally; published as a GitHub Release asset for dist
 
 | Version | Date | Changes |
 |---------|------|---------|
-| v1 | 2026-10 | Initial schema. PPR projections only; half/standard as derived fields pending component model. |
+| v1 | 2026-10 | Initial schema, drafted in Phase 0 as parquet + CSV. Finalized in Phase 2 as JSON with a header: `underdog_adp` became `adp` + header `adp_source`; `position_rmse` and `schema_version` moved from per-row to the header; added `kind`, `season`, `actual_ppr`; `injury_flag` redefined to match the code (durability flag; the old "games < 13" rule is the availability adjustment, now derived in C#); `team` may be `"FA"`. |
 
 ---
 
 ## Future Fields (deferred)
 
-- `adp_source` — which ADP source(s) contributed (for v2 consensus ADP)
 - `projected_receptions` — needed for accurate half/standard derivation
 - `team_context_tier` — depth-chart rank within team (Phase 3 feature work)

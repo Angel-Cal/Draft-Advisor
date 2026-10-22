@@ -1,8 +1,8 @@
 # DraftBot — Project Status
 
 **Last updated:** 2026-10-21
-**Active branch:** `main` (Phase 1 work merged from `phase-1-evaluation`; merged locally, not yet pushed to `origin`)
-**Phase:** Phase 0 and Phase 1 complete (ROADMAP.md is updated). Next: Phase 2 (C# core and simulator).
+**Active branch:** `phase-2-csharp` (Phase 2 work, uncommitted; `main` has Phases 0-1 and is not pushed to `origin`)
+**Phase:** Phases 0, 1 and 2 complete (ROADMAP.md is updated). Next: Phase 3 (model v2, after the 2026 season) or Phase 4 (recommender v2, which Phase 2's simulator now lets us evaluate).
 **Why we chose things:** see `LOG.md` (decision log). Add an entry when a task produces a decision that rejected an alternative or changed results.
 
 ---
@@ -24,9 +24,9 @@ Spearman vs actual season PPR, walk-forward test seasons 2021–2025, mean of 5 
 | Position | Top-150 model | Top-150 ADP | Last-year PPR | All players model | All players ADP |
 |----------|---------------|-------------|---------------|-------------------|-----------------|
 | QB       | 0.305         | 0.401       | 0.228         | 0.676             | 0.765           |
-| RB       | 0.539         | 0.589       | 0.367         | 0.746             | 0.750           |
+| RB       | 0.532         | 0.589       | 0.367         | 0.746             | 0.750           |
 | WR       | 0.511         | 0.569       | 0.464         | 0.746             | 0.750           |
-| TE       | 0.407         | 0.418       | 0.304         | 0.699             | 0.688           |
+| TE       | 0.406         | 0.418       | 0.304         | 0.699             | 0.688           |
 
 - The model beats the naive "last year's PPR" baseline at every position.
 - Seed spread on top-150 scores is ~0.01–0.03 (TE largest); treat gaps under ~0.03 as noise. Each test season has only ~20–60 players per position.
@@ -44,6 +44,53 @@ Spearman vs actual season PPR, walk-forward test seasons 2021–2025, mean of 5 
 
 ---
 
+## Phase 2 result: the simulator's baselines
+
+Backtest seasons 2021-2025, 12 teams, 12 draft slots x 100 opponent seeds per season (6,000 drafts per strategy per noise
+level), opponents draft by ADP + a personal bias per player, rosters scored by the best lineup from actual season PPR.
+Same opponents face every strategy, so differences are paired. Opponent noise is a guess, so it is swept (x0.5 / x1 / x2).
+
+| Strategy (noise x1) | Starter points | Mean finish (of 12) | Top 3 | 1st | vs ADP (paired, +/- 1 SE) |
+|---|---|---|---|---|---|
+| Plain ADP | 1796 | 5.8 | 31% | 10% | |
+| Pure VOR | 1694 | 7.7 | 10% | 1% | -102 +/- 3 |
+| Current recommender (ported) | 1547 | 10.3 | 1% | 0% | -249 +/- 3 |
+| Recommender + reach control (`windowed`) | 1755 | 6.4 | 24% | 6% | -41 +/- 3 |
+
+The order is the same at x0.5 and x2. **The bar for Phase 4 is plain ADP, not the old recommender.** VOR beats ADP in 2021
+and 2022 but loses by 237 points in 2023, so it is season-dependent. The recommender reaches for model-vs-ADP disagreements
+(its `value_gap` term), and the model does not beat ADP. Caveats: SEs assume independent drafts; lineups use season totals
+(no byes or weekly moves); `injury_flag` marks 40-50% of the pool, which makes the recommender's risk penalty blunt.
+Decisions behind all of this are in `LOG.md`.
+
+**Reach control** (`ReachSettings`, default lambda 0.3 / cap 4 sigma, provisional): the baseline recommended ADP 70-112 players
+at pick 6; the windowed variant stays near the pick (Jefferson, St. Brown, Chase). It recovers about 210 of the 249 points lost
+to ADP, beats ADP in 2021, 2023 and 2024 and loses in 2022 and 2025 (-243). Still below plain ADP overall. Mock draft: `--window true`.
+**Why 2025 is the bad year (investigated):** not the model (it out-ranked ADP that year). 2025 was an RB-premium season (first 12
+RBs by ADP averaged 293 vs 215-258 elsewhere) and the recommender's position rule always favors WR (most unfilled slots), so it
+drafts 2.7 RBs per team vs ADP's 5.4. The position rule alone reproduces the season-to-season swings (+73/-152/+9/+85/-224 vs
+ADP); letting the recommender choose only the player at ADP's position scores 1792 vs ADP 1795 with no bad season. The position
+step is also what keeps drafting QBs and TEs in an unconstrained mock draft (5 TEs and 5 QBs in one run; the simulator's caps hide it).
+**Next:** replace the position step (roadmap Phase 4: one score across all players); the player ranking can stay. See `LOG.md`.
+
+**Tier threshold** is now 0.10 x position RMSE (was 0.20; the recommender gained ~36 points). `tune-tiers` found that gap-based
+tiers show no clear cliff signal beyond equal-size tiers except at TE, so this is a usable-count compromise, not an optimum.
+
+**Regret per round** (noise x1, mean per draft; `sim_regret.csv` has every season and round): hindsight regret is 120-230
+points per pick in every round (the best available player in hindsight is always a breakout), so it mostly measures luck:
+total 2487 ADP / 2411 VOR / 2751 recommender. Foresight regret (projected VOR) is 0 for VOR, 608 for ADP and 259 for the
+recommender, which gives up 52 VOR in round 1 and ~0 from round 14, i.e. its damage is early reaching.
+
+## Mock draft (studying what the recommender does)
+
+`draft` runs an interactive draft on a past season (2021-2025): you pick for one slot, seeded bots pick for the other 11 (same
+bots as the experiment, so a seed replays the same opponents). Each turn shows the recommender's position scarcity numbers, its
+top 5 with every score component, and what pure ADP and pure VOR would take. Enter takes its #1, `1-5` an alternative, `a` / `v`
+the ADP / VOR pick, any name fragment a specific player, `q` quits. Actual results stay hidden until the end (`--reveal true`
+shows them after each pick); the end shows your picks with actual points and regret, your lineup score and finish, and what
+each strategy would have scored from the same slot against the same opponents. Your own picks are not restricted by the roster
+rules; suggestions the simulator would block are marked.
+
 ## Pipeline: how to rebuild everything
 
 Run in this order (each step's outputs feed the next; the freshness checks fail if you skip one):
@@ -56,10 +103,25 @@ python src/evaluation/oos_predictions.py         # walk-forward predictions, 5 s
 python src/evaluation/benchmark.py               # model vs ADP vs last-year -> benchmark_v1.csv
 python src/models/predict.py                     # 2026 projections -> *_predictions.parquet (close the CSVs in Excel first)
 python src/draft/vor.py                          # advisor table -> predictions_table.parquet (adds ADP fallback rows)
+python src/data/export_projections.py            # projections_<season>_v1.json: live 2026 + backtests 2021-2025 (C# reads these)
 python src/data/adp_scraper.py                   # only to refresh historical ADP (Wayback Machine, cached in data/raw/adp_html)
 ```
 
-Tests: `pytest -q` (114 tests; the data-integrity tests skip when `data/` is absent). A git pre-commit hook (`.githooks/pre-commit`, enabled with `git config core.hooksPath .githooks`) runs them before every commit.
+C# (needs the exported JSON files; .NET 9 SDK):
+
+```bash
+cd csharp
+dotnet test                                                          # 81 tests
+dotnet run -c Release --project src/DraftBot.Sim -- backtest --seeds 100   # baselines + regret -> data/processed/sim_baseline.csv, sim_regret.csv
+dotnet run --project src/DraftBot.Sim -- draft --season 2024 --slot 6 [--seed 0] [--reveal true] [--window true]   # interactive mock draft
+dotnet run -c Release --project src/DraftBot.Sim -- tune-reach --seeds 30   # reach penalty / cap sweep, leave-one-season-out
+dotnet run -c Release --project src/DraftBot.Sim -- diagnose --season 2025 --a adp --b windowed   # which players/positions explain a gap
+dotnet run -c Release --project src/DraftBot.Sim -- decompose --seeds 50   # recommender split into position rule vs player rule
+dotnet run --project src/DraftBot.Sim -- tune-tiers                  # tier threshold sweep, leave-one-season-out
+dotnet run --project src/DraftBot.Sim -- describe [--tier-gap 0.2]  # starters, replacement and tier sizes of the live file
+```
+
+Tests: `pytest -q` (133 tests; the data-integrity and export-file tests skip when `data/` is absent). A git pre-commit hook (`.githooks/pre-commit`, enabled with `git config core.hooksPath .githooks`) runs them before every commit.
 
 `data/raw`, `data/processed`, `data/external` are gitignored. `models/*_params` (tuned hyperparameters) **are tracked**.
 
@@ -108,22 +170,52 @@ All tested with the standing protocol: 10-seed ablation + random-noise control, 
 - **Week 1 line as a preseason team-strength feature** (user may try later): test the Week 1 spread/total as the legitimate version of the leaked implied total, QB first (see LOG.md "Deferred"). Low expected value for RB/WR/TE.
 - **PFR advanced stats** skipped (only 2018+, would halve usable training rows). Participation `route` field is mostly empty, so route participation is approximated by on-field share.
 - **ESPN pass/run block win rates** (best public OL measure) are not collected: ESPN/Disney terms of use prohibit scraping and compiling datasets, and there is no download/API. Investigation closed.
-- **Half-PPR / standard targets** not built (Phase 3 item).
+- **Efficiency features, noted not built (2026-10-21):** the model sees efficiency only as season totals/levels (EPA, pacr/racr, YAC, cpoe),
+  never per-opportunity rates (yards per carry/target, catch rate, TD rate, EPA per touch), their year-over-year change, or
+  volume-change x efficiency interactions. A residual check found no interaction signal (all |t| < 1.1), one weak lead: draftable RBs
+  whose carries/game rose are over-projected ~10-15 pts (t = -2.4, one of ~24 tests), so the RB model may over-weight volume deltas.
+  If pursued: standing protocol (10-seed ablation + noise control). Also: `passing_cpoe_delta` (a QB stat) is a near-constant dead
+  column in the RB/WR/TE models.
+- **Fixed 2026-10-21 (expected-points features):** `build_xfp_features` summed playoff weeks (19-22; 18-21 before 2021) while the
+  other features were regular-season only; it now keeps regular-season weeks (<= 17 through 2020, <= 18 after). Rebuilt everything
+  downstream: no measurable change (RB top-150 old 0.526 vs new 0.524, TE 0.404 vs 0.403, seed sd ~0.006-0.02; xfp still adds RB
+  +0.012, 9/10 seeds, and TE +0.010, 8/10 seeds, with a null noise control). Benchmark table updated (RB 0.539 -> 0.532, TE 0.407 -> 0.406).
+  Also fixed: `passing_cpoe_delta` (QB-only, 98-99.6% zeros elsewhere) is now dropped from the RB/WR/TE models.
+- **Case study for the efficiency idea: Wan'Dale Robinson (2026 WR, now TEN).** FPOE does NOT flag him: 2025 +0.9 (rank 57 of 133 WRs)
+  because his chances were plentiful (expected 217 PPR, 13th) and he converted them as expected. His regression risk is in the volume:
+  Nabers played only weeks 1-4; Robinson saw 9.4 targets / 14.3 expected PPR per game without him vs 6.8 / 11.5 with him. The model
+  projects 219 (= his 2025 total) vs an ADP-curve 147 (ADP 102, WR47): his edge over the market is the largest of all 123 WRs.
+  FPOE measures conversion efficiency, not volume sustainability; a volume-sustainability signal (expected points vs his own prior
+  seasons, vs teammates available, team change) is what the idea needs. WR vacated/competing targets were tested null earlier.- **Half-PPR / standard targets** not built (Phase 3 item).
 - Roadmap Phase 3 "team-context features" were largely done and tested in Phase 1 (see lists above); only features that survived are in the model. Phase 3 still needs: 2026 data retrain after the season ends, grading 2026 projections, half/standard targets.
 - Model-vs-ADP gaps remain QB −0.10, RB −0.05, WR −0.06, TE −0.01 (top-150). Remaining gap is likely information the data lacks (camp news, injuries, depth-chart changes). Untested ideas are in the memory file `project_feature_ideas.md`.
 
 ---
 
-## Hand-off for Phase 2 (C# core and simulator)
+## Hand-off after Phase 2
 
-**The projection file does not exist yet.** `.claude/projection_schema_v1.md` defines `projections_<year>_v<N>.parquet` (+ CSV mirror), but no exporter has been written. The closest artifact is `data/processed/predictions_table.parquet` (advisor table), which has: `player_name, player_id, games, games_delta, injury_flag, projected_ppr, position, underdog, market_estimate, vor, ceiling, floor, availability_flag, vor_rank, value_gap, tier`. Missing vs the schema: `team`, `position_rmse` (values live in `RMSE` in `vor.py`), `projected_half`/`projected_standard`, `underdog_adp` naming, `schema_version`. Writing this exporter (and validating it with `validate.py`) is the first Python task Phase 2 depends on.
+**What exists.** `csharp/DraftBot.sln`: `DraftBot.Core` (projection loader, league settings, replacement level, VOR,
+ceiling/floor, per-position tiers, rosters, snake draft state, ported baseline recommender), `DraftBot.Sim` (opponent bots,
+roster rules, lineup scorer, ADP/VOR/recommender strategies, experiment runner, CLI) and `DraftBot.Tests` (xUnit). Python
+writes `data/processed/projections_<season>_v1.json` (live 2026 and backtests 2021-2025); the contract is
+`.claude/projection_schema_v1.md`. Everything in `csharp/` reads only those files.
 
-Things the simulator will need from Python:
-- Season files for backtests: `data/processed/season_<year>.parquet` (2021–2025; `player_id, player_name, position, season, actual_ppr, oos_pred_ppr`, plus per-seed `oos_pred_s0..s4`) and `data/external/adp_<year>.csv` (FantasyPros consensus ADP from Wayback snapshots closest to the day before the opener, 2021–2025). Join on `player_id`. Rookies/unmodeled players are absent from the season files by design (unscoreable).
-- The advisor logic still lives in Python (`src/draft/`: recommender, roster, draft_state, advisor, vor); per the roadmap it gets ported to `DraftBot.Core`. `REPLACEMENT_RANK` in `vor.py` is hard-coded for 12 teams and should become league-settings-driven in C#.
-- 2026 ADP source is a manual Underdog CSV via 4for4 (`data/external/4for4-adp-table.csv`); historical ADP is FantasyPros, so the two differ in how they price positions.
+**Things the next phase should know:**
+- The Python advisor (`src/draft/recommender.py`, `roster.py`, `draft_state.py`, `advisor.py`, and the VOR/tier code in
+  `vor.py`) is now superseded by C#. `vor.py` is still needed to build `predictions_table.parquet`, which the exporter reads.
+  Nothing was archived yet.
+- Half-PPR and standard columns are `null` (Phase 3). The 50/50 model + ADP-curve blend is not implemented; testing it in the
+  simulator is a clean next experiment. The live ADP is Underdog and the backtest ADP is FantasyPros (they price positions
+  differently), so live recommendations have no backtest equivalent for ADP-sensitive logic.
+- Opponent noise (1 + 0.1 x ADP) is an unvalidated guess. The tier threshold (0.10 x RMSE) was tuned but gap-based tiers did
+  not beat equal-size tiers at usable counts; Phase 4 can try equal-size or capped-size tiers.
+- Phase 4 should keep the ported recommender as a baseline in the simulator and judge changes on starter points vs ADP first;
+  hindsight regret is noisy.
+- The `csharp/` tests are not in the pre-commit hook; CI runs them (`.github/workflows/tests.yml`).
 
 **Housekeeping:**
-- `main` is merged locally but **not pushed** to `origin` (`Angel-Cal/Draft-Advisor`); push when ready. The `Model_v2`, `Model_v3`, `draft_logic` and `phase-1-evaluation` branches are all fully merged and can be deleted.
-- `src/app/cli.py`, `src/draft/vbd.py`, `src/draft/simulator.py` were moved to `archive/` in Phase 0.
+- Phase 2 work is on branch `phase-2-csharp`, **uncommitted**. `main` is merged locally but **not pushed** to `origin`
+  (`Angel-Cal/Draft-Advisor`). The `Model_v2`, `Model_v3`, `draft_logic` and `phase-1-evaluation` branches are fully merged
+  and can be deleted.
+- `src/app/cli.py`, `src/draft/vbd.py`, `src/draft/simulator.py` live in `archive/`.
 - `README.md` documents the pipeline steps and the guardrails.

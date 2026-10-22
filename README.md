@@ -85,6 +85,7 @@ DraftBot/
 │       ├── draft_state.py    # Snake draft order and 12-team player pool
 │       ├── recommender.py    # Position + player scoring and recommendation
 │       └── advisor.py        # Interactive CLI draft assistant
+├── csharp/                   # DraftBot.Core (draft logic), DraftBot.Sim (simulator), DraftBot.Tests
 ├── plan.txt                  # Draft advisor design spec
 ├── requirements.txt
 └── README.md
@@ -122,6 +123,27 @@ python src/models/predict.py
 
 # 5. Build the draft advisor's player table (adds ADP-derived projections for rookies/unmodeled players)
 python src/draft/vor.py
+
+# 6. Export the projection files the C# side reads (live season + 2021-2025 backtests)
+python src/data/export_projections.py
+```
+
+## C# Core and Simulator (`csharp/`)
+
+The draft-time logic (league settings, replacement level, VOR, tiers, draft state, recommender) and the draft simulator
+live in .NET 9. They read only the exported `projections_<season>_v1.json` files (contract:
+`.claude/projection_schema_v1.md`).
+
+```bash
+cd csharp
+dotnet test                                                         # unit tests
+dotnet run -c Release --project src/DraftBot.Sim -- backtest        # ADP / VOR / recommender baselines + regret per round
+dotnet run --project src/DraftBot.Sim -- draft --season 2024 --slot 6   # interactive mock draft with the recommender's reasoning (--window true adds the reach control)
+dotnet run --project src/DraftBot.Sim -- tune-reach                 # sweep the recommender's ADP-reach penalty and cap
+dotnet run --project src/DraftBot.Sim -- diagnose --season 2025     # why one strategy trails another in a season (players, positions)
+dotnet run --project src/DraftBot.Sim -- decompose                  # recommender split into position rule vs player rule
+dotnet run --project src/DraftBot.Sim -- tune-tiers                 # tier threshold sweep (leave-one-season-out)
+dotnet run --project src/DraftBot.Sim -- describe                   # replacement levels and tiers of the live file
 ```
 
 ## League Settings

@@ -14,6 +14,138 @@ Standing rules (apply to every entry below):
 
 ---
 
+## 2026-10-21 — Fixed: playoff weeks in expected-points features; dead `passing_cpoe_delta` column
+**Decision:** `build_xfp_features` keeps regular-season weeks only (<= 17 through 2020, <= 18 from 2021); `passing_cpoe_delta` is
+dropped from the RB/WR/TE models. Found while explaining points-over-expected; the user asked to fix mistakes as they are found.
+**Why / effect:** playoff rows were ~3% of `ff_opportunity`, so `xfp_ppr_prev`, `xfp_pg_prev` and `fp_over_exp_prev` were inflated for
+playoff teams, inconsistent with every other (regular-season) feature. Full rebuild (pipeline, OOS, benchmark, predict, vor, export):
+no measurable change (see STATUS.md). Unit test `test_xfp_features_ignore_playoff_weeks`; the integrity test now recomputes xfp on
+regular-season weeks. **Not decided:** whether to build efficiency-rate / volume-sustainability features (see the Robinson case study
+in STATUS.md); the user is only exploring.
+
+## 2026-10-21 — 2025 investigation: the recommender's position rule, not the model, drives the big swings
+**Decision:** treat the recommender's position step (scarcity = unfilled league slots / players in the best tier) as the thing
+to replace in Phase 4; the model's player ranking is fine and roughly ADP-neutral.
+**Why:** windowed lost 243 points to ADP in 2025 (1549 vs 1792). (1) The model was not worse that year: Spearman vs actual in the
+top 150 was 0.451 model vs 0.379 ADP, edge-vs-market correlation +0.13, RMSE 78.8 vs ADP-curve 77.0 (same gap as 2022/2024).
+(2) 2025 was a positional outlier: the first 12 RBs by ADP averaged 293 actual points (215-258 other years), 5 boomed; RB minus WR
+was +72 (others -52 to +14); 4 of the top 12 WRs busted; early QBs fell 98 under the ADP curve. (3) With tiers this small every
+position has one player in its best tier, so scarcity just picks the position with the most unfilled slots (WR, 3 slots), so
+windowed drafts 2.7 RBs and 9.3 WRs per team (ADP: 5.4 and 6.6) and its rounds 1-3 average 174 actual points vs 262.
+(4) Decomposition, mean starter points per season (2021..2025): ADP 1801/1747/1780/1846/1802; windowed 1813/1676/1833/1882/1556;
+recommender chooses the position and ADP the player 1874/1595/1787/1931/1578; ADP chooses the position and the recommender the
+player 1795/1793/1813/1792/1768 (mean 1792 vs ADP 1795). The position rule reproduces the swings; the player rule alone never
+strays far from ADP. So the 5-season mean deficit is a high-variance WR-heavy bet that paid in 2021/2023/2024 and lost in 2022/2025.
+**Model miss, smaller:** McCaffrey (ADP 8, flagged after a 4-game season) was projected 169 and scored 417, about 49 of the points.
+**Caveat:** 5 seasons; the RB-WR gap and windowed's result agree in 4 of 5 years (2022 does not fit). **See:** `diagnose`,
+`decompose` (`PickDiagnostics.cs`).
+
+## 2026-10-21 — Reach control: soft penalty on ADP reach plus a far hard cap (provisional default l=0.3, cap 4 sigma)
+**Decision:** the recommender gets an optional `ReachSettings`. A player whose ADP is later than the current pick is a reach of
+z = (ADP - pick) / sigma(pick) with sigma = 2 + 0.16 x pick; the score loses lambda x z^2; players past `cap` sigma leave the
+pool for BOTH the position step and the player step (a position with nobody left cannot be chosen). Slid players (ADP before the
+pick) are never penalized. Added as a variant (`windowed`) beside the untouched baseline (`recommender`).
+**Why:** the user saw the first pick recommend ADP 70-112 players at pick 6 (the `value_gap` term is itself a bonus for late
+ADP) and wanted a window that widens later in the draft, but a hard border would rule out a player the model loves that sits just
+outside it. The spread is measured: cross-platform SD of ADP (ESPN, Sleeper, NFL, RTSports... in the cached FantasyPros pages,
+2021-2025) is 0.8 picks at ADP 1-6, 4.5 at 24-36, 14 at 84-120, 29 at 160-200, about 0.16 x ADP. That is a lower bound for the
+spread inside one draft, which is a second reason for a soft penalty (a too-tight sigma costs little).
+**Sweep (30 seeds x 12 slots x 5 seasons, noise x1, 30 arms):** baseline recommender 1547; the cap alone (lambda 0) 1672-1730;
+cap plus penalty 1724-1760, best around lambda 0.1-0.3, cap 3-4, with or without the gap term; plain ADP 1792. A plateau, not a
+peak. Leave-one-season-out gain over the baseline +154 +/- 69; still -90 +/- 48 vs ADP because the chosen arm changes by fold.
+At the default (100 seeds, noise x0.5 / x1 / x2): windowed 1743 / 1755 / 1788 vs ADP 1772 / 1796 / 1853 (-28 / -41 / -66 +/- 3).
+By season at noise x1 it beats ADP in 2021 (+23), 2023 (+52), 2024 (+39) and loses in 2022 (-75) and 2025 (-243).
+**Rejected:** a hard band (cliff; the user's Barkley example), round-based steps, shrinking projections toward ADP (bigger change).
+**Open:** it still does not beat ADP; 2025 is a large miss; the position step still loops (see the mock-draft entry). The
+spread constants and the default are unvalidated. The simulator's opponent noise (1 + 0.1 x ADP) is below the measured
+cross-platform spread (0.16 x ADP) and probably too tame. **See:** `ReachSettings`, `ReachTuning.cs`, `tune-reach`.
+
+## 2026-10-21 — Mock draft tool; it exposed that the recommender drafts quarterbacks without end
+**Decision:** added `draft` (interactive mock draft, past seasons only, simulated opponents, reasoning shown each turn). It
+exposes the recommender's scarcity numbers and score components through `BaselineRecommender.ChoosePosition` and
+`Candidate.RankTerm/GapTerm/Penalty`; behavior is unchanged (simulator result identical before and after).
+**What it showed (2024, slot 6, always taking its #1):** the recommender takes 7 QBs (rounds 8, 9, 11, 13-16) and 2 TEs. The
+simulator's cap of 2 QBs hid this by turning those picks into best-VOR fallbacks, so the simulated "recommender" is already
+better than the raw one. At pick 6 every position has one player in its best tier, so "scarcity" is just unfilled league slots
+per position and WR wins; it then takes an ADP-78 WR (K.Allen) over A.St. Brown (ADP 6) and Jefferson (VOR 124).
+**See:** `csharp/src/DraftBot.Sim/MockDraft.cs`, `MockDraftTests.cs`.
+
+## 2026-10-21 — Regret per round: hindsight mostly measures luck; foresight shows where strategies deviate
+**Decision:** regret is reported three ways per pick, against the best LEGAL available player (roster rules respected): hindsight
+actual points, hindsight over replacement (actual minus the position's actual-points replacement level, same FLEX rule), and
+foresight projected VOR. Only the strategy's own picks count. CSV: `data/processed/sim_regret.csv`.
+**Why / what it showed (noise x1, mean per draft):** hindsight regret is ~120-230 points per pick in every round, even round
+16, because the best available player in hindsight is always some breakout; it separates the recommender (2751 total) from
+ADP (2487) and VOR (2411) but not ADP from VOR, even though ADP scores 100 points more. Use it for early-round comparisons, not
+as a headline. Foresight: VOR is 0 by construction, ADP gives up 38 VOR per pick (608 total), the recommender 259 total with
+52 in round 1 and ~0 by round 14, so its damage is early reaching. **Rejected:** a single regret definition; foresight alone
+(says nothing about outcomes), hindsight alone (luck).
+
+## 2026-10-21 — Tier threshold k = 0.10 (was 0.20): gap-based tiers show no real cliff signal
+**Decision:** default tier threshold is 0.10 x position RMSE (about 13 tiers per position, largest tier 34% of the pool).
+**Why:** `tune-tiers` scores each k by adjusted R2 of actual points on tier labels MINUS the same score for equal-size tiers
+of the same count (raw adjusted R2 just rises as tiers get finer, so it cannot pick k). Leave-one-season-out picks k = 0.03
+(~26 tiers per position, about 1.5 players each), gain over 0.20 +0.13 +/- 0.08, negative in 2 of 5 held-out seasons, so not
+a usable tier count. At usable counts (4-8 tiers, k 0.15-0.25) gap tiers do WORSE than equal-size tiers (k = 0.20: -0.12)
+because they leave one giant tail tier (79% of players); only TE shows a consistent cliff signal (+0.06 at k 0.10-0.25). At
+k = 0.10 the advantage is about zero (+0.014), and the recommender gains ~40 points over 0.20 (1547 vs 1511 at noise x1);
+anything <= 0.10 gives the same gain, none closes the 250-point gap to ADP. User chose 0.10 over the procedure's 0.03.
+**Rejected:** per-position k (more search space than 5 seasons support), 0.03, keeping 0.20.
+**Open:** projection-gap tiers are not clearly better than quantile tiers; Phase 4 can test equal-size or capped-size tiers.
+
+## 2026-10-21 — Phase 2 baseline: plain ADP beats pure VOR and the current recommender
+**Decision:** Phase 4 must beat plain ADP drafting, not the old recommender (which is the floor, not the bar).
+**Why:** 5 backtest seasons x 12 draft slots x 100 opponent seeds (6,000 drafts per strategy per noise level), same opponents
+for every strategy. Mean starter points / mean league finish of 12 at opponent noise x1: ADP 1796 / 5.8, pure VOR 1694 / 7.7
+(-102 +/- 3), current recommender 1547 / 10.3 (-249 +/- 3) (1511 / 10.9, -284, before the tier threshold moved to 0.10); the
+order held at noise x0.5 and x2. VOR beat ADP in 2021 and 2022
+but lost by 237 in 2023, so VOR vs ADP is season-dependent. The recommender's half-weight on ADP minus VOR rank rewards
+reaching for players the model likes (traced: TE with ADP 257 in round 5). Python does the same: first recommendation on the live data is a TE
+(H.Henry, ADP 162). This agrees with Phase 1: the model does not beat ADP, so disagreeing with ADP costs points.
+**Caveats:** SEs treat drafts as independent; the opponent noise scale is a guess (hence the x0.5/x1/x2 sweep); lineups use
+season totals, not weekly. **See:** `csharp/src/DraftBot.Sim`, `data/processed/sim_baseline.csv`.
+
+## 2026-10-21 — Projection file: JSON, pure model, backtests share the live schema
+**Decision:** C# reads `projections_<season>_v1.json` (header + players). `projected_ppr` is the pure model (or the ADP-curve
+estimate for market rows). Each backtest season is exported in the same schema plus `actual_ppr`, with the ADP-curve rows
+fit leaving that season out.
+**Why:** JSON needs no NuGet package and carries file-level metadata (schema version, per-position RMSE); the roadmap
+diagram already said JSON. Pure model first so the 50/50 model+curve blend (0.7-1.7% lower RMSE) can be tested in the
+simulator as a clean change. Same schema means the simulator runs the code the app ships.
+**Rejected:** Parquet via Parquet.Net, CSV, shipping the blend now, a separate backtest schema.
+**Schema fixes made on the way:** the doc defined `injury_flag` as `games < 13 and games_delta < -5`, but the code's
+`injury_flag` (used by the recommender) is a durability flag (average under 15 games over >= 2 qualifying seasons; 40-50% of
+the pool carries it) and the doc's rule was the `availability_flag`. The file now carries the durability flag; C# derives
+availability from `games` / `games_delta`. Backtest flags are recomputed point-in-time and match the live pipeline's flags
+on all 256 modeled players. Teams with no club on file (pre-draft rookies `TBD`, unsigned `FA`, `-`) export as `FA`.
+
+## 2026-10-21 — Backtest pool: ADP rank <= 300, zero-game players score 0
+**Decision:** the backtest pool is the ADP-ranked skill players (~233-245 per season); rookies and unmodeled players are
+included as `market_estimate` rows; a drafted player with no stats row (injured all year) scores 0 instead of being dropped.
+**Why:** mirrors the live advisor table. Dropping zero-game players removes busts like Michael Thomas (ADP 75, 2021) and Joe
+Mixon (ADP 76, 2025) and makes simulated rosters score higher than real ones (0-6 players per season). **Rejected:** the
+Phase 1 benchmark's rule of excluding unscoreable players (right for ranking metrics, wrong for a drafter's roster).
+
+## 2026-10-21 — Simulator design: per-opponent bias, noise sweep, season-total lineups
+**Decision:** each opponent draws a fixed bias per player ~ N(0, 1 + 0.1 x ADP) once and picks the best ADP + bias among
+legal players; every drafter has position caps (2 QB, 2 TE) and must fill open starter slots after round 10. Rosters are
+scored by the best lineup from actual season PPR; strategies face identical opponents (seeded by seed and team).
+**Why:** a personal bias models teams that like a player more than consensus, without per-pick randomness washing it out. We
+have only mean ADP, so the spread cannot be calibrated; the experiment reruns at half and double the noise. Season totals
+need only data we have. **Rejected:** per-pick Gaussian noise, fixed SD, weekly lineups (bye weeks and injuries, needs a
+weekly export; can be added behind the same scorer).
+
+## 2026-10-21 — Replacement level by greedy FLEX fill, tiers by RMSE-scaled dropoff
+**Decision:** dedicated starters = teams x slots; the league's FLEX slots go to the best remaining RB/WR/TE by projection;
+replacement is the first non-starter. Tiers are per position: a new tier starts where the projection drops by more than
+0.2 x that position's RMSE (live file tier sizes: QB 5/18/16/2, RB 2/1/1/9/76, WR 2/2/1/118, TE 1/4/4/28/7/3). Later changed to 0.10, see
+the tier-threshold entry above.
+**Why:** adapts to any slot counts. For the default league it gives 12 QB / 30 RB / 42 WR / 12 TE starters, so replacement is
+the 31st RB and 43rd WR, one deeper than the old hardcoded RB 30 / WR 42 (which treated the 30th RB as replacement while
+QB 13 / TE 13 were first non-starters). The 0.2 was untuned and ended in one very large last tier at RB and WR. **Rejected:** fixed FLEX split, bench-aware replacement, anchored bands, Jenks natural breaks.
+**Port notes:** the recommender keeps its Python quirks (FLEX counts as filled once the RB/WR/TE core slots fill; per-bench
+count off by one until then); the only change is that no FLEX need appears when the league has no FLEX slot.
+
 ## 2026-10-21 — OL information is not worth modeling for model gains
 **Decision:** do not build an offensive-line rating (plus-minus or otherwise); no OL features are in the model.
 **Why:** continuity of last year's top-5 OL (returning starters, snap continuity, incoming starters) and prior-season
