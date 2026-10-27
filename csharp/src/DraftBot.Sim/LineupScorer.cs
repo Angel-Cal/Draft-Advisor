@@ -31,24 +31,29 @@ public static class LineupScorer
     /// Sum over the 18 weeks of the best legal lineup from the players who played that week (chosen with hindsight). A bye, an injury
     /// or an inactive week means no points, so depth at a position is worth something when a starter is out.
     /// </summary>
-    public static double ScoreWeekly(Roster roster, LeagueSettings league)
+    public static double ScoreWeekly(Roster roster, LeagueSettings league) => WeeklyScores(roster, league).Sum();
+
+    /// <summary>The best legal lineup's points in each week (index 0 = week 1), from the players who played that week.</summary>
+    public static double[] WeeklyScores(Roster roster, LeagueSettings league)
     {
-        var weeks = roster.Picks.Max(p => p.Player.WeeklyPpr!.Count);
-        var total = 0.0;
-        for (var week = 0; week < weeks; week++)
+        var scores = new double[roster.Picks.Max(p => p.Player.WeeklyPpr!.Count)];
+        for (var week = 0; week < scores.Length; week++)
         {
             var leftovers = new List<double>();
             foreach (var position in Positions.All)
             {
                 var points = roster.At(position).Select(p => p.Player.WeeklyPpr![week]).Where(x => x is not null).Select(x => x!.Value)
                     .OrderByDescending(x => x).ToList();
-                total += points.Take(league.Starters(position)).Sum();
+                scores[week] += points.Take(league.Starters(position)).Sum();
                 if (Positions.FlexEligible.Contains(position)) leftovers.AddRange(points.Skip(league.Starters(position)));
             }
-            total += leftovers.OrderByDescending(x => x).Take(league.Flex).Sum();
+            scores[week] += leftovers.OrderByDescending(x => x).Take(league.Flex).Sum();
         }
-        return total;
+        return scores;
     }
+
+    /// <summary>Whether every rostered player has weekly points, i.e. weekly lineups can be scored.</summary>
+    public static bool HasWeekly(Roster roster) => roster.Picks.Count > 0 && roster.Picks.All(p => p.Player.WeeklyPpr is not null);
 
     static double Actual(ValuedPlayer player) =>
         player.Player.ActualPpr ?? throw new InvalidOperationException($"{player.Player.PlayerName} has no actual_ppr (not a backtest file)");

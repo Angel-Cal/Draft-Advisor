@@ -3,33 +3,42 @@ using DraftBot.Core;
 namespace DraftBot.Sim;
 
 /// <summary>
-/// Scores a set of strategy settings ("arms") by starter points over the backtests, next to fixed reference strategies, then
+/// Scores a set of strategy settings ("arms") over the backtests, next to fixed reference strategies, then
 /// checks the choice leave-one-season-out: pick the best arm on four seasons, score it on the fifth.
+/// The score is mean starter points by default, or head-to-head season odds (see <see cref="SweepMetric"/>).
 /// </summary>
 public static class ArmSweep
 {
     /// <param name="references">Strategies shown for comparison; one must be named "adp".</param>
     /// <param name="headline">The reference the leave-one-season-out gain is measured against (besides ADP).</param>
+    /// <param name="metric">What the arms are ranked and chosen by.</param>
     public static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds,
-        IReadOnlyList<IDraftStrategy> arms, IReadOnlyList<IDraftStrategy> references, string headline, double noiseScale = 1.0)
+        IReadOnlyList<IDraftStrategy> arms, IReadOnlyList<IDraftStrategy> references, string headline, double noiseScale = 1.0,
+        SweepMetric metric = SweepMetric.Points)
     {
         var rows = Experiment.Run(files, settings, references.Concat(arms).ToList(), noiseScales: [noiseScale], seeds).Rows;
         var seasons = files.Keys.Order().ToList();
+        var value = metric.Selector();
+        var f = metric.Format();
 
-        double SeasonPoints(string strategy, int season) => rows.Where(r => r.Strategy == strategy && r.Season == season).Average(r => r.Points);
-        double MeanPoints(string strategy, IEnumerable<int> over) => over.Average(s => SeasonPoints(strategy, s));
+        double SeasonScore(string strategy, int season) => rows.Where(r => r.Strategy == strategy && r.Season == season).Average(value);
+        double MeanScore(string strategy, IEnumerable<int> over) => over.Average(s => SeasonScore(strategy, s));
+        var signedFormat = metric == SweepMetric.Points ? "+0;-0;0" : "+0.0;-0.0;0.0";
+        string Signed(double x) => x.ToString(signedFormat);
 
         var lines = new List<string>
         {
-            $"{rows.Count(r => r.Strategy == "adp")} drafts per arm, opponent noise x{noiseScale:0.##}. Points are mean starter points; 'vs adp' is paired, +/- 1 SE.",
-            $"  {"arm",-24}{"points",8}{"vs adp",16}" + string.Concat(seasons.Select(s => $"{s,7}")),
+            $"{rows.Count(r => r.Strategy == "adp")} drafts per arm, opponent noise x{noiseScale:0.##}. Score: {metric.Label()}; 'vs adp' is paired, +/- 1 SE.",
+            $"  {"arm",-24}{"score",8}{"vs adp",16}{"vs " + headline,20}" + string.Concat(seasons.Select(s => $"{s,7}")),
         };
         var names = references.Concat(arms).Select(a => a.Name).ToList();
-        foreach (var name in names.OrderByDescending(n => MeanPoints(n, seasons)))
+        foreach (var name in names.OrderByDescending(n => MeanScore(n, seasons)))
         {
-            var (diff, se) = Experiment.PairedDifference(rows, name, "adp");
-            lines.Add($"  {name,-24}{MeanPoints(name, seasons),8:F0}" + (name == "adp" ? $"{"",16}" : $"{diff,+9:F0} +/-{se,3:F0}")
-                      + string.Concat(seasons.Select(s => $"{SeasonPoints(name, s),7:F0}")));
+            var (diff, se) = Experiment.PairedDifference(rows, name, "adp", value);
+            var (headDiff, headSe) = Experiment.PairedDifference(rows, name, headline, value);
+            lines.Add($"  {name,-24}{MeanScore(name, seasons).ToString(f),8}" + (name == "adp" ? $"{"",16}" : $"{Signed(diff),9} +/-{se.ToString(f),3}")
+                      + (name == headline ? $"{"",20}" : $"{Signed(headDiff),13} +/-{headSe.ToString(f),3}")
+                      + string.Concat(seasons.Select(s => $"{SeasonScore(name, s).ToString(f),7}")));
         }
 
         lines.Add("");
@@ -39,14 +48,14 @@ public static class ArmSweep
         foreach (var held in seasons)
         {
             var train = seasons.Where(s => s != held).ToList();
-            var best = arms.MaxBy(a => MeanPoints(a.Name, train))!;
-            var points = SeasonPoints(best.Name, held);
-            gains.Add(points - SeasonPoints(headline, held));
-            versusAdp.Add(points - SeasonPoints("adp", held));
-            lines.Add($"  hold out {held}: chose {best.Name,-22} {points,6:F0} pts   {headline} {SeasonPoints(headline, held),6:F0}   adp {SeasonPoints("adp", held),6:F0}");
+            var best = arms.MaxBy(a => MeanScore(a.Name, train))!;
+            var score = SeasonScore(best.Name, held);
+            gains.Add(score - SeasonScore(headline, held));
+            versusAdp.Add(score - SeasonScore("adp", held));
+            lines.Add($"  hold out {held}: chose {best.Name,-22} {score.ToString(f),6}   {headline} {SeasonScore(headline, held).ToString(f),6}   adp {SeasonScore("adp", held).ToString(f),6}");
         }
-        lines.Add($"  held-out gain over {headline}: {gains.Average():+0;-0} +/- {StdError(gains):0} (SE over {seasons.Count} seasons)");
-        lines.Add($"  held-out difference from plain ADP: {versusAdp.Average():+0;-0} +/- {StdError(versusAdp):0}");
+        lines.Add($"  held-out gain over {headline}: {Signed(gains.Average())} +/- {StdError(gains).ToString(f)} (SE over {seasons.Count} seasons)");
+        lines.Add($"  held-out difference from plain ADP: {Signed(versusAdp.Average())} +/- {StdError(versusAdp).ToString(f)}");
         return string.Join(Environment.NewLine, lines);
     }
 

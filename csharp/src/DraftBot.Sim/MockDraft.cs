@@ -21,19 +21,21 @@ public sealed class MockDraft
     readonly ReachSettings? reach;
     readonly bool singleScore;
     readonly NeedSettings? need;
+    readonly WaitSettings? wait;
 
     /// <param name="reach">If given, the recommender runs with the ADP-reach penalty and cap instead of as the plain baseline.</param>
     /// <param name="singleScore">Use the single-score value recommender (needs <paramref name="reach"/>) instead of position-first.</param>
     /// <param name="need">Single-score only: make the value roster-aware (points added to your best lineup).</param>
+    /// <param name="wait">Single-score only: add the cost-of-waiting bonus (see <see cref="WaitSettings"/>).</param>
     public MockDraft(ProjectionFile file, SimSettings settings, int slot, int seed, bool reveal, TextReader input, TextWriter output,
-        ReachSettings? reach = null, bool singleScore = false, NeedSettings? need = null)
+        ReachSettings? reach = null, bool singleScore = false, NeedSettings? need = null, WaitSettings? wait = null)
     {
         if (singleScore && reach is null) throw new ArgumentException("the single-score recommender needs reach settings", nameof(reach));
         if (file.Players.Any(p => p.ActualPpr is null))
             throw new InvalidDataException("mock drafts need a backtest file with actual_ppr (the live file has none)");
         if (slot < 0 || slot >= settings.League.Teams)
             throw new ArgumentOutOfRangeException(nameof(slot), $"slot must be 1-{settings.League.Teams}");
-        (this.file, this.settings, this.slot, this.seed, this.reveal, this.input, this.output, this.reach, this.singleScore, this.need) = (file, settings, slot, seed, reveal, input, output, reach, singleScore, need);
+        (this.file, this.settings, this.slot, this.seed, this.reveal, this.input, this.output, this.reach, this.singleScore, this.need, this.wait) = (file, settings, slot, seed, reveal, input, output, reach, singleScore, need, wait);
     }
 
     /// <summary>Runs the draft. False if the user quit before it finished.</summary>
@@ -179,22 +181,26 @@ public sealed class MockDraft
     {
         var settings = reach!;
         var pick = state.OverallPick + 1;
-        var candidates = ValueRecommender.Recommend(state, settings, need, slot);
+        var candidates = ValueRecommender.Recommend(state, settings, need, slot, wait);
         suggestions.AddRange(candidates.Select(c => c.Player));
 
         var valueText = need is null ? "VOR"
             : need.OptionValue ? "lineup gain + bench value (chance he is needed x upside over a free agent)"
             : $"lineup gain (+ {need.BenchFraction:0.##} x the rest of his VOR)";
-        output.WriteLine($"Single-score recommender: score = {valueText} - {settings.Lambda:0.##} x z^2, where z is how many sigma past the pick a player's ADP is.");
+        var waitText = wait is null ? "" : $" + {wait.Weight:0.##} x cost of waiting";
+        output.WriteLine($"Single-score recommender: score = {valueText}{waitText} - {settings.Lambda:0.##} x z^2, where z is how many sigma past the pick a player's ADP is.");
+        if (wait is not null)
+            output.WriteLine("Cost of waiting = points you expect to lose by taking someone else now: how far the best player at his position who is likely still there at your next pick falls short of him.");
         output.WriteLine($"At pick {pick} one sigma is {settings.Sigma(pick):F1} picks; players with ADP past {pick + settings.CapSigmas * settings.Sigma(pick):F0} ({settings.CapSigmas:0.#} sigma) are out. "
                          + (need is null ? "Roster need is not in the score." : "Your open slots count as replacement-level players, so a redundant player adds nothing."));
         output.WriteLine();
-        output.WriteLine($"  {"#",2} {"player",-22}{"pos",-4}{"team",-5}{"ADP",6}{"proj",6}{"VOR",6}{"gain",6}{"wt",6}{"bench",7}{"z",6}{"reach",8}{"score",8}  {"inj",-4}");
+        output.WriteLine($"  {"#",2} {"player",-22}{"pos",-4}{"team",-5}{"ADP",6}{"proj",6}{"VOR",6}{"gain",6}{"wt",6}{"bench",7}{(wait is null ? "" : $"{"wait",7}")}{"z",6}{"reach",8}{"score",8}  {"inj",-4}");
         for (var i = 0; i < candidates.Count; i++)
         {
             var c = candidates[i];
             var p = c.Player;
             output.WriteLine($"  {i + 1,2} {p.Player.PlayerName,-22}{p.Position,-4}{p.Player.Team,-5}{p.Player.Adp,6:F0}{p.Player.ProjectedPpr,6:F0}{c.Vor,6:F0}{(c.Gain is null ? "-" : c.Gain.Value.ToString("F0")),6}{(c.BenchWeight is null ? "-" : c.BenchWeight.Value.ToString("F2")),6}{(c.BenchValue is null ? "-" : c.BenchValue.Value.ToString("F1")),7}"
+                             + (wait is null ? "" : $"{(c.WaitBonus is null ? "-" : c.WaitBonus.Value.ToString("F1")),7}")
                              + $"{c.ReachSigmas,6:F1}{(c.ReachPenalty == 0 ? 0 : -c.ReachPenalty),8:F1}{c.Score,8:F1}  {(p.Player.InjuryFlag ? "yes" : "-"),-4}"
                              + (legal.Contains(p) ? "" : "   blocked by the simulator's roster rules"));
         }
@@ -226,7 +232,7 @@ public sealed class MockDraft
         output.WriteLine();
         output.WriteLine("Same slot and opponents, but the strategy drafts the whole way:");
         var strategies = new List<IDraftStrategy> { new AdpStrategy(), new VorStrategy(), new RecommenderStrategy() };
-        if (reach is not null) strategies.Add(singleScore ? new ValueRecommenderStrategy(need is null ? "value" : "need", reach, need) : new WindowedRecommenderStrategy("windowed", reach));
+        if (reach is not null) strategies.Add(singleScore ? new ValueRecommenderStrategy(need is null ? "value" : wait is null ? "need" : "need+wait", reach, need, wait) : new WindowedRecommenderStrategy("windowed", reach));
         foreach (var strategy in strategies)
         {
             var result = DraftSimulator.Run(pool, settings, slot, strategy, seed);

@@ -3,7 +3,11 @@ using DraftBot.Core;
 
 namespace DraftBot.Sim;
 
-public sealed record RunRow(int Season, double NoiseScale, int Seed, int Slot, string Strategy, double Points, int Finish);
+/// <param name="WinPct">Share of head-to-head games won, averaged over random schedules; NaN when the file has no weekly points.</param>
+/// <param name="Playoff">Probability of making the playoffs; NaN like <paramref name="WinPct"/>.</param>
+/// <param name="Title">Probability of winning the title; NaN like <paramref name="WinPct"/>.</param>
+public sealed record RunRow(int Season, double NoiseScale, int Seed, int Slot, string Strategy, double Points, int Finish,
+    double WinPct = double.NaN, double Playoff = double.NaN, double Title = double.NaN);
 public sealed record RegretRow(int Season, double NoiseScale, int Seed, int Slot, string Strategy, PickRegret Pick);
 public sealed record ExperimentResult(List<RunRow> Rows, List<RegretRow> Regrets);
 
@@ -35,7 +39,8 @@ public static class Experiment
             var scaled = settings with { NoiseScale = scale };
             var results = strategies.Select(strategy =>
                 (strategy, result: DraftSimulator.Run(pools[season], scaled, slot, strategy, seed, regretCalculators[season]))).ToArray();
-            rows[i] = results.Select(r => new RunRow(season, scale, seed, slot, r.strategy.Name, r.result.Points, r.result.Finish)).ToArray();
+            rows[i] = results.Select(r => new RunRow(season, scale, seed, slot, r.strategy.Name, r.result.Points, r.result.Finish,
+                r.result.Odds?.WinPct ?? double.NaN, r.result.Odds?.PlayoffProbability ?? double.NaN, r.result.Odds?.TitleProbability ?? double.NaN)).ToArray();
             regrets[i] = results.SelectMany(r => r.result.Regrets.Select(pick =>
                 new RegretRow(season, scale, seed, slot, r.strategy.Name, pick))).ToArray();
         });
@@ -45,8 +50,9 @@ public static class Experiment
     public static void WriteCsv(string path, IEnumerable<RunRow> rows)
     {
         var lines = rows.Select(r => string.Join(',', r.Season, r.NoiseScale.ToString(CultureInfo.InvariantCulture), r.Seed,
-            r.Slot, r.Strategy, r.Points.ToString("F2", CultureInfo.InvariantCulture), r.Finish));
-        File.WriteAllLines(path, lines.Prepend("season,noise_scale,seed,slot,strategy,points,finish"));
+            r.Slot, r.Strategy, r.Points.ToString("F2", CultureInfo.InvariantCulture), r.Finish,
+            r.WinPct.ToString("F4", CultureInfo.InvariantCulture), r.Playoff.ToString("F4", CultureInfo.InvariantCulture), r.Title.ToString("F4", CultureInfo.InvariantCulture)));
+        File.WriteAllLines(path, lines.Prepend("season,noise_scale,seed,slot,strategy,points,finish,win_pct,playoff,title"));
     }
 
     /// <summary>Regret averaged over drafts, one row per season, noise level, strategy and round.</summary>
@@ -103,15 +109,29 @@ public static class Experiment
             }
             lines.Add($"  mean points by season: " + string.Join("  ", atScale.GroupBy(r => r.Strategy).Select(g =>
                 g.Key + " " + string.Join("/", g.GroupBy(r => r.Season).OrderBy(s => s.Key).Select(s => s.Average(r => r.Points).ToString("F0"))))));
+            if (atScale.Any(r => !double.IsNaN(r.Title)))
+            {
+                lines.Add($"  head-to-head season, odds averaged over random schedules (playoff and title differences from {baseline} in percentage points, paired, +/- 1 SE)");
+                lines.Add($"  {"strategy",-12}{"win%",8}{"playoffs",10}{"title",8}{"playoffs vs " + baseline,22}{"title vs " + baseline,20}");
+                foreach (var group in atScale.GroupBy(r => r.Strategy))
+                {
+                    var (playoff, playoffSe) = PairedDifference(atScale, group.Key, baseline, r => 100 * r.Playoff);
+                    var (title, titleSe) = PairedDifference(atScale, group.Key, baseline, r => 100 * r.Title);
+                    lines.Add($"  {group.Key,-12}{group.Average(r => r.WinPct),8:P1}{group.Average(r => r.Playoff),10:P1}{group.Average(r => r.Title),8:P1}" +
+                              (group.Key == baseline ? "" : $"{playoff,+13:F1} +/- {playoffSe:F1}{title,+11:F1} +/- {titleSe:F1}"));
+                }
+            }
             lines.Add("");
         }
         return string.Join(Environment.NewLine, lines);
     }
 
-    public static (double Mean, double StdError) PairedDifference(IReadOnlyList<RunRow> rows, string strategy, string baseline)
+    /// <param name="metric">What to compare; the run's starter points by default.</param>
+    public static (double Mean, double StdError) PairedDifference(IReadOnlyList<RunRow> rows, string strategy, string baseline, Func<RunRow, double>? metric = null)
     {
-        var reference = rows.Where(r => r.Strategy == baseline).ToDictionary(r => (r.Season, r.Seed, r.Slot), r => r.Points);
-        var diffs = rows.Where(r => r.Strategy == strategy).Select(r => r.Points - reference[(r.Season, r.Seed, r.Slot)]).ToList();
+        metric ??= r => r.Points;
+        var reference = rows.Where(r => r.Strategy == baseline).ToDictionary(r => (r.Season, r.Seed, r.Slot), metric);
+        var diffs = rows.Where(r => r.Strategy == strategy).Select(r => metric(r) - reference[(r.Season, r.Seed, r.Slot)]).ToList();
         var mean = diffs.Average();
         var variance = diffs.Sum(d => (d - mean) * (d - mean)) / Math.Max(1, diffs.Count - 1);
         return (mean, Math.Sqrt(variance / diffs.Count));

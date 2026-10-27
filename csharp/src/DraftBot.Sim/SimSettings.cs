@@ -12,6 +12,8 @@ namespace DraftBot.Sim;
 /// <param name="ForceStartersAfterRound">After this round a drafter with an open starter slot must fill it.</param>
 /// <param name="WeeklyLineups">Score rosters with the best lineup each week (byes and injuries matter) when the file has weekly points; false scores season totals.</param>
 /// <param name="StrategyFollowsRules">False lifts the caps and forced fills for the strategy being evaluated only (opponents keep them).</param>
+/// <param name="Season">Head-to-head season and playoff shape for the league-finish odds; null means <see cref="SeasonFormat"/>'s defaults (13 weeks, 6 playoff teams).</param>
+/// <param name="ScheduleSamples">Random schedules each draft's season is replayed under; the odds are averaged over them.</param>
 public sealed record SimSettings(
     LeagueSettings League,
     double NoiseBase = 1.0,
@@ -22,7 +24,11 @@ public sealed record SimSettings(
     int ForceStartersAfterRound = 10,
     double TierGapRmse = 0.1,
     bool StrategyFollowsRules = true,
-    bool WeeklyLineups = true)
+    bool WeeklyLineups = true,
+    SeasonFormat? Season = null,
+    int ScheduleSamples = 200)
 {
+    public SeasonFormat SeasonRules => Season ?? new SeasonFormat();
+
     public double NoiseSd(double adp) => (NoiseBase + NoisePerAdp * adp) * NoiseScale;
 }

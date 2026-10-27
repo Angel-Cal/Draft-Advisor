@@ -16,6 +16,8 @@ public static class PickDiagnostics
         "windowed" => new WindowedRecommenderStrategy("windowed", ReachSettings.Default),
         "value" => new ValueRecommenderStrategy("value", ValueRecommender.DefaultReach),
         "need" => new ValueRecommenderStrategy("need", ValueRecommender.DefaultReach, NeedSettings.Default),
+        "wait2" => new ValueRecommenderStrategy("wait2", ValueRecommender.DefaultReach, NeedSettings.Default, new WaitSettings(2)),
+        "wait4" => new ValueRecommenderStrategy("wait4", ValueRecommender.DefaultReach, NeedSettings.Default, new WaitSettings(4)),
         "nobench" => new ValueRecommenderStrategy("nobench", ValueRecommender.DefaultReach, NeedSettings.NoBench),
         "bench" => new ValueRecommenderStrategy("bench", ValueRecommender.DefaultReach, NeedSettings.Structural),
         "option" => new ValueRecommenderStrategy("option", ValueRecommender.DefaultReach, NeedSettings.Option),
@@ -23,7 +25,7 @@ public static class PickDiagnostics
         "option-l30" => new ValueRecommenderStrategy("option-l30", new ReachSettings(30, 4), NeedSettings.Option),
         "option-l100" => new ValueRecommenderStrategy("option-l100", new ReachSettings(100, 4), NeedSettings.Option),
         "option-l300" => new ValueRecommenderStrategy("option-l300", new ReachSettings(300, 4), NeedSettings.Option),
-        _ => throw new ArgumentException($"unknown strategy '{name}' (adp, vor, recommender, windowed, value, need, nobench, bench, option)"),
+        _ => throw new ArgumentException($"unknown strategy '{name}' (adp, vor, recommender, windowed, value, need, wait2, wait4, nobench, bench, option)"),
     };
 
     public static string Report(ProjectionFile file, SimSettings settings, string nameA, string nameB, int seeds)

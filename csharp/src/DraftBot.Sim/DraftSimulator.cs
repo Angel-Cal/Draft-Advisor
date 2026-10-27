@@ -3,8 +3,9 @@ using DraftBot.Core;
 namespace DraftBot.Sim;
 
 /// <param name="Finish">1 = highest starter points in the league (ties share the better finish).</param>
+/// <param name="Odds">The drafter's head-to-head season odds (see <see cref="LeagueSeason"/>); null when the roster has no weekly points or weekly lineups are off.</param>
 public sealed record DraftResult(int Slot, double Points, int Finish, IReadOnlyList<double> TeamPoints, IReadOnlyList<PickRegret> Regrets,
-    IReadOnlyList<ValuedPlayer> MyPicks);
+    IReadOnlyList<ValuedPlayer> MyPicks, SeasonOdds? Odds = null);
 
 public static class DraftSimulator
 {
@@ -33,6 +34,10 @@ public static class DraftSimulator
 
         var points = state.Teams.Select(roster => LineupScorer.Score(roster, league, settings.WeeklyLineups)).ToList();
         var finish = 1 + points.Count(p => p > points[slot]);
-        return new DraftResult(slot, points[slot], finish, points, regrets, state.Teams[slot].Picks);
+        SeasonOdds? odds = null;
+        if (settings.WeeklyLineups && state.Teams.All(LineupScorer.HasWeekly))
+            odds = LeagueSeason.Odds(state.Teams.Select(roster => LineupScorer.WeeklyScores(roster, league)).ToList(), settings.SeasonRules,
+                settings.ScheduleSamples, seed)[slot];
+        return new DraftResult(slot, points[slot], finish, points, regrets, state.Teams[slot].Picks, odds);
     }
 }

@@ -19,7 +19,7 @@ public sealed class OpponentBot
         var random = new Random(seed * 1000 + team);
         var unranked = UnrankedAdp(pool);
         var key = new Dictionary<string, double>(pool.Count);
-        foreach (var player in pool)       // pool order is fixed by the valuation, so draws line up across runs
+        foreach (var player in pool.OrderBy(p => p.Id, StringComparer.Ordinal))       // by id, not pool order: pool order follows the projections, which would reassign the draws between players when they change
         {
             var adp = player.Player.Adp ?? unranked;
             key[player.Id] = adp + settings.NoiseSd(adp) * Gaussian(random);

@@ -31,6 +31,21 @@ public sealed class DraftState
 
     public int CurrentTeam => Round % 2 == 0 ? League.Teams - 1 - PickInRound : PickInRound;
 
+    /// <summary>The 1-based overall number of the team's next pick after the one on the clock; null if it has none left.</summary>
+    public int? NextPick(int team) => UpcomingPicks(team, 1) is [var next] ? next : null;
+
+    /// <summary>The 1-based overall numbers of the team's next <paramref name="count"/> picks after the one on the clock (fewer if the draft ends first).</summary>
+    public IReadOnlyList<int> UpcomingPicks(int team, int count)
+    {
+        var picks = new List<int>();
+        for (var overall = OverallPick + 1; overall < League.Teams * League.RosterSize && picks.Count < count; overall++)
+        {
+            var inRound = overall % League.Teams;
+            if ((overall / League.Teams % 2 == 1 ? League.Teams - 1 - inRound : inRound) == team) picks.Add(overall + 1);
+        }
+        return picks;
+    }
+
     /// <summary>Drafts the player for the team on the clock. False if the player is not in the pool.</summary>
     public bool Draft(string playerId)
     {
