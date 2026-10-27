@@ -14,6 +14,203 @@ Standing rules (apply to every entry below):
 
 ---
 
+## 2026-10-27 — Decision: fix the live training recipe with "refit at the best iteration" plus 5-seed averaging (option 2); to be done in a new session
+**Decision (user):** replace `train_final_model` in `predict.py` with: per seed, early-stop on the newest season (fit on all earlier seasons) to find the best iteration, refit on all seasons through the newest season at that tree count, average seeds 0-4 (as the validated files do).
+Full step list, targets and reference numbers are in STATUS.md ("NEXT TASK").
+**Why this option:** it adapts the tree count to each position and seed, keeps the freshest season's labels in training, and matches the validated recipe's 5-seed averaging. **Alternatives considered:** a fixed tree count per position (median best iteration of the other folds: QB ~251, RB ~253, WR ~342, TE ~209) trained on all data (likely similar);
+early-stopping on the newest season only (mirrors the backtest exactly but never trains on it). **Open for the next session:** whether to scale the refit tree count by the data-size ratio (about 1.1); the stakes (about 13 starter points and 0.6 pp title odds for `need+wait` at calibrated noise) are in the entry below.
+
+## 2026-10-27 — Stakes of the live-training gap measured: the shipped recipe would cost the recommender about a quarter of its edge (fix not yet made)
+**Question:** how much does training the live way (1000-tree cap, no early stopping, one seed; `predict.py`) cost the recommender, compared with the validated way (early-stopped on the previous season, 5 seeds; `oos_predictions.py`)?
+**Method (`src/evaluation/live_style_oos.py`):** for each test season 2021-2025 train every position on all earlier seasons exactly as `predict.py` does, write copies of the backtest files with only `projected_ppr` replaced (position RMSE scaled by the live-style/validated RMSE ratio, 1.02-1.06),
+and run the identical backtest (100 seeds, same opponents; plain ADP moves by under 1 point between the two worlds, so the comparison is clean).
+**Accuracy (reproduces the bug-sweep finding):** RMSE validated -> live-style QB 84.5 -> 87.1, RB 61.7 -> 63.5, WR 55.0 -> 56.2, TE 40.1 -> 42.5; top-150 Spearman QB 0.310 -> 0.251, RB 0.537 -> 0.496, WR 0.512 -> 0.489, TE 0.383 -> 0.395 (TE slightly better on this measure).
+**Simulator, live-style minus validated, paired (cluster SE), noise x0.5 / x1 / x2:** `need+wait` points -14.2 +/- 2.1 / -12.9 +/- 2.3 / -19.0 +/- 3.8; title odds -0.9 +/- 0.3 / -0.6 +/- 0.3 / -1.4 +/- 0.6 pp; playoff odds -1.6 / -1.4 / -1.1 pp.
+Plain `need` -8 to -9 points at every noise level; `value` -6.5 / -7.9 / -14.6. **Edge over plain ADP for `need+wait`:** x0.5 +50.2 -> +35.4 points (title +3.4 -> +2.4 pp), x1 +52.9 -> +40.7 (+4.8 -> +4.2 pp), x2 +30.6 -> +11.1 (+3.2 -> +1.6 pp).
+**Reading:** the edge survives the shipped recipe at every noise level but loses about a quarter of its points at the calibrated noise and almost two thirds at double noise, so fixing it is worth doing and is cheap. **Anomaly, not understood:** the old position-first `windowed` recommender gains +62 points
+(+8.6 pp playoff odds) at x1 with the live-style projections, even though they are less accurate; it is a high-variance strategy whose result depends on the projections in ways I have not explained, so I would not read anything into it.
+**Next:** fix `predict.py` (options in STATUS: fixed tree count, or refit at the best iteration, plus 5-seed averaging) after the user picks; then re-run predict -> vor -> export_projections and the comparison above should close.
+
+## 2026-10-27 — Spread-normalized waiting bonus tested: no better than the raw weight of 4; the 4 is mostly a unit ratio
+**Decision:** `WaitSettings.Standardize` / `StandardizePool` (value and shortfall as z-scores over the best 15 candidates, `score = mean + sd x (z_value + w x z_shortfall) / (1 + w) - reach cost`, so the weight is a unit-free mix; `tune-standardized`)
+stays in the code, off by default, not adopted. The adopted bonus is unchanged (raw, weight 4). User's idea (scale by the spread of values so a weight means the same thing in every round).
+**Design correction on the way:** the first version standardized the one-step score; the diagnostic (`diagnose-scales`) showed that spread in the thousands because most of the best 15 candidates by one-step score carry huge reach penalties. The final version standardizes the value before the reach cost
+and keeps the reach cost a separate wall in points (dead-pick offset preserved).
+**Explanation of the 4 (`diagnose-scales`, 28,800 picks, best 15 candidates by one-step score, spread in points):** SD of value vs SD of shortfall: rounds 1-2 26.1 vs 9.2 (ratio 2.8), 3-4 20.0 vs 6.6 (3.0), 5-9 13.0 vs 4.2 (3.1), 10-16 2.6 vs 1.1 (2.4), all 11.0 vs 3.7 (2.9); value and shortfall correlate 0.5-0.7.
+In standardized units `value + 4 x shortfall` is about `z_value + 1.4 x z_shortfall`: the shortfall varies about a third as much as value, so a raw 4 is roughly equal importance for the two. The ratio is nearly constant across rounds, which predicted that normalizing by spread would not matter much.
+**Result (100 seeds; adopted raw w = 4 vs best z-mix):** noise x1: title 16.3% vs 15.7% (w = 0.5; -0.6 +/- 0.2), points 2210 vs 2206 (w = 1; -4 +/- 1), held-out -1.1 +/- 0.5 pp and -11 +/- 3 points; half noise 12.2% vs 11.9% (w = 0.25); double noise 24.4% vs 24.1% (w = 4).
+The best standardized weight is not stable (0.25 at x0.5, 0.5-1 at x1, 4 at x2) while the raw 4 was good at all three, so the "unit-free" version is less robust, probably because a z-score over 15 candidates, many of them infeasible, is a noisy normalization.
+**Net:** the weight of 4 is a mixing weight, about equal importance after putting value and shortfall on the same scale, concentrated at RB (and TE) in the early rounds. It is still empirical (a first-principles value is not derived), but no longer an unexplained constant.
+
+## 2026-10-27 — Where the waiting bonus earns its gain: rounds 1-4 and RB; the global weight of 4 partly hides this (adopted setting unchanged)
+**Question (user):** why does a weight of 4 work, and is it just an arbitrary constant? First reading: the reach cost (lambda 1000) is effectively a hard wall (2 picks past the pick costs 117 points at pick 24), so the recommender only chooses among
+players the market says are due to go; within that set raw values are close and the cliff to the next survivor separates the options. Score = value + 4 x VONA is 20% value / 80% value-over-next-available, a mixing weight between two ranking criteria.
+**Switching the adopted bonus (weight 4) on only in a block, and off only there** (`tune-where`, 100 seeds, noise x1; title odds % / starter points; adopted 16.3 / 2210, plain `need` 14.4 / 2199):
+rounds 1-4 only 15.7 / 2208, all but rounds 1-4 15.2 / 2203; rounds 5-9 only 14.7 / 2202, all but 16.1 / 2209; rounds 10-16 only 14.9 / 2200, all but 15.8 / 2209;
+RB only 15.3 / 2212, all but RB 14.9 / 2197; TE only 15.2 / 2201, all but TE 15.7 / 2208; WR only 14.5 / 2200, all but WR 16.3 / 2212; QB only 14.4 / 2195, all but QB 15.9 / 2213.
+**Reading:** about 80% of the points gain and two thirds of the title gain come from rounds 1-4. By position the points gain is all RB (RB alone matches the adopted result, dropping RB loses 13); TE adds title odds (TE alone +0.8 pp),
+WR adds nothing (dropping it changes nothing), QB alone hurts points (-4). So the bonus is mostly positional scarcity at RB (and TE) early, and one global constant gets that by also adding noise at WR and QB.
+**Not adopted:** choosing the best arm on four seasons and scoring it on the fifth does not beat the adopted setting (-8 +/- 6 points, -0.9 +/- 0.7 pp title), so the position and round filters are not an improvement as selected here. The filters stay in
+`WaitSettings` (`ActiveRounds`, `ActivePositions`), off by default. **RB+TE-only test (`tune-scarce`, 100 seeds, weights 2 / 4 / 6 / 8):** it ties the global bonus and is not adopted. At weight 4 vs the adopted global bonus: title odds 16.0% vs 16.3% (-0.3 +/- 0.2; held out -0.3 +/- 1.2),
+points 2215 vs 2210 (+5 +/- 1; held out +5 +/- 8), half noise 12.2% vs 12.2%, double noise 24.3% vs 24.4%. Weight 4 is again the best RB+TE weight (2: 15.6%, 6: 15.5%, 8: 15.1%). The season profile differs (RB+TE is better in 2025, worse in 2022 and
+2024), so the two are different but equivalent drafters, and the filter was chosen from the same seeds. Rule set beforehand (match or beat on both metrics, held out and at other noise levels): title is level to slightly lower, so not met cleanly; the global bonus
+is also the simpler one (no position list chosen from the data). **What it does establish:** the weight of 4 is a scarcity bonus at RB and TE; leaving WR and QB in changes nothing measurable.
+
+## 2026-10-27 — Handcuff logic: the absorber cannot be identified from preseason information, so no handcuff term is built
+**Decision:** no handcuff bonus. `src/evaluation/handcuff_study.py` (writes `data/processed/handcuff_events.csv`) is the study; the user's pushback shaped it: a depth-chart RB2 is a guess about who inherits the work, not a fact,
+so identification had to pass its own test first (go/no-go gate) before any value logic.
+**Method:** 306 team-seasons 2015-2024 with a week-1 chart RB1; his absent weeks come from the weekly stats (no touches, and he did not play for another team); every other RB on the team is scored by PPR points gained in those weeks
+over his own average while the starter played; the top gainer is the "absorber". 165 events (starter missed >= 2 games, played >= 2). Preseason predictors pick one chart RB: depth tier, last year's carry share, target share,
+points per game, draft capital (known for only 40% of rostered players, since the roster file starts in 2020).
+**Result:** the starter missed >= 2 games in 56% of team-seasons and >= 4 in 33%. In 30% of events the absorber was not on the week-1 chart at all (signings, later chart slots). Over the 115 events where he was on the chart, hit rates are
+depth tier 55.7%, carry share 52.2%, target share 48.7%, ppg 51.3%, draft capital 56.5% against 48.1% for a random chart RB (SE about 4.7%): none is distinguishable from chance. A random chart RB is worth 8.2 PPR points per team-season over his own
+baseline, the best predictor 8.9, the hindsight absorber 23.7, so what prediction could add is under one point per season. The share the depth-chart RB2 absorbed does not persist for a team across seasons (Spearman +0.04, 126 pairs), so
+team-level (or coach-level) absorption cannot be carried forward either.
+**Why this closes it:** the gate failed (identification is near chance), the whole average prize is about 8 points a season, and the bench option value already prices the average backup (23% miss rate). Consistent with the user's expectation of "next to no change".
+**Caveats:** the starter is the week-1 chart RB1, absence is "no touches" (inactive healthy scratches count), gains are over the player's own baseline and not over a waiver pickup, draft capital coverage is low, and the first run had a baseline bug
+(random baseline ignored events whose absorber was off the chart; it made every predictor look worse than chance), fixed before the numbers above. Still open as an explanation label only: "backup to your RB1" is worth telling beginners (reasoning strings).
+
+## 2026-10-27 — Multi-pick horizon in the waiting bonus tested and rejected; the weight of 4 is an empirical scale, not explained by later picks
+**Decision:** `WaitSettings.Horizon` / `HorizonDecay` (the bonus summed over my next H picks, optionally with each later pick scaled by the decay; `DraftState.UpcomingPicks`; `tune-horizon`) stay in the code, off by
+default (horizon 1 is exactly the adopted bonus). The adopted setting is unchanged: weight 4, horizon 1.
+**Result (60 seeds, noise x1, title odds / points, vs adopted `need+wait`):** h=1 w=4 16.2% / 2207; h=1 w=2 15.8% / 2204; h=2 w=2 15.6% / 2205; h=2 w=1 15.5% / 2202; h=3 w=1 15.6% / 2202; h=3 w=2 15.0% / 2203;
+h=3 decay 0.5 w=2 15.8% / 2206 (-0.3 pp, -1 point); `need` 14.6% / 2199. Held-out (arm chosen on four seasons): -1.0 +/- 0.6 pp title, -1 +/- 1 points; the choice is h=1 w=4 in 3 of 5 seasons.
+**Reading:** a longer horizon behaves like a rescaled weight (h=2 w=1 is close to h=1 w=2, h=2 w=2 to h=1 w=4, h=3 w=2 overshoots just as w=8 does). If later picks were the reason the best weight is 4, h=3
+at a weight near 1 would match h=1 at 4; it does not (15.6% vs 16.2%). So the bonus needs an effective multiplier of about 4 on the one-pick shortfall however it is built; the reason is still unexplained.
+Ruled out so far: survival spread, reach cost, a two-step lookahead, a multi-pick horizon. Untested: that the shortfall in points over replacement understates how much a scarce top player is worth to title odds.
+The sweep took 223 s (title) and 214 s (points).
+
+## 2026-10-25 — Two-step lookahead tested and rejected; the adopted waiting bonus stays
+**Decision:** `LookaheadSettings` (score = value + beta x E[best pick at my next turn given my roster with him on it, from the likely survivors at all positions]; top 15 candidates, 12 survivors per
+position; cannot be combined with the waiting bonus) stays in the code, off by default, and is not adopted. User chose two steps and top-15 pruning. `tune-lookahead` runs it.
+**Result (60 seeds, noise x1, beta 0.5 / 1 / 2 x reach cost 0 / 100 / 300 / 1000):** no arm beats `need+wait`. Best lookahead arms equal or trail plain `need`: title odds 14.6% (beta 1, lambda 1000) vs `need` 14.6% vs
+`need+wait` 16.2%; points -9 / -10 vs `need+wait` at lambda 1000. Held-out (arm chosen on four seasons): title -5.9 +/- 2.6 pp, points -43 +/- 25 vs `need+wait`. Lower reach costs are worse and erratic:
+lambda 0 swings from 3.0% title odds (2023) to 28.8% (2022) and costs 17-31 points; lambda 100 -3.3 pp vs `need+wait`. Larger beta is no better (beta 2 is the worst at every lambda), so it does not
+reproduce the weight-4 behavior of the waiting bonus either.
+**Why (untested):** the waiting bonus compares a player with the alternatives at his own position, a targeted signal; the lookahead adds a next-turn term across all positions that is mostly the same for every
+candidate, so it adds noise as much as signal, and without the reach cost it drifts away from ADP. **Still unexplained:** why the waiting weight is 4. The one-pick-ahead explanation is not supported by a two-step
+version doing worse; a multi-pick horizon inside the waiting bonus itself would be the direct test.
+**Cost note:** the title sweep took 10,402 s and the same sweep scored by points 1,494 s; I do not know why the first was so much slower (machine load or throttling is likely) and did not add progress output.
+
+## 2026-10-25 — Survival model checked against real data and the simulator; why the waiting weight is 4 stays unexplained (two suspects ruled out)
+**Question:** the adoption evidence is partly circular (simulator opponents are ADP + Gaussian noise, the same assumption as the survival model), and if the model were right weight 1 would be best.
+**Real data (Fantasy Football Calculator mocks, 2021-2025, about 1,000 player-seasons):** real pick spread is about 0.11 x ADP (6.5 -> 1.6, 36 -> 4.5, 60 -> 6.4, 108 -> 10, 160 -> 18); the survival model's
+2 + 0.16 x ADP (taken from the reach cost, where it means disagreement between ADP sources) is 1.5-2.0x that in every bucket. Robust to the "drafted in most mocks" filter.
+**Simulator reliability** (`calibrate-survival`, 2.7M predictions at 1,800 drafts' turns by `need+wait`): log-loss best at spread scale 0.85 (0.1518 vs 0.1567 at 1; 0.55 -> 0.1693; 0.4 -> 0.2158). At
+scale 1 the model over-predicts survival of players likely to be gone (23% predicted, 10% observed) and under-predicts for likely survivors (90.9% vs 94.7%); the effect is in rounds 1-8, none in 9-16.
+So the real-data spread is not the right spread for predicting survival at my next turn (fat tails, caps and forced picks widen it).
+**Spread x weight sweep** (`tune-spread`, 60 seeds): scales 0.5 / 0.7 / 1.0 give the same result at each weight (title 16.0 / 16.1 / 16.2% at w = 4; points 2206-2207); best weight stays 4. Good for the
+adoption: the gain does not depend on the spread being right to within a factor of two, so the real-data mismatch does not threaten transfer.
+**Reach cost x weight sweep** (`tune-reach-wait`): the reach cost is not why the weight is 4. Best weight stays 4 at lambda = 100, 300 and 1000; lambda = 1000 stays best (title 16.2%, points 2207); lambda = 100
+is unstable (title 24.8% in 2022, 10.9% in 2023). Without the bonus lambda = 1000 is also best (14.6%), so the old tuning holds.
+**Still unexplained:** the weight above 1. Not a miscalibrated spread and not the reach cost. Most plausible (untested): the bonus looks one pick ahead, and the cost of missing a scarce player recurs over later picks.
+That is what a two-step lookahead would capture, so it is the next step. **Rejected:** testing the alternative valued after the candidate joins the roster (see the correction in the 2026-10-22 entry).
+
+## 2026-10-25 — OPEN, not decided: the live projections come from a different model than the one we validated (trees, seeds)
+**Finding:** a separate bug-sweep session found that `predict.py` trains the live models with `n_estimators` 1000 and no early stopping, while `oos_predictions.py` early-stops on the prior
+season (best iteration about 200-360 trees). On the five walk-forward folds (3 seeds) the live-style model is worse: RMSE QB 86.4 vs 84.2, RB 60.5 vs 59.1, WR 54.2 vs 53.2, TE 40.7 vs 38.7;
+Spearman TE 0.734 vs 0.767, QB 0.666 vs 0.680, RB 0.780 vs 0.796. I verified the code and then found a second gap: the live path uses one seed (`random_state` 42), the validated
+files average 5 (seed spread moves top-150 Spearman by 0.01-0.03).
+**Impact:** none on any backtest, simulator or league-metric result (they use the early-stopped 5-seed files); `projections_2026_v1.json` is affected, and it is what the product would ship.
+Plausible but unmeasured: larger model-vs-ADP disagreements than validated, which the recommender's edge depends on.
+**Proposed fix (awaiting the user's choice):** fixed tree count per position (median best iteration of the other folds: QB ~251, RB ~253, WR ~342, TE ~209) trained on all data, averaged over several
+seeds. **Alternative considered:** early-stopping the live model on 2025, which mirrors the backtest exactly but never trains on 2025's results. Do it in the Phase 3 retrain, before Phase 5.
+Pointers: `STATUS.md` (Known issue), memory note `project_live_model_tree_count`.
+
+## 2026-10-25 — Cost of waiting adopted (weight 4) as the default advisor; `need` stays as the reference arm
+**Decision:** `ValueRecommender.DefaultWait = WaitSettings(4)`; `draft --recommender need` uses roster need + the waiting bonus, `need-only` is the old advisor, the `backtest` shows both
+(`need` and `need+wait`). User set the gate: robustness checks first, adopt only if the gain holds and rosters look sane.
+**Checks (60 seeds, w = 4 vs `need`; title / points):** noise x0.5 +0.9 pp / +5, held-out +0.4 +/- 0.5 / -2 +/- 1; x2 +3.0 pp / +13, held-out +2.6 +/- 2.5 / +6 +/- 13;
+rules lifted +1.5 pp / +8, held-out +0.6 +/- 0.6 / 0 +/- 4; x1 (100 seeds) +1.9 pp / +11, held-out +1.2 +/- 0.6 / +9 +/- 8. Positive on both metrics in every
+condition at the draft level, never significantly negative; the benefit grows with opponent noise. Roster composition identical to `need` (QB 2.0, RB 5.0, WR 7.0, TE 2.0 in 2024 and 2025);
+2024 +32 points (finish 5.49 vs 6.12), 2025 +7. Weight 8 is worse than `need` at x0.5 (-0.4 pp title), so 4 rather than the top of the range.
+**Final 100-seed backtest (x1):** `need+wait` 2211 (+53 +/- 2 over ADP), playoffs 65.2%, title 16.3% (ADP 11.4%, `need` 14.4%); x0.5 +50 / 12.2% title, x2 +31 / 24.4% title (ADP 21.3%).
+**Caveats:** the weight was picked on the same 100 seeds (so the x1 line is in-sample); the season-level evidence is about 2 SE on title odds at x1 and weaker elsewhere; the gain is
+small at low noise. **Rejected for now:** the variance-aware starter value (see the entry below).
+
+## 2026-10-25 — Re-test under the league metric: starter option rejected; cost-of-waiting bonus looks positive at weight 4, not yet adopted
+**Decision:** sweeps take `--metric points|wins|playoffs|title` (`SweepMetric`, `ArmSweep`; reports also show a paired difference against the headline arm). The variance-aware
+starter value (`NeedSettings.StarterOption`, `OptionPremium`: a starter who busts is cut and replaced from the waiver level, so he is worth E[max(X, waiver)]; `tune-starter`) is
+off by default and rejected. The waiting bonus (`WaitSettings`) is still off by default; adoption is the user's call.
+**Starter option (60 seeds):** points w = 0.5 / 1 / 2 / 4 = +3 / +3 / -2 / 0 vs `need`; title odds +0.1 / -0.4 / -0.8 / -0.8 pp; combined with the waiting bonus no better than the bonus alone
+(title 15.7% vs 15.8%). Likely cause: one position-wide spread for everyone pushes picks toward high-spread positions; the player-level risk study found nothing better to use.
+**Waiting bonus (100 seeds, noise x1, weights 0.1 .. 8):** dose-response rises to w = 4 and plateaus at 8. w = 4 vs `need`: title 16.3% vs 14.4% (+1.9 +/- 0.3 pp, draft-level SE), playoffs +1.7 +/- 0.3,
+points +11 +/- 2. Leave-one-season-out gain over `need` (chosen on four seasons, scored on the fifth): title +1.2 +/- 0.6 pp, points +9 +/- 8, playoffs 0.0 +/- 1.3. Season by season
+the title gain is positive in 2021-2024 and -0.6 in 2025; the points gain is driven by 2022 and 2024 (+15, +37) with 2023 at -4. So: consistent direction on three metrics, but the season-level
+evidence is about 2 SE on title and weaker on the others, and w = 4 was picked from seven arms. Draft-level SEs ignore that drafts in a season share opponents.
+**Fixed on the way:** the new `Signed` helper printed a literal "+F1" (a custom format string), so the first title and playoff runs had no paired columns; reran.
+
+## 2026-10-25 — League-finish metric: 13-week head-to-head season, 6-team playoff, odds averaged over 200 random schedules
+**Decision:** every simulated draft is also replayed as a league season (`LeagueSeason`, `SeasonFormat`, `SimSettings.Season` / `ScheduleSamples`): 13 regular-season
+weeks of random round-robin, top 6 by wins then points for, seeds 1-2 byes, single elimination in weeks 14-16 (best remaining seed plays the worst; a tie goes to the
+better seed). Reported as win %, playoff odds and title odds. User chose the format (13 weeks, 6 teams) and the averaging over schedules.
+**Why:** points are an expected-value objective; a risk preference (or anything about variance) can only matter for winning, and "finish" until now was only the rank of total
+points. Weekly scores are fixed by the real season, so schedule luck is the only randomness left; averaging 200 schedules removes it (cheaper than 200x more drafts), and
+schedule s depends only on the seed, so strategies are compared on the same schedules. **Rejected:** one fixed schedule per draft (title odds near 8% would need many times more drafts).
+**Result (100 seeds, noise x1):** same ranking as points. `need` playoffs 63.5% / title 14.4% vs ADP 57.8% / 11.4% (+5.7 +/- 0.5 and +3.0 +/- 0.3 pp), `value` +1.5 pp title,
+`windowed` level with ADP although 28 points behind (the metric saturates), VOR -3.7, old recommender -10.9. At x2 noise `need` is level with ADP (+0.3 +/- 0.5 pp).
+**Not modeled:** waiver wire, start/sit mistakes (lineups are hindsight-optimal), trades; weeks 17-18 count for points but not for the season.
+
+## 2026-10-25 — The 50/50 model + ADP-curve blend is more accurate but makes the recommender worse; the recommender keeps the pure model
+**Decision:** `projected_ppr` for the recommender stays the pure model. The blend (`src/evaluation/blend_test.py`, 50% model + 50% ADP-to-points curve fit
+walk-forward on earlier seasons only, so 2022-2025) is not shipped as the recommender's input. It may still be right for *displayed* point projections.
+**Why:** accuracy improves: top-150 RMSE QB 91.3 -> 85.2, RB 77.3 -> 73.5, WR 66.9 -> 65.0, TE 48.5 -> 48.2; top-150 Spearman +0.03 to +0.06 at every position
+(still below plain ADP: QB 0.30 vs 0.33, TE 0.37 vs 0.40); the +14% bias on "risers" (ADP rank better than last-year output rank) falls to +3.5%. But in the
+simulator (2022-2025, 60 seeds, identical opponents; position RMSE in the files scaled by the blend's RMSE ratio) `need` falls from 2188.8 (+40 over ADP) to
+2176.9 (+28): paired -12 +/- 3 at noise x1, -40 +/- 5 at x2, neutral in 2022-2023 and -27 / -18 in 2024 / 2025; `value` -12 +/- 3. The old position-first
+`windowed` rule gains +15, which is why it looked fine in aggregate.
+**Untested explanation:** the recommender's edge comes from where the model differs from ADP, and the reach cost already holds it near ADP, so projections that
+already lean toward ADP leave it less independent signal; the isotonic curve also flattens the spread between players, which VOR, tiers and bench option value use.
+**Caveat:** only weight 0.5 was run. A smaller weight on the curve was not tried. The 2021 season is excluded (no earlier season to fit the curve).
+Rejected earlier: shipping the blend (2026-10-21 entry, which found 0.7-1.7% lower RMSE with a leave-one-season-out curve that saw the future).
+
+## 2026-10-25 — Simulator opponents no longer depend on the projections; headline re-measured (+42, was +48)
+**Decision:** `OpponentBot.Create` draws each opponent's per-player bias in player-id order instead of pool order (`OpponentBotTests`).
+**Why:** pool order is sorted by VOR, so any change to the projections reassigned the random draws between players and gave the same seed different opponents.
+The first blend comparison moved plain ADP (which never reads projections) by 24 points; after the fix ADP is 2148.8 vs 2149.2 across the two files.
+Every earlier simulator number had a different, equally valid random realization of the opponents. Re-run (100 seeds, 2021-2025, noise x1, weekly scoring):
+ADP 2157.5, `windowed` -28 +/- 3, `value` +20 +/- 2, `need` +42 +/- 2 (was +34 / +48 over ADP 2164), `need` ahead of ADP in all five seasons; noise x0.5 +49, x2 +16
+(break-even is a little above x2). Order and signs unchanged. Seed-cluster SEs are ~30% larger than the draft-level ones because drafts in a seed share opponents.
+The cost-of-waiting sweep, re-run: w = 0.1 .. 2 gives +1 .. +5 over `need`, rising with w, leave-one-season-out +3 +/- 2 (was +0 +/- 1); still not adopted.
+
+## 2026-10-25 — Prior-season weekly volatility tested as a model feature: not adopted (QB/TE null, WR +0.01 is below the detectable gap)
+**Decision:** the `volatility` group (weekly SD, SD per point of mean, share of 20+ PPR weeks, prior season, >= 4 games) stays in `ADVANCED_GROUPS` as a
+tested candidate but is in no position's model. Run with `advanced_features.py volatility`, 10 seeds, top-150 Spearman, 2021-2025. User chose this after
+the risk-predictability study showed a weak upside-only QB/TE effect.
+**Why:** QB 0.310 -> 0.301 (-0.009; the random-noise control gave -0.009), TE 0.403 -> 0.395 (-0.008; noise -0.007), so the hypothesis behind the test fails.
+RB +0.003 (noise -0.001). WR 0.510 -> 0.521 (+0.012, better in 10/10 seeds, RMSE -0.6, noise control +0.002): consistent across training seeds but under the
+~0.03 gap that 5 test seasons can detect, and seeds only measure training randomness, so it is dropped under the standing rule.
+**Open:** WR is the one cell worth a second look if more test seasons exist (2026 results in Phase 3); an a-priori reason for volatility to help WR but not QB/TE
+is missing, which argues for caution.
+
+## 2026-10-25 — Player-level risk is not predictable from prior-season weekly volatility (adaptive risk has no signal)
+**Decision:** no per-player risk field is exported to the projection files. `src/evaluation/risk_predictability.py` tested whether prior-season weekly
+SD, CV, boom rate (>= 20 pts), bust rate (<= 5 pts) and games missed predict the next season's miss from the model projection (absolute, downside,
+upside) and its weekly SD, as partial Spearman after removing projection level and games played; 720 player-seasons (top 150 by ADP, >= 6 prior games,
+2021-2025). User chose the predictability check before building any risk component.
+**Why:** RB and WR (most of the picks) show nothing: |r| <= 0.08 on every miss target, signs flip across seasons (2-4 of 5 agree). Games missed predicts
+nothing anywhere. Only QB and TE show anything: prior SD vs upside +0.20 (QB) and +0.18 (TE), TE weekly-SD persistence +0.27; the effect is on the upside
+side (the model under-projects volatile QBs/TEs), not the downside that a "floor" rule would protect, and with about 140 players per position (SE about
+0.1) and 80 correlations tested, a few at 2 SE are expected by chance.
+**Alternative kept open:** the user also chose a league-finish metric (head-to-head weekly matchups) as the objective under which risk could matter;
+not built yet. Without a player-level signal, adaptive risk would be a position-only rule (QB spread is larger than TE's), which the position RMSE already encodes.
+
+## 2026-10-22 — Cost of waiting (VONA bonus) tested and not adopted; `need` stays the default
+**Decision:** `WaitSettings` adds w x E[max(0, value - best same-position player who lasts to my next pick)] to the `need` score (survival =
+Normal CDF of (ADP - next pick) / (2 + 0.16 x ADP); alternatives are everyone still available, not the 4-sigma window, which is measured at the current
+pick and hid them; independent survivals, best alternative first). Default is off (`wait` null); `tune-wait` sweeps w. User chose this over a
+two-step lookahead and a tier-count rule.
+**Why not adopted (weekly scoring, rules on, 40 seeds, noise x1, 2400 drafts per arm):** need 2208 (+43 over ADP 2165); w = 0.1 / 0.25 / 0.5 / 1 / 2 gives
+2209 / 2211 / 2211 / 2210 / 2211, i.e. +1 to +3 with a paired SE of about 4 against ADP and no trend in w; leave-one-season-out gain over need +0 +/- 1.
+It is not a no-op: it changes 8/320 picks at w = 0.5 and 17/320 at w = 2 (2024 probe), mostly round 4-10: a scarce QB/TE or RB a little earlier,
+or one of two near-equal WRs. The reach cost (lambda 1000) already pins the drafter near ADP, and lineup gain is measured over replacement level, so
+scarcity is mostly priced already.
+**Known simplification:** an alternative's value is measured against the current roster, not the roster after taking the candidate. *(Corrected 2026-10-25: for the "I wait" branch the current
+roster is the right one, since without him on it the later pick is valued without him; the after-pick roster would measure taking him and then the alternative, a different quantity.
+The real simplification is the one-pick horizon.)*
+**Next:** position safety is the same signal (survival to my next pick), so expect the same null; try it only inside a different framing (e.g. when the
+reach cost is relaxed). Test: `WaitTests`.
+
 ## 2026-10-22 — Bench value settled: structural weights + option value over the waiver level + dead-pick exclusion is the default `need`
 **Decision:** `NeedSettings.Default` is now `Option`: lineup gain, plus the k-th-backup weight P(Binomial(S, q) >= k) (q = 0.23) times the option value
 E[max(0, X - waiver)] of the part of the player that does not start (X ~ Normal(projection, position RMSE), waiver = best undrafted projection

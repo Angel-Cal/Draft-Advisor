@@ -5,6 +5,12 @@
       "WebFetch(domain:nflreadpy.nflverse.com)",
       "WebFetch(domain:github.com)",
       "Bash(venv/Scripts/pip install:*)"
+    ],
+    "deny": [
+      "Read(./data/raw/**)",
+      "Read(./data/processed/sim_baseline.csv)",
+      "Read(./output.log)",
+      "Read(./archive/**)"
     ]
   }
 }

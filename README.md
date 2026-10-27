@@ -10,7 +10,7 @@ ADP-reach cost) and a simulator measures them against ADP-following opponents wi
   NFL data from 2015-2025
 - **Prediction pipeline**: Complete — generates 2026 season projections for all
   active players
-- **Draft recommender (C#)**: Working in the simulator: the `need` recommender is +48 starter points over plain ADP
+- **Draft recommender (C#)**: Working in the simulator: the `need` recommender is +42 starter points over plain ADP (+53 with the cost-of-waiting bonus, which the interactive advisor uses by default)
   (weekly lineups, calibrated opponents, 2021-2025 backtests). Interactive mock drafts run on past seasons.
 - **Desktop app / live draft sync**: Not started (roadmap Phase 5)
 

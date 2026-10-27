@@ -1,6 +1,7 @@
 #!/bin/sh
-# Runs the test suite (unit tests plus data-integrity checks) before every commit.
+# Runs the test suite (unit tests plus data-integrity checks) and checks .claude/CODEMAP.md is current before every commit.
 # Enabled with: git config core.hooksPath .githooks   |   skip once with: git commit --no-verify
 PY=venv/Scripts/python
 [ -x "$PY" ] || PY=python
 "$PY" -m pytest -q -x || { echo "pre-commit: tests failed, commit aborted"; exit 1; }
+"$PY" tools/gen_codemap.py --check || { echo "pre-commit: code map is stale, commit aborted"; exit 1; }

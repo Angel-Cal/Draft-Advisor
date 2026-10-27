@@ -87,13 +87,13 @@ Also done in Phase 1 (unplanned, but it changed the results): fixed a target-sea
 - [x] ADP-to-points fallback curve for rookies and missing players: done in Phase 1 (`src/draft/market_fallback.py`, rows flagged `market_estimate`)
 
 ### Phase 4: Recommender v2 (Feb to Apr 2027; started early, 2026-10)
-- [x] Single score across all available players (replaces position-first selection): `value` variant = VOR minus an ADP-reach cost (done 2026-10-21, see `LOG.md`). Roster need and bench value then made it the `need` recommender, +48 over ADP in the simulator
+- [x] Single score across all available players (replaces position-first selection): `value` variant = VOR minus an ADP-reach cost (done 2026-10-21, see `LOG.md`). Roster need and bench value then made it the `need` recommender, +42 over ADP in the simulator
 - [ ] Add components one at a time; keep each only if the simulator shows improvement:
   - roster need (nonlinear, ramps up mid-draft): done 2026-10-22 as marginal lineup gain over replacement plus position-specific bench value (structural k-th-backup weights, option value over the waiver level, dead-pick exclusion), see `LOG.md`
-  - tier cliff / cost of waiting until next pick (not started)
-  - position safety (P(player survives to my next pick) from teams picking in between)
+  - tier cliff / cost of waiting until next pick: tested 2026-10-22 as a VONA bonus (`WaitSettings`, `tune-wait`); no gain on points alone, but under the league-finish metric (title odds +1.9 pp, points +11 at weight 4) it held up at every noise level and was adopted 2026-10-25 as the default advisor, see `LOG.md`
+  - position safety (P(player survives to my next pick) from teams picking in between): shares its survival model with the waiting bonus, so expect little extra
   - run detection (continuous intensity)
-  - adaptive risk by round (floor early, ceiling mid, variance late)
+  - adaptive risk by round (floor early, ceiling mid, variance late): checked 2026-10-25, no player-level risk signal (RB/WR flat; QB/TE weak and upside-only), see `LOG.md`; would also need a league-finish metric to matter
 - [ ] Reasoning strings that explain each recommendation in plain language for beginners
 
 ### Phase 5: Desktop app (Apr to Jun 2027)
