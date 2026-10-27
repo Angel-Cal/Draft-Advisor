@@ -22,6 +22,19 @@ def test_xfp_features_are_lagged_one_season():
     assert out.loc[2021, "xfp_pg_prev"] == 13.0
 
 
+def test_volatility_features_use_played_regular_season_weeks_and_lag_one_season():
+    points = [10.0, 30.0, 10.0, 30.0]
+    weekly = pd.DataFrame({"player_id": ["a"] * 5 + ["short"] * 3, "season": 2020,
+                           "week": [1, 2, 3, 4, 19, 1, 2, 3], "season_type": ["REG"] * 4 + ["POST"] + ["REG"] * 3,
+                           "fantasy_points_ppr": points + [99.0] + [5.0, 15.0, 25.0]})
+    out = adv.build_volatility_features(weekly).set_index("player_id")
+    assert out.loc["a", "season"] == 2021                                          # 2020 weeks describe the player entering 2021
+    assert out.loc["a", "weekly_sd_prev"] == pytest.approx(np.std(points, ddof=1))
+    assert out.loc["a", "weekly_cv_prev"] == pytest.approx(np.std(points, ddof=1) / 20.0)
+    assert out.loc["a", "weekly_boom_prev"] == 0.5                                   # 30-point weeks; the playoff 99 is ignored
+    assert out.loc["short", adv.ADVANCED_GROUPS["volatility"]].isna().all()          # 3 games: too few for a spread
+
+
 def test_role_features_count_plays_on_the_field():
     participation = pd.DataFrame({
         "nflverse_game_id": ["g1"] * 4, "play_id": [1, 2, 3, 4], "possession_team": ["KC"] * 4,

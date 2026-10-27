@@ -32,7 +32,10 @@ ADVANCED_GROUPS = {
     "ol": ["ol_returning_starters", "ol_snap_continuity", "ol_incoming_starters"],
     "ol_quality": ["ol_aly_prev", "ol_asr_prev"],
     "ol_interaction": ["ol_aly_x_cont", "ol_asr_x_cont"],
+    "volatility": ["weekly_sd_prev", "weekly_cv_prev", "weekly_boom_prev"],
 }
+BOOM_PPR = 20.0            # a week at or above this many PPR points counts as a boom week
+MIN_VOLATILITY_GAMES = 4   # fewer games than this give a meaningless spread, left missing
 OL_STARTERS = 5            # the unit
 OL_STARTER_SNAPS = 500     # plays on the field that mark an OL as a starter-level player
 
@@ -55,6 +58,18 @@ def build_xfp_features(opportunity):
     g["fp_over_exp_prev"] = g["fp"] - g["xfp"]
     g["xfp_pg_prev"] = g["xfp"] / g["weeks"]
     return _shift_to_next_season(g[["player_id", "season"] + ADVANCED_GROUPS["xfp"]])
+
+
+def build_volatility_features(weekly):
+    """Spread of last season's weekly PPR over the games a player played: SD, SD per point of mean, and the share of boom weeks."""
+    played = weekly[(weekly["season_type"] == "REG")].dropna(subset=["fantasy_points_ppr"])
+    played = played.assign(boom=(played["fantasy_points_ppr"] >= BOOM_PPR).astype(float))
+    g = played.groupby(["player_id", "season"]).agg(
+        games=("week", "size"), mean=("fantasy_points_ppr", "mean"), weekly_sd_prev=("fantasy_points_ppr", "std"),
+        weekly_boom_prev=("boom", "mean")).reset_index()
+    g["weekly_cv_prev"] = g["weekly_sd_prev"] / g["mean"].clip(lower=1)
+    g.loc[g["games"] < MIN_VOLATILITY_GAMES, ADVANCED_GROUPS["volatility"]] = np.nan
+    return _shift_to_next_season(g[["player_id", "season"] + ADVANCED_GROUPS["volatility"]])
 
 
 def _on_field_counts(participation, pbp):
@@ -229,6 +244,8 @@ def load_advanced_context(roster):
         "depth": build_depth_features(pd.read_parquet(RAW / "depth_old_14_24.parquet"), depth_new),
         "team_epa": build_team_epa_features(pbp, roster),
         "ngs": build_ngs_features(ngs),
+        "volatility": build_volatility_features(pd.read_parquet(
+            RAW / "weekly_20_25.parquet", columns=["player_id", "season", "week", "season_type", "fantasy_points_ppr"])),
     }
 
 
