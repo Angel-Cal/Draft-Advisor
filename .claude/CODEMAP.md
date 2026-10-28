@@ -430,6 +430,18 @@ Data files, `archive/` and build output are not listed.
   - `partial_spearman(df, feature, target)`: Correlation of feature and target after removing the projection level and prior games (rank-based).
 - **seed_spread.py** (51 lines): How much of the simulator edge is the projection file's luck? (runnable)
   - `seed_set_predictions(frames, seeds)`: Per-row mean prediction of both recipes over `seeds`, one row per player-season in 2021-2025.
+- **target_competition.py** (241 lines): Does the model over-project wide receivers whose target competition got tougher, or whose last-year volume came while a teammate was out? (runnable)
+  - `load_weekly()`: Regular-season weekly rows of the pass catchers: player, season, week, team, targets.
+  - `load_start_roster()`: Each player's team and rookie status on his earliest roster row of the season (the file is sparse after week 1, so this is how the pipeline finds the start team).
+  - `season_rates(weekly)`: Per player-season over all teams: games, targets, targets per game (0 when under MIN_GAMES games).
+  - `main_team(weekly)`: (player, season) -> the team he played the most games for.
+  - `add_measures(d, weekly, roster)`
+  - `boot_diff(g, column, rng)`: Mean of `column` in the flagged rows minus the rest, with a 90% bootstrap interval resampling players.
+  - `report(d, rng, label)`
+  - `add_context(d, weekly, roster)`: Adds the team he came from and went to, whether it changed, games played, the over-projection and the new-situation flag.
+  - `diff_interval(h, mask, column, rng)`: Mean of `column` where mask holds minus where it does not, with a 90% bootstrap interval resampling players.
+  - `profile_report(d, rng)`: Healthy (9+ games) WRs: the combined profile against its parts and against thresholds, then the matches themselves.
+  - `live_2026_matches(weekly, roster)`: The same profile on the live 2026 WR pool (model projection against the ADP curve, 2025 weekly data, 2026 rosters).
 - **wr_team_context.py** (64 lines): Ablation of WR team-context features, same protocol as rb_team_context. (runnable)
   - `load_wr(features)`
   - `variants(features)`
