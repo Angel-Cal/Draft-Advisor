@@ -76,3 +76,16 @@ public sealed class ValueRecommenderStrategy(string name, ReachSettings reach, N
                ?? legal.MaxBy(p => p.Vor)!;
     }
 }
+
+/// <summary>The recommender with a rollout on top (see <see cref="Rollout"/>): the base recommender proposes, simulated completions of the draft decide.</summary>
+public sealed class RolloutStrategy(string name, ReachSettings reach, NeedSettings need, RolloutSettings rollout, WaitSettings? baseWait = null) : IDraftStrategy
+{
+    public string Name => name;
+
+    public ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)
+    {
+        var allowed = legal.Select(p => p.Id).ToHashSet();
+        return Rollout.Rank(state, reach, need, team, rollout, p => allowed.Contains(p.Id), baseWait).Select(r => r.Player).FirstOrDefault()
+               ?? legal.MaxBy(p => p.Vor)!;
+    }
+}

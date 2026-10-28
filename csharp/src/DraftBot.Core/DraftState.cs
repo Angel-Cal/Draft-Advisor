@@ -15,6 +15,19 @@ public sealed class DraftState
         Teams = Enumerable.Range(0, league.Teams).Select(_ => new Roster(league)).ToList();
     }
 
+    DraftState(DraftState other)
+    {
+        League = other.League;
+        available = [.. other.available];
+        history.AddRange(other.history);
+        Teams = other.Teams.Select(t => t.Clone()).ToList();
+        Round = other.Round;
+        PickInRound = other.PickInRound;
+    }
+
+    /// <summary>An independent copy to play forward without touching the real draft.</summary>
+    public DraftState Clone() => new(this);
+
     public LeagueSettings League { get; }
     public IReadOnlyList<Roster> Teams { get; }
     public IReadOnlyList<ValuedPlayer> Available => available;

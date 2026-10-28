@@ -17,6 +17,11 @@ using DraftBot.Sim;
 // dotnet run --project csharp/src/DraftBot.Sim -- tune-lookahead [--seeds 30] [--unrestricted true] [--noise 1] [--metric points|wins|playoffs|title]
 // dotnet run --project csharp/src/DraftBot.Sim -- tune-reach-wait [--seeds 30] [--unrestricted true] [--noise 1] [--metric points|wins|playoffs|title]
 // dotnet run --project csharp/src/DraftBot.Sim -- calibrate-survival [--seeds 30] [--noise 1] [--scales 0.4,0.55,0.7,0.85,1,1.25]
+// dotnet run --project csharp/src/DraftBot.Sim -- tune-rollout [--seeds 3] [--samples 20] [--candidates 5] [--noise 1] [--metric points|wins|playoffs|title]  (slow)
+// dotnet run --project csharp/src/DraftBot.Sim -- tune-reachable [--seeds 30] [--unrestricted true] [--noise 1] [--metric points|wins|playoffs|title]
+// dotnet run --project csharp/src/DraftBot.Sim -- tune-survival [--seeds 30] [--unrestricted true] [--noise 1] [--metric points|wins|playoffs|title]
+// dotnet run --project csharp/src/DraftBot.Sim -- tune-slot [--seeds 30] [--noise 1]
+// dotnet run --project csharp/src/DraftBot.Sim -- tune-bye [--seeds 30] [--unrestricted true] [--noise 1] [--metric points|wins|playoffs|title]
 // dotnet run --project csharp/src/DraftBot.Sim -- tune-starter [--seeds 30] [--unrestricted true] [--noise 1] [--metric points|wins|playoffs|title]
 // dotnet run --project csharp/src/DraftBot.Sim -- tune-value [--seeds 30] [--noise 1] [--metric points|wins|playoffs|title]
 // dotnet run --project csharp/src/DraftBot.Sim -- tune-reach [--seeds 30] [--seasons 2021-2025]
@@ -135,7 +140,38 @@ switch (command)
             ParseSeasons(options.GetValueOrDefault("seasons") ?? "2021-2025").ToDictionary(y => y, y => ProjectionFile.Load(Path.Combine(dataDir, $"projections_{y}_v1.json"))),
             settings with { NoiseScale = double.Parse(options.GetValueOrDefault("noise") ?? "1") }, int.Parse(options.GetValueOrDefault("seeds") ?? "30"),
             new ValueRecommenderStrategy("need+wait", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait), ReachSettings.Default,
-            (options.GetValueOrDefault("scales") ?? "0.4,0.55,0.7,0.85,1,1.25").Split(',').Select(double.Parse).ToArray()));
+            (options.GetValueOrDefault("scales") ?? "0.4,0.55,0.7,0.85,1,1.25").Split(',').Select(double.Parse).ToArray(),
+            bool.Parse(options.GetValueOrDefault("simulated") ?? "false") ? [("simulated, rules", new OpponentModel()), ("simulated, no rules", OpponentModel.NoRules)] : null));
+        break;
+    case "tune-rollout":
+        Console.WriteLine(ReachTuning.ReportRollout(
+            ParseSeasons(options.GetValueOrDefault("seasons") ?? "2021-2025").ToDictionary(y => y, y => ProjectionFile.Load(Path.Combine(dataDir, $"projections_{y}_v1.json"))),
+            settings with { StrategyFollowsRules = !bool.Parse(options.GetValueOrDefault("unrestricted") ?? "false") },
+            int.Parse(options.GetValueOrDefault("seeds") ?? "3"), int.Parse(options.GetValueOrDefault("samples") ?? "20"), int.Parse(options.GetValueOrDefault("candidates") ?? "5"),
+            double.Parse(options.GetValueOrDefault("noise") ?? "1"), SweepMetrics.Parse(options.GetValueOrDefault("metric"))));
+        break;
+    case "tune-reachable":
+        Console.WriteLine(ReachTuning.ReportReachable(
+            ParseSeasons(options.GetValueOrDefault("seasons") ?? "2021-2025").ToDictionary(y => y, y => ProjectionFile.Load(Path.Combine(dataDir, $"projections_{y}_v1.json"))),
+            settings with { StrategyFollowsRules = !bool.Parse(options.GetValueOrDefault("unrestricted") ?? "false") },
+            int.Parse(options.GetValueOrDefault("seeds") ?? "30"), double.Parse(options.GetValueOrDefault("noise") ?? "1"), SweepMetrics.Parse(options.GetValueOrDefault("metric"))));
+        break;
+    case "tune-survival":
+        Console.WriteLine(ReachTuning.ReportSimulatedSurvival(
+            ParseSeasons(options.GetValueOrDefault("seasons") ?? "2021-2025").ToDictionary(y => y, y => ProjectionFile.Load(Path.Combine(dataDir, $"projections_{y}_v1.json"))),
+            settings with { StrategyFollowsRules = !bool.Parse(options.GetValueOrDefault("unrestricted") ?? "false") },
+            int.Parse(options.GetValueOrDefault("seeds") ?? "30"), double.Parse(options.GetValueOrDefault("noise") ?? "1"), SweepMetrics.Parse(options.GetValueOrDefault("metric"))));
+        break;
+    case "tune-slot":
+        Console.WriteLine(ReachTuning.ReportSlot(
+            ParseSeasons(options.GetValueOrDefault("seasons") ?? "2021-2025").ToDictionary(y => y, y => ProjectionFile.Load(Path.Combine(dataDir, $"projections_{y}_v1.json"))),
+            settings, int.Parse(options.GetValueOrDefault("seeds") ?? "30"), double.Parse(options.GetValueOrDefault("noise") ?? "1")));
+        break;
+    case "tune-bye":
+        Console.WriteLine(ReachTuning.ReportBye(
+            ParseSeasons(options.GetValueOrDefault("seasons") ?? "2021-2025").ToDictionary(y => y, y => ProjectionFile.Load(Path.Combine(dataDir, $"projections_{y}_v1.json"))),
+            settings with { StrategyFollowsRules = !bool.Parse(options.GetValueOrDefault("unrestricted") ?? "false") },
+            int.Parse(options.GetValueOrDefault("seeds") ?? "30"), double.Parse(options.GetValueOrDefault("noise") ?? "1"), SweepMetrics.Parse(options.GetValueOrDefault("metric"))));
         break;
     case "tune-starter":
         Console.WriteLine(ReachTuning.ReportStarter(
@@ -174,6 +210,7 @@ static void Backtest(string dataDir, Dictionary<string, string> options, SimSett
     var result = Experiment.Run(files, settings, strategies, noiseScales: [0.5, 1.0, 2.0], seeds);
 
     Console.WriteLine(Experiment.Summarize(result.Rows));
+    Console.WriteLine(Experiment.SummarizeBySlot(result.Rows, "need+wait"));
     Console.WriteLine(Experiment.SummarizeRegret(result.Regrets));
     var output = options.GetValueOrDefault("out") ?? Path.Combine(dataDir, "sim_baseline.csv");
     var regretOutput = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(output))!, "sim_regret.csv");

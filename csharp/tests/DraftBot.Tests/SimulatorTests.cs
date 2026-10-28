@@ -188,4 +188,36 @@ public class SimulatorTests
         Assert.Contains("recommender", summary);
         Assert.Contains("noise x2", summary);
     }
+
+    [Fact]
+    public void The_slot_summary_has_a_paired_row_for_every_slot_and_noise_level()
+    {
+        var files = new Dictionary<int, ProjectionFile> { [2024] = BacktestFile(2024) };
+        IDraftStrategy[] strategies = [new AdpStrategy(), new VorStrategy()];
+        var rows = Experiment.Run(files, Settings, strategies, noiseScales: [1.0, 2.0], seeds: 3).Rows;
+
+        var summary = Experiment.SummarizeBySlot(rows, "vor");
+
+        Assert.Equal(2, summary.Split("by draft slot").Length - 1);
+        Assert.Equal(2 * League.Teams, summary.Split(Environment.NewLine).Count(line => line.Contains("+/-") && line.TrimStart().Split(' ')[0] is { } slot && int.TryParse(slot, out _)));
+        var (overall, _) = Experiment.PairedDifference(rows.Where(r => r.NoiseScale == 1.0).ToList(), "vor", "adp");
+        var perSlot = Enumerable.Range(0, League.Teams)
+            .Select(slot => Experiment.PairedDifference(rows.Where(r => r.NoiseScale == 1.0 && r.Slot == slot).ToList(), "vor", "adp").Mean).Average();
+        Assert.Equal(overall, perSlot, 9);                    // the slots partition the drafts evenly
+    }
+
+    [Fact]
+    public void The_slot_choice_check_scores_each_slots_best_arm_on_the_held_out_season()
+    {
+        var files = new Dictionary<int, ProjectionFile> { [2023] = BacktestFile(2023), [2024] = BacktestFile(2024), [2025] = BacktestFile(2025) };
+        IDraftStrategy[] strategies = [new AdpStrategy(), new VorStrategy()];
+        var rows = Experiment.Run(files, Settings, strategies, noiseScales: [1.0], seeds: 2).Rows;
+
+        var report = Experiment.SlotChoiceCheck(rows, ["vor"], baseline: "adp");
+        var onlyBaseline = Experiment.SlotChoiceCheck(rows, [], baseline: "adp");
+
+        Assert.Contains("gain over adp", report);
+        Assert.Contains("2025:", report);
+        Assert.Contains("0.0 +/- 0.0", onlyBaseline);          // choosing among the baseline alone changes nothing
+    }
 }

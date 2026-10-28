@@ -18,6 +18,14 @@ public sealed class Roster
     /// </summary>
     public bool FlexFilled => Positions.FlexEligible.All(p => byPosition[p].Count >= League.Starters(p));
 
+    /// <summary>An independent copy with the same picks.</summary>
+    public Roster Clone()
+    {
+        var copy = new Roster(League);
+        foreach (var player in picks) copy.Add(player);
+        return copy;
+    }
+
     public void Add(ValuedPlayer player)
     {
         byPosition[player.Position].Add(player);

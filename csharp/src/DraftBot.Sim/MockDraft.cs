@@ -204,6 +204,15 @@ public sealed class MockDraft
                              + $"{c.ReachSigmas,6:F1}{(c.ReachPenalty == 0 ? 0 : -c.ReachPenalty),8:F1}{c.Score,8:F1}  {(p.Player.InjuryFlag ? "yes" : "-"),-4}"
                              + (legal.Contains(p) ? "" : "   blocked by the simulator's roster rules"));
         }
+
+        output.WriteLine();
+        var explanations = Explainer.Explain(state, slot, candidates, settings, wait);
+        for (var i = 0; i < explanations.Count; i++)
+        {
+            output.WriteLine((i == 0 ? "Recommended: " : $"  Or #{i + 1}: ") + explanations[i].Headline);
+            if (i == 0)
+                foreach (var reason in explanations[i].Reasons) output.WriteLine($"    - {reason}");
+        }
     }
 
     void Summarize(DraftState state, IReadOnlyList<ValuedPlayer> pool, List<MyPick> mine)

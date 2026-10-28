@@ -18,7 +18,12 @@ namespace DraftBot.Core;
 /// level, so he is worth E[max(X, waiver)], not max(projection, waiver); the premium is the difference, counted for the share of him that
 /// starts (lineup gain over VOR). 0 turns it off.
 /// </param>
-public sealed record NeedSettings(double BenchFraction, double? MissProbability = null, bool OptionValue = false, double StarterOption = 0)
+/// <param name="Byes">
+/// Add the bye-week cover a player brings: the change in <see cref="LineupValue.ByeCover"/> when he joins the roster, from the teams' bye weeks
+/// (<see cref="ByeSchedule"/>). A bench player whose bye differs from the starters he backs up is worth more than one who shares it. No effect when the
+/// players carry no weekly points. The structural miss probability already contains an average bye week, so pair this with <see cref="MissOnlyProbability"/>.
+/// </param>
+public sealed record NeedSettings(double BenchFraction, double? MissProbability = null, bool OptionValue = false, double StarterOption = 0, bool Byes = false)
 {
     /// <summary>E[max(X, waiver)] - max(projection, waiver) for X ~ Normal(projection, sd): what the right to cut a bust is worth. Never negative.</summary>
     public static double OptionPremium(double projection, double sd, double waiver) =>
@@ -42,6 +47,15 @@ public sealed record NeedSettings(double BenchFraction, double? MissProbability 
 
     /// <summary>q from the data: draftable players missed 3.1 of 17 games (QB 2.9, RB 3.2, WR 3.1, TE 3.1) plus one bye week in 18.</summary>
     public const double MeasuredMissProbability = 0.23;
+
+    /// <summary>q without the average bye week: draftable players missed 3.1 of 17 games.</summary>
+    public const double MissOnlyProbability = 3.1 / 17;
+
+    /// <summary>The default roster need plus the bye-week cover term, with the structural weights left as they are (the average bye is counted twice).</summary>
+    public static NeedSettings WithByes => Option with { Byes = true };
+
+    /// <summary>The default roster need plus the bye-week cover term, with the structural weights built from missed games only.</summary>
+    public static NeedSettings WithByesMissOnly => Option with { Byes = true, MissProbability = MissOnlyProbability };
 
     /// <summary>Slots a backup at this position could fill: dedicated starters, plus the FLEX slot for RB and WR (rarely held by a TE).</summary>
     public static int BackupSlots(Position position, LeagueSettings league) => position switch
@@ -117,8 +131,15 @@ public sealed record NeedSettings(double BenchFraction, double? MissProbability 
 /// score = mean + sd x (z_value + Weight x z_shortfall) / (1 + Weight) - reach cost, with mean and sd of the values before the reach cost. The weight is then a
 /// unit-free mixing weight (1 = equal importance) and means the same thing in every round, however spread out the values are. Candidates outside the pool keep their one-step score.
 /// </param>
+/// <param name="Opponents">
+/// Estimate survival by simulating the other drafters' picks between now and my next turn (<see cref="SurvivalSampler"/>), with their rosters, caps and forced fills,
+/// instead of the ADP-only normal model; <paramref name="SpreadScale"/> then does not apply. Needs <paramref name="Horizon"/> 1.
+/// </param>
+/// <param name="Samples">Simulated pick sequences when <paramref name="Opponents"/> is set.</param>
+/// <param name="Reachable">Which survivors count as alternatives for me at the later pick (see <see cref="AlternativeReach"/>).</param>
 public sealed record WaitSettings(double Weight, double SpreadScale = 1.0, int Horizon = 1, double HorizonDecay = 1.0,
-    IReadOnlyList<int>? ActiveRounds = null, IReadOnlyList<Position>? ActivePositions = null, bool Standardize = false, int StandardizePool = 15)
+    IReadOnlyList<int>? ActiveRounds = null, IReadOnlyList<Position>? ActivePositions = null, bool Standardize = false, int StandardizePool = 15,
+    OpponentModel? Opponents = null, int Samples = 40, AlternativeReach Reachable = AlternativeReach.Any)
 {
     /// <summary>Whether the bonus applies to a candidate at <paramref name="position"/> in <paramref name="round"/>.</summary>
     public bool AppliesTo(int round, Position position) =>
@@ -149,6 +170,19 @@ public sealed record WaitSettings(double Weight, double SpreadScale = 1.0, int H
         }
         return shortfall + noneYet * Math.Max(0, value);
     }
+}
+
+/// <summary>Which players the waiting bonus may count as my alternative at a later pick.</summary>
+public enum AlternativeReach
+{
+    /// <summary>Anyone likely to last, at full value, however far past his ADP he would be then (the original rule).</summary>
+    Any,
+
+    /// <summary>Only players the recommender could take at that pick: inside the reach cap there.</summary>
+    WithinCap,
+
+    /// <summary>As <see cref="WithinCap"/>, and each alternative's value is cut by the reach cost he would carry at that pick.</summary>
+    AfterReachCost,
 }
 
 /// <summary>
@@ -186,12 +220,13 @@ public sealed record LookaheadSettings(double Beta, int Candidates = 15, int Per
 /// <param name="WaitBonus">Points added for the cost of waiting (<see cref="WaitSettings"/>); null when it is off or I have no later pick.</param>
 /// <param name="StarterPremium">Points of option premium for the part of him that starts (<see cref="NeedSettings.StarterOption"/>); null when off.</param>
 /// <param name="NextTurn">Expected value of my best pick at my next turn if I take him now (<see cref="LookaheadSettings"/>), before the weight; null when not looked ahead.</param>
-public sealed record ValueCandidate(ValuedPlayer Player, double Score, double ReachPenalty, double ReachSigmas, double? Gain = null, double? BenchWeight = null, double? BenchValue = null, double? WaitBonus = null, double? StarterPremium = null, double? NextTurn = null)
+/// <param name="ByeCover">Points of bye-week cover he adds to the roster (<see cref="NeedSettings.Byes"/>); null when off.</param>
+public sealed record ValueCandidate(ValuedPlayer Player, double Score, double ReachPenalty, double ReachSigmas, double? Gain = null, double? BenchWeight = null, double? BenchValue = null, double? WaitBonus = null, double? StarterPremium = null, double? NextTurn = null, double? ByeCover = null)
 {
     public double Vor => Player.Vor;
 
     /// <summary>The value before the reach cost and the waiting bonus: lineup gain plus bench value and starter premium, or plain VOR when roster need is off.</summary>
-    public double BaseValue => Gain is null ? Vor : Gain.Value + (BenchValue ?? 0) + (StarterPremium ?? 0);
+    public double BaseValue => Gain is null ? Vor : Gain.Value + (BenchValue ?? 0) + (StarterPremium ?? 0) + (ByeCover ?? 0);
 }
 
 /// <summary>
@@ -229,6 +264,8 @@ public static class ValueRecommender
         var replacement = need is null ? null : LineupValue.Replacement(state);
         var baseline = replacement is null ? 0 : LineupValue.Best(roster, state.League, replacement);
         var waiver = need is { OptionValue: true } ? LineupValue.Waiver(state, replacement!) : null;
+        var byes = need is { Byes: true } ? ByeSchedule.Infer(state.Available.Concat(state.Teams.SelectMany(t => t.Picks)).Select(p => p.Player)) : null;
+        var coverBaseline = byes is null ? 0 : LineupValue.ByeCover(roster, state.League, replacement!, byes);
 
         var evaluated = new Dictionary<string, ValueCandidate>();
         ValueCandidate Evaluate(ValuedPlayer p)
@@ -242,7 +279,7 @@ public static class ValueRecommender
         {
             var sigmas = reach.Reach(p.Player, pick);
             var penalty = reach.Lambda == 0 ? 0 : reach.Lambda * sigmas * sigmas;
-            double? gain = null, weight = null, bench = null, starter = null;
+            double? gain = null, weight = null, bench = null, starter = null, cover = null;
             var value = p.Vor;
             if (need is not null)
             {
@@ -260,9 +297,15 @@ public static class ValueRecommender
                     starter = need.StarterOption * Math.Clamp(g / p.Vor, 0, 1) * NeedSettings.OptionPremium(p.Player.ProjectedPpr, p.Rmse, waiver[p.Position]);
                     value += starter.Value;
                 }
+                if (byes is not null)
+                {
+                    var before = ReferenceEquals(rosterNow, roster) ? coverBaseline : LineupValue.ByeCover(rosterNow, state.League, replacement!, byes);
+                    cover = LineupValue.ByeCover(rosterNow.Append(p).ToList(), state.League, replacement!, byes) - before;
+                    value += cover.Value;
+                }
                 if (need.MissProbability is not null && g == 0 && weight == 0) value += DeadPickScore;       // structural weights only: can never start, can never be needed
             }
-            return new ValueCandidate(p, value - penalty, penalty, sigmas, gain, weight, bench, StarterPremium: starter);
+            return new ValueCandidate(p, value - penalty, penalty, sigmas, gain, weight, bench, StarterPremium: starter, ByeCover: cover);
         }
 
         var scored = BaselineRecommender.RecommendablePool(state, reach).Select(Evaluate).ToList();
@@ -309,12 +352,19 @@ public static class ValueRecommender
         Func<ValuedPlayer, ValueCandidate> evaluate)
     {
         const double MinSurvival = 1e-3;       // a player who is certainly gone by then is no alternative; skipping him keeps the evaluation cheap
+        if (wait.Opponents is not null && wait.Horizon != 1) throw new ArgumentException("simulated survival needs a horizon of 1", nameof(wait));
+        var simulated = wait.Opponents is null ? null : SurvivalSampler.Survival(state, upcoming[0], wait.Opponents, wait.Samples);
+        double SurvivalAt(ValuedPlayer p, int pick) => simulated?[p.Id] ?? WaitSettings.Survival(p.Player, pick, reach, wait.SpreadScale);
         // survival only falls the longer a player has to last, so anyone worth considering at a later pick passes this filter at the first one
+        var restricted = wait.Reachable != AlternativeReach.Any;
+        double ReachAt(ValuedPlayer p, int pick) => reach.Reach(p.Player, pick);
+        double CostAt(ValuedPlayer p, int pick) => reach.Lambda * Math.Pow(ReachAt(p, pick), 2);
         var alternatives = state.Available
-            .Where(p => WaitSettings.Survival(p.Player, upcoming[0], reach, wait.SpreadScale) > MinSurvival)
+            .Where(p => SurvivalAt(p, upcoming[0]) > MinSurvival && (!restricted || ReachAt(p, upcoming[^1]) <= reach.CapSigmas))       // later picks reach further, so the last one bounds the set
             .Select(evaluate).GroupBy(c => c.Player.Position).ToDictionary(g => g.Key, g => g
-                .OrderByDescending(c => c.BaseValue).Take(WaitSettings.Alternatives + 1)
-                .Select(c => (c.Player.Id, c.BaseValue, Survival: upcoming.Select(pick => WaitSettings.Survival(c.Player.Player, pick, reach, wait.SpreadScale)).ToArray())).ToList());
+                .OrderByDescending(c => c.BaseValue - (wait.Reachable == AlternativeReach.AfterReachCost ? CostAt(c.Player, upcoming[0]) : 0)).Take(WaitSettings.Alternatives + 1)
+                .Select(c => (c.Player.Id, c.BaseValue, Survival: upcoming.Select(pick => SurvivalAt(c.Player, pick)).ToArray(),
+                    Reach: restricted ? upcoming.Select(pick => ReachAt(c.Player, pick)).ToArray() : [])).ToList());
 
         var withShortfall = scored.Select(c =>
         {
@@ -322,7 +372,17 @@ public static class ValueRecommender
             var sameSpot = alternatives.GetValueOrDefault(c.Player.Position, []).Where(a => a.Id != c.Player.Id).ToList();
             var shortfall = 0.0;
             for (var step = 0; step < upcoming.Count; step++)
-                shortfall += Math.Pow(wait.HorizonDecay, step) * WaitSettings.ExpectedShortfall(c.BaseValue, sameSpot.Select(a => (a.BaseValue, a.Survival[step])));
+            {
+                var atStep = step;
+                var options = wait.Reachable switch
+                {
+                    AlternativeReach.Any => sameSpot.Select(a => (a.BaseValue, a.Survival[atStep])),
+                    AlternativeReach.WithinCap => sameSpot.Where(a => a.Reach[atStep] <= reach.CapSigmas).Select(a => (a.BaseValue, a.Survival[atStep])),
+                    _ => sameSpot.Where(a => a.Reach[atStep] <= reach.CapSigmas)
+                        .Select(a => (Value: a.BaseValue - reach.Lambda * a.Reach[atStep] * a.Reach[atStep], a.Survival[atStep])).OrderByDescending(a => a.Value),
+                };
+                shortfall += Math.Pow(wait.HorizonDecay, step) * WaitSettings.ExpectedShortfall(c.BaseValue, options);
+            }
             return (Candidate: c, Shortfall: shortfall);
         }).ToList();
 

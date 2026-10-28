@@ -266,7 +266,19 @@ public class WaitTests
             new ValueRecommenderStrategy("need+wait", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait),
             ReachSettings.Default, [0.5, 1.0]);
 
-        foreach (var expected in new[] { "log-loss", "Brier", "reliability at spread scale 1", "predicted", "observed", "rounds 1-3" }) Assert.Contains(expected, text);
+        foreach (var expected in new[] { "log-loss", "Brier", "reliability of normal x1", "predicted", "observed", "rounds 1-3" }) Assert.Contains(expected, text);
+    }
+
+    [Fact]
+    public void The_survival_calibration_report_scores_simulated_survival_next_to_the_normal_scales()
+    {
+        var files = new Dictionary<int, ProjectionFile> { [2024] = BacktestFile(2024) };
+
+        var text = SurvivalCalibration.Report(files, new SimSettings(new LeagueSettings()), seeds: 1,
+            new ValueRecommenderStrategy("need+wait", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait),
+            ReachSettings.Default, [1.0], [("simulated, rules", new OpponentModel()), ("simulated, no rules", OpponentModel.NoRules)], samples: 5);
+
+        foreach (var expected in new[] { "normal x1", "simulated, rules", "simulated, no rules" }) Assert.Contains(expected, text);
     }
 
     [Fact]
@@ -287,6 +299,28 @@ public class WaitTests
         Assert.Contains("cost of waiting", withWait);
         Assert.Contains("need+wait", withWait);
         Assert.DoesNotContain("cost of waiting", without);
+    }
+
+    [Fact]
+    public void An_alternative_far_past_his_ADP_at_my_next_pick_only_counts_when_alternatives_need_not_be_reachable()
+    {
+        // 4 teams: I pick 1st and 8th. "far" is certain to last to pick 8 but is ADP 60, 16 spreads past it: the recommender would never take him there
+        var league = new LeagueSettings(Teams: 4, Qb: 1, Rb: 1, Wr: 1, Te: 1, Flex: 0, Bench: 3);
+        ValuedPlayer V(string id, Position position, double projected, double adp) => new(Player(id, position, projected, adp: adp), projected - 100, 0, 0, false, 1, 0, 1, 50);
+        var pool = new List<ValuedPlayer> { V("star", Position.RB, 250, 2), V("far", Position.RB, 240, 60), V("near", Position.RB, 160, 9) };
+        pool.AddRange(Enumerable.Range(1, 30).Select(i => V($"f{i}", Position.WR, 100, 100 + i)));
+        var state = new DraftState(pool, league);
+        var reach = ValueRecommender.DefaultReach;
+
+        double Bonus(AlternativeReach reachable) => ValueRecommender.Rank(state, reach, NeedSettings.Default, 0, new WaitSettings(4, Reachable: reachable))
+            .Single(c => c.Player.Id == "star").WaitBonus!.Value;
+
+        var any = Bonus(AlternativeReach.Any);
+        var cap = Bonus(AlternativeReach.WithinCap);
+        var cost = Bonus(AlternativeReach.AfterReachCost);
+
+        Assert.True(cap > any);                      // "far" no longer props up the alternatives
+        Assert.True(cost >= cap);                    // and the reach cost can only make the remaining alternatives look worse
     }
 
     static List<ValuedPlayer> RealisticValued() => Valuator.Value(RealisticPool(), Rmse, new LeagueSettings());

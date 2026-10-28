@@ -57,6 +57,22 @@ public static class LineupValue
         return total;
     }
 
+    /// <summary>
+    /// What a roster earns in bye weeks beyond its season-total lineup. Each week's lineup is the best one among the players not on bye, a player scoring
+    /// his projection / 17 in each week he plays and open slots filled by replacement-level pickups every week, so the weekly lineups add up to
+    /// <see cref="Best"/> plus this cover. Adding a player changes it by the points his presence adds in other players' bye weeks (and keeps a bye hole of his own covered).
+    /// </summary>
+    public static double ByeCover(IReadOnlyList<ValuedPlayer> roster, LeagueSettings league, IReadOnlyDictionary<Position, double> replacement, ByeSchedule byes)
+    {
+        const double PlayedWeeks = 17;
+        var full = Best(roster, league, replacement);
+        var byeWeeks = roster.Select(p => byes.WeekOf(p.Player.Team)).Where(w => w is not null).Select(w => w!.Value).Distinct().ToList();
+        var total = full * (ByeSchedule.Weeks - byeWeeks.Count);
+        foreach (var week in byeWeeks)
+            total += Best(roster.Where(p => byes.WeekOf(p.Player.Team) != week), league, replacement);
+        return total / PlayedWeeks - full;
+    }
+
     /// <summary>How many points <paramref name="candidate"/> adds to the roster's best lineup (0 if he would not start).</summary>
     public static double Gain(IReadOnlyList<ValuedPlayer> roster, ValuedPlayer candidate, LeagueSettings league,
         IReadOnlyDictionary<Position, double> replacement) =>

@@ -33,6 +33,8 @@ public static class Experiment
         var rows = new RunRow[jobs.Count][];
         var regrets = new RegretRow[jobs.Count][];
 
+        var done = 0;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         Parallel.For(0, jobs.Count, i =>
         {
             var (season, scale, seed, slot) = jobs[i];
@@ -43,6 +45,8 @@ public static class Experiment
                 r.result.Odds?.WinPct ?? double.NaN, r.result.Odds?.PlayoffProbability ?? double.NaN, r.result.Odds?.TitleProbability ?? double.NaN)).ToArray();
             regrets[i] = results.SelectMany(r => r.result.Regrets.Select(pick =>
                 new RegretRow(season, scale, seed, slot, r.strategy.Name, pick))).ToArray();
+            var finished = Interlocked.Increment(ref done);
+            if (finished % 10 == 0 || finished == jobs.Count) Console.Error.WriteLine($"  {finished}/{jobs.Count} drafts done, {clock.Elapsed:hh\\:mm\\:ss}");
         });
         return new ExperimentResult(rows.SelectMany(r => r).ToList(), regrets.SelectMany(r => r).ToList());
     }
@@ -122,6 +126,94 @@ public static class Experiment
                 }
             }
             lines.Add("");
+        }
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>
+    /// The strategy's edge over the baseline by draft slot (1 = first pick), one table per noise level: paired starter-points difference and, when the file has
+    /// weekly points, the paired title-odds difference in percentage points, each +/- 1 SE over the seasons and seeds in that slot.
+    /// </summary>
+    public static string SummarizeBySlot(IReadOnlyList<RunRow> rows, string strategy, string baseline = "adp")
+    {
+        var lines = new List<string>();
+        foreach (var scale in rows.Select(r => r.NoiseScale).Distinct().Order())
+        {
+            var atScale = rows.Where(r => r.NoiseScale == scale && (r.Strategy == strategy || r.Strategy == baseline)).ToList();
+            var hasTitle = atScale.Any(r => !double.IsNaN(r.Title));
+            lines.Add($"{strategy} vs {baseline} by draft slot, opponent noise x{scale:0.##} (paired, +/- 1 SE)");
+            lines.Add($"  {"slot",4}{"drafts",8}{baseline + " pts",11}{"points diff",18}" + (hasTitle ? $"{"title diff (pp)",20}" : ""));
+            foreach (var slot in atScale.Select(r => r.Slot).Distinct().Order())
+            {
+                var inSlot = atScale.Where(r => r.Slot == slot).ToList();
+                var (points, pointsSe) = PairedDifference(inSlot, strategy, baseline);
+                var line = $"  {slot + 1,4}{inSlot.Count(r => r.Strategy == strategy),8}{inSlot.Where(r => r.Strategy == baseline).Average(r => r.Points),11:F0}{points,+11:F1} +/- {pointsSe:F1}";
+                if (hasTitle)
+                {
+                    var (title, titleSe) = PairedDifference(inSlot, strategy, baseline, r => 100 * r.Title);
+                    line += $"{title,+12:F1} +/- {titleSe:F1}";
+                }
+                lines.Add(line);
+            }
+            lines.Add("");
+        }
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>
+    /// Several arms against one baseline arm by draft slot, for one noise level: paired starter-points difference per slot (and title odds in percentage points
+    /// when the file has weekly points), +/- 1 SE. Shows whether the best setting of an arm differs by slot.
+    /// </summary>
+    public static string SummarizeSlotArms(IReadOnlyList<RunRow> rows, IReadOnlyList<string> arms, string baseline)
+    {
+        var lines = new List<string>();
+        foreach (var (label, metric) in new (string, Func<RunRow, double>)[] { ("starter points", r => r.Points), ("title odds, percentage points", r => 100 * r.Title) })
+        {
+            if (rows.All(r => double.IsNaN(r.Title)) && label.StartsWith("title")) continue;
+            lines.Add($"{label}: each arm minus {baseline}, by draft slot (paired, +/- 1 SE)");
+            lines.Add($"  {"slot",4}" + string.Concat(arms.Select(a => $"{a,22}")));
+            foreach (var slot in rows.Select(r => r.Slot).Distinct().Order())
+            {
+                var inSlot = rows.Where(r => r.Slot == slot).ToList();
+                lines.Add($"  {slot + 1,4}" + string.Concat(arms.Select(a =>
+                {
+                    var (diff, se) = PairedDifference(inSlot, a, baseline, metric);
+                    return $"{diff,+14:F1} +/- {se,4:F1}";
+                })));
+            }
+            lines.Add($"  {"all",4}" + string.Concat(arms.Select(a =>
+            {
+                var (diff, se) = PairedDifference(rows, a, baseline, metric);
+                return $"{diff,+14:F1} +/- {se,4:F1}";
+            })));
+            lines.Add("");
+        }
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>
+    /// Leave-one-season-out check of a slot-dependent setting: for each held-out season and each slot, take the arm (the baseline included) with the best mean
+    /// on the other seasons, and score it on the held-out season. Reports the gain over the baseline averaged over slots, per season and its mean +/- SE over seasons.
+    /// </summary>
+    public static string SlotChoiceCheck(IReadOnlyList<RunRow> rows, IReadOnlyList<string> arms, string baseline)
+    {
+        var all = arms.Append(baseline).ToList();
+        var seasons = rows.Select(r => r.Season).Distinct().Order().ToList();
+        var slots = rows.Select(r => r.Slot).Distinct().Order().ToList();
+        var lines = new List<string>();
+        foreach (var (label, metric) in new (string, Func<RunRow, double>)[] { ("starter points", r => r.Points), ("title odds, percentage points", r => 100 * r.Title) })
+        {
+            if (rows.All(r => double.IsNaN(r.Title)) && label.StartsWith("title")) continue;
+            double Mean(string arm, int slot, Func<int, bool> season) => rows.Where(r => r.Strategy == arm && r.Slot == slot && season(r.Season)).Average(metric);
+            var gains = seasons.Select(held => slots.Average(slot =>
+            {
+                var chosen = all.MaxBy(arm => Mean(arm, slot, s => s != held))!;
+                return Mean(chosen, slot, s => s == held) - Mean(baseline, slot, s => s == held);
+            })).ToList();
+            var mean = gains.Average();
+            var se = Math.Sqrt(gains.Sum(g => (g - mean) * (g - mean)) / Math.Max(1, gains.Count - 1) / gains.Count);
+            lines.Add($"{label}, best arm per slot chosen on the other seasons, gain over {baseline}: {mean:+0.0;-0.0;0.0} +/- {se:0.0} (SE over {gains.Count} seasons); by season "
+                      + string.Join(" ", seasons.Zip(gains, (season, gain) => $"{season}: {gain:+0.0;-0.0;0.0}")));
         }
         return string.Join(Environment.NewLine, lines);
     }

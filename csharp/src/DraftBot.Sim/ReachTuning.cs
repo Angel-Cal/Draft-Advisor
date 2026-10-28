@@ -198,6 +198,85 @@ public static class ReachTuning
              new ValueRecommenderStrategy("need+wait (adopted)", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait)],
             headline: "need", noiseScale, metric);
 
+    /// <summary>
+    /// Bye-week arms, all with the adopted waiting bonus: the cover term on the default structural weights, the cover term with weights built from missed games only,
+    /// and that weight change alone (the control that separates the two).
+    /// </summary>
+    public static List<ValueRecommenderStrategy> ByeArms() =>
+    [
+        new("bye cover", ValueRecommender.DefaultReach, NeedSettings.WithByes, ValueRecommender.DefaultWait),
+        new("bye cover, q misses only", ValueRecommender.DefaultReach, NeedSettings.WithByesMissOnly, ValueRecommender.DefaultWait),
+        new("q misses only, no cover", ValueRecommender.DefaultReach, NeedSettings.Option with { MissProbability = NeedSettings.MissOnlyProbability }, ValueRecommender.DefaultWait),
+    ];
+
+    public static string ReportBye(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0,
+        SweepMetric metric = SweepMetric.Points)
+    {
+        var coverage = string.Join(", ", files.OrderBy(f => f.Key).Select(f => $"{f.Key}: {ByeSchedule.Infer(f.Value.Players).Count} of 32 teams"));
+        return $"bye weeks read off the weekly points ({coverage}){Environment.NewLine}" + ArmSweep.Report(files, settings, seeds, ByeArms().Cast<IDraftStrategy>().ToList(),
+            [new AdpStrategy(), new ValueRecommenderStrategy("need+wait (adopted)", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait)],
+            headline: "need+wait (adopted)", noiseScale, metric);
+    }
+
+    /// <summary>Rollout arms: base recommender without the waiting bonus (the rollout decides what waiting is worth), at two budgets, and on top of the adopted bonus.</summary>
+    public static List<IDraftStrategy> RolloutArms(int samples, int candidates) =>
+    [
+        new RolloutStrategy($"rollout need ({candidates}x{samples})", ValueRecommender.DefaultReach, NeedSettings.Default, new RolloutSettings(candidates, samples)),
+        new RolloutStrategy($"rollout need+wait ({candidates}x{samples})", ValueRecommender.DefaultReach, NeedSettings.Default, new RolloutSettings(candidates, samples), ValueRecommender.DefaultWait),
+    ];
+
+    public static string ReportRollout(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, int samples, int candidates, double noiseScale = 1.0,
+        SweepMetric metric = SweepMetric.Points) =>
+        ArmSweep.Report(files, settings, seeds, RolloutArms(samples, candidates),
+            [new AdpStrategy(), new ValueRecommenderStrategy("need", ValueRecommender.DefaultReach, NeedSettings.Default),
+             new ValueRecommenderStrategy("need+wait (adopted)", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait)],
+            headline: "need+wait (adopted)", noiseScale, metric);
+
+    public static readonly double[] SimulatedWeights = [1.0, 2.0, 4.0, 8.0];
+
+    /// <summary>Waiting-bonus arms with survival simulated from the other drafters' rosters, across the bonus weight, plus the same without caps and forced fills.</summary>
+    public static List<ValueRecommenderStrategy> SimulatedSurvivalArms() =>
+        SimulatedWeights.Select(w => new ValueRecommenderStrategy($"simulated w={w:0.##}", ValueRecommender.DefaultReach, NeedSettings.Default,
+                new WaitSettings(w, Opponents: new OpponentModel())))
+            .Append(new ValueRecommenderStrategy("simulated no rules w=4", ValueRecommender.DefaultReach, NeedSettings.Default,
+                new WaitSettings(4, Opponents: OpponentModel.NoRules))).ToList();
+
+    public static string ReportSimulatedSurvival(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0,
+        SweepMetric metric = SweepMetric.Points) =>
+        ArmSweep.Report(files, settings, seeds, SimulatedSurvivalArms().Cast<IDraftStrategy>().ToList(),
+            [new AdpStrategy(), new ValueRecommenderStrategy("need+wait (adopted)", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait)],
+            headline: "need+wait (adopted)", noiseScale, metric);
+
+    public static readonly double[] ReachableWeights = [2.0, 4.0, 8.0];
+
+    /// <summary>Waiting-bonus arms whose alternatives must be players the recommender could take at the later pick (inside the reach cap, or also after its reach cost), across the weight.</summary>
+    public static List<ValueRecommenderStrategy> ReachableArms() =>
+        ReachableWeights.SelectMany(w => new[]
+        {
+            new ValueRecommenderStrategy($"cap w={w:0.##}", ValueRecommender.DefaultReach, NeedSettings.Default, new WaitSettings(w, Reachable: AlternativeReach.WithinCap)),
+            new ValueRecommenderStrategy($"cap+cost w={w:0.##}", ValueRecommender.DefaultReach, NeedSettings.Default, new WaitSettings(w, Reachable: AlternativeReach.AfterReachCost)),
+        }).ToList();
+
+    public static string ReportReachable(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0,
+        SweepMetric metric = SweepMetric.Points) =>
+        ArmSweep.Report(files, settings, seeds, ReachableArms().Cast<IDraftStrategy>().ToList(),
+            [new AdpStrategy(), new ValueRecommenderStrategy("need+wait (adopted)", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait)],
+            headline: "need+wait (adopted)", noiseScale, metric);
+
+    public static readonly double[] SlotWeights = [1.0, 2.0, 8.0];
+
+    /// <summary>Waiting-bonus weights against the adopted weight of 4, broken down by draft slot: does the best weight depend on where I pick?</summary>
+    public static string ReportSlot(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0)
+    {
+        var baseline = new ValueRecommenderStrategy("w=4 (adopted)", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait);
+        var arms = SlotWeights.Select(w => new ValueRecommenderStrategy($"w={w:0.##}", ValueRecommender.DefaultReach, NeedSettings.Default, new WaitSettings(w))).ToList();
+        var strategies = arms.Cast<IDraftStrategy>().Append(baseline).ToList();
+        var rows = Experiment.Run(files, settings, strategies, [noiseScale], seeds).Rows;
+        return $"{rows.Select(r => (r.Season, r.Seed, r.Slot)).Distinct().Count()} drafts per arm, opponent noise x{noiseScale:0.##}{Environment.NewLine}"
+               + Experiment.SummarizeSlotArms(rows, arms.Select(a => a.Name).ToList(), baseline.Name)
+               + Experiment.SlotChoiceCheck(rows, arms.Select(a => a.Name).ToList(), baseline.Name);
+    }
+
     public static readonly double[] StarterWeights = [0.5, 1.0, 2.0, 4.0];
 
     /// <summary>Starter option-premium arms at the default reach: the weight on the value of being able to cut a busted starter, alone and with the waiting bonus.</summary>
