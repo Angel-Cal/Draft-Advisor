@@ -13,7 +13,11 @@ It also shows the slope of `actual - curve` on `model - curve` (as in gap_reliab
 for that group. Bootstrap resamples players.
 
 `--profile` also searches for the combination of the two mechanisms the user described (absence share 0.5+ AND a new situation: changed teams or a
-first-round rookie arrived) among healthy WRs, and lists the live 2026 matches. Writes nothing; run: python src/evaluation/target_competition.py [--profile]
+first-round rookie arrived) among healthy WRs, and lists the live 2026 matches.
+
+`--role` tests the role-quality idea: does a big jump in the depth, air-yards share or expected points per target of last season's targets, against the
+player's own two earlier seasons, predict over-projection? (K.Robinson 2025: same 140 targets, depth 4.7 -> 8.5.) Writes nothing; run:
+python src/evaluation/target_competition.py [--profile] [--role]
 """
 import sys
 from pathlib import Path
@@ -24,14 +28,13 @@ from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.evaluation.gap_reliability import load_rows, slope
+from src.features.advanced import TWO_WAY_PLAYERS
 
 RAW = Path(__file__).parent.parent.parent / "data" / "raw"
 CATCHERS = ["WR", "TE", "RB"]
 MIN_GAMES = 6            # fewer games than this: a rival's per-game rate is not trusted
 FIRST_ROUND = 32
 N_BOOT = 2000
-# listed as a WR but plays mostly defense, so he is not a receiving competitor (Travis Hunter, JAX 2025, the 2nd pick)
-TWO_WAY_PLAYERS = {"00-0040718"}
 ROSTER_TEAMS = {"LAR": "LA", "ARZ": "ARI", "BLT": "BAL", "CLV": "CLE", "HST": "HOU", "OAK": "LV", "SD": "LAC", "SL": "LA", "STL": "LA"}
 
 
@@ -224,6 +227,76 @@ def live_2026_matches(weekly, roster):
     print(matches[["player_name", "from", "team", "adp", "projected_ppr", "curve", "gap", "rookie_r1", "absence_share"]].round(2).to_string(index=False))
 
 
+ROLE_MIN_TARGETS = 40     # last season and the baseline each need this many targets for a depth or quality figure to mean anything
+
+
+def season_quality(seasonal, opportunity):
+    """Per WR player-season: targets, air yards, expected receiving points, air-yards share (from the team row with most games)."""
+    s = seasonal[seasonal["position"] == "WR"]
+    main_row = s.sort_values("games", ascending=False).drop_duplicates(["player_id", "season"]).set_index(["player_id", "season"])["air_yards_share"]
+    q = s.groupby(["player_id", "season"]).agg(targets=("targets", "sum"), air=("receiving_air_yards", "sum"), games=("games", "sum"))
+    q["air_share"] = main_row
+    xfp = opportunity.groupby(["player_id", "season"])["rec_fantasy_points_exp"].sum()
+    q["xfp"] = xfp.reindex(q.index)
+    return q
+
+
+def add_role_change(d, quality, season_col="season"):
+    """Last season's depth (aDOT), air-yards share and expected points per target minus the same over the two seasons before it."""
+    rows = []
+    for pid, t in zip(d["player_id"], d[season_col]):
+        last = quality.loc[(pid, t - 1)] if (pid, t - 1) in quality.index else None
+        base = quality.reindex([(pid, t - 2), (pid, t - 3)]).dropna(subset=["targets"])
+        out = [np.nan, np.nan, np.nan]
+        if last is not None and last["targets"] >= ROLE_MIN_TARGETS and base["targets"].sum() >= ROLE_MIN_TARGETS:
+            out[0] = last["air"] / last["targets"] - base["air"].sum() / base["targets"].sum()
+            if not np.isnan(last["xfp"]) and base["xfp"].notna().all():
+                out[1] = last["xfp"] / last["targets"] - base["xfp"].sum() / base["targets"].sum()
+            shares = base.loc[base["games"] >= 6, "air_share"].dropna()
+            if len(shares) and not np.isnan(last["air_share"]):
+                out[2] = last["air_share"] - shares.mean()
+        rows.append(out)
+    d = d.copy()
+    d[["adot_jump", "xfp_per_target_jump", "air_share_jump"]] = pd.DataFrame(rows, index=d.index)
+    return d
+
+
+def role_report(d, rng, cuts=None):
+    """Top-third flag on each role-change measure against the rest; returns the cut points so the 2026 pool can reuse them."""
+    cuts = cuts or {}
+    for label, sub in [("all draftable WRs with a baseline", d), ("only players who played 12+ games", d[d["G"] >= 12])]:
+        sub = sub.copy()
+        print(f"\n=== role change, {label}: {len(sub)} rows, {sub['adot_jump'].notna().sum()} with a depth baseline")
+        print(f"{'measure':<22}{'group':<9}{'n':>5}{'model over':>12}{'curve over':>12}{'model-curve':>13}{'slope':>7}   (flagged minus rest, 90% interval)")
+        for name in ["adot_jump", "xfp_per_target_jump", "air_share_jump"]:
+            g = sub.dropna(subset=[name]).copy()
+            cuts.setdefault(name, g[name].quantile(2 / 3))
+            g["flag"] = g[name] > cuts[name]
+            lo, hi = diff_interval(g, g["flag"], "over", rng)
+            diff = g.loc[g["flag"], "over"].mean() - g.loc[~g["flag"], "over"].mean()
+            rho = spearmanr(g[name], g["over"])[0]
+            for tag, x in [("flagged", g[g["flag"]]), ("rest", g[~g["flag"]])]:
+                print(f"{name:<22}{tag:<9}{len(x):>5}{x['over'].mean():>+12.1f}{x['curve_over'].mean():>+12.1f}{(x['over'] - x['curve_over']).mean():>+13.1f}{slope(x):>7.2f}"
+                      + (f"   {diff:+.1f} ({lo:+.1f} to {hi:+.1f}); Spearman(measure, over) {rho:+.2f}; cut {cuts[name]:+.2f}" if tag == "flagged" else ""))
+    return cuts
+
+
+def live_2026_role(weekly, roster, quality, cuts):
+    """2026 WRs whose 2025 depth, air-yards share and expected points per target jumped by more than the historical cut points."""
+    import json
+    from src.draft.market_fallback import fit_position_curves, load_history
+    projections = pd.DataFrame(json.load(open(RAW.parent / "processed" / "projections_2026_v1.json"))["players"])
+    wr = projections[projections["position"] == "WR"].copy()
+    wr["curve"] = fit_position_curves(load_history())["WR"].predict(wr["adp"].rank(method="first").values)
+    wr["gap"] = wr["projected_ppr"] - wr["curve"]
+    wr["season"] = 2026
+    wr = add_role_change(wr, quality)
+    wr["flags"] = sum((wr[m] > cuts[m]).astype(int) for m in cuts)
+    print(f"\n=== live 2026 WR pool: role-change measures against the historical top-third cuts (flags = how many of the three are above the cut)")
+    x = wr[wr["flags"] >= 2].sort_values("gap", ascending=False)
+    print(x[["player_name", "team", "adp", "projected_ppr", "curve", "gap", "adot_jump", "xfp_per_target_jump", "air_share_jump", "flags"]].round(2).to_string(index=False))
+
+
 if __name__ == "__main__":
     rng = np.random.default_rng(0)
     d = load_rows()
@@ -239,3 +312,12 @@ if __name__ == "__main__":
     if "--profile" in sys.argv:
         profile_report(add_context(d, weekly, roster), rng)
         live_2026_matches(weekly, roster)
+    if "--role" in sys.argv:
+        seasonal = pd.read_parquet(RAW / "seasonal_20_25.parquet", columns=["player_id", "season", "position", "games", "targets", "receiving_air_yards", "air_yards_share"])
+        opportunity = pd.read_parquet(RAW / "ff_opportunity_14_25.parquet", columns=["player_id", "season", "rec_fantasy_points_exp"])
+        quality = season_quality(seasonal, opportunity)
+        rolled = add_role_change(add_context(d, weekly, roster), quality)
+        show = rolled[((rolled["player_name"] == "K.Allen") & (rolled["season"] == 2024)) | ((rolled["player_name"] == "W.Robinson") & (rolled["season"] == 2025))]
+        print("\n" + show[["player_name", "season", "adot_jump", "xfp_per_target_jump", "air_share_jump", "over"]].round(2).to_string(index=False))
+        cuts = role_report(rolled, rng)
+        live_2026_role(weekly, roster, quality, cuts)

@@ -430,7 +430,7 @@ Data files, `archive/` and build output are not listed.
   - `partial_spearman(df, feature, target)`: Correlation of feature and target after removing the projection level and prior games (rank-based).
 - **seed_spread.py** (51 lines): How much of the simulator edge is the projection file's luck? (runnable)
   - `seed_set_predictions(frames, seeds)`: Per-row mean prediction of both recipes over `seeds`, one row per player-season in 2021-2025.
-- **target_competition.py** (241 lines): Does the model over-project wide receivers whose target competition got tougher, or whose last-year volume came while a teammate was out? (runnable)
+- **target_competition.py** (323 lines): Does the model over-project wide receivers whose target competition got tougher, or whose last-year volume came while a teammate was out? (runnable)
   - `load_weekly()`: Regular-season weekly rows of the pass catchers: player, season, week, team, targets.
   - `load_start_roster()`: Each player's team and rookie status on his earliest roster row of the season (the file is sparse after week 1, so this is how the pipeline finds the start team).
   - `season_rates(weekly)`: Per player-season over all teams: games, targets, targets per game (0 when under MIN_GAMES games).
@@ -442,17 +442,22 @@ Data files, `archive/` and build output are not listed.
   - `diff_interval(h, mask, column, rng)`: Mean of `column` where mask holds minus where it does not, with a 90% bootstrap interval resampling players.
   - `profile_report(d, rng)`: Healthy (9+ games) WRs: the combined profile against its parts and against thresholds, then the matches themselves.
   - `live_2026_matches(weekly, roster)`: The same profile on the live 2026 WR pool (model projection against the ADP curve, 2025 weekly data, 2026 rosters).
+  - `season_quality(seasonal, opportunity)`: Per WR player-season: targets, air yards, expected receiving points, air-yards share (from the team row with most games).
+  - `add_role_change(d, quality, season_col)`: Last season's depth (aDOT), air-yards share and expected points per target minus the same over the two seasons before it.
+  - `role_report(d, rng, cuts)`: Top-third flag on each role-change measure against the rest; returns the cut points so the 2026 pool can reuse them.
+  - `live_2026_role(weekly, roster, quality, cuts)`: 2026 WRs whose 2025 depth, air-yards share and expected points per target jumped by more than the historical cut points.
 - **wr_team_context.py** (64 lines): Ablation of WR team-context features, same protocol as rb_team_context. (runnable)
   - `load_wr(features)`
   - `variants(features)`
 
 ## src/features/
 
-- **advanced.py** (260 lines): 'Process' features from public nflverse sources.
+- **advanced.py** (290 lines): 'Process' features from public nflverse sources.
   - `last_regular_season_week(season)`: Regular seasons ran 17 weeks through 2020 and 18 from 2021; ff_opportunity also carries the playoffs after that.
   - `build_xfp_features(opportunity)`: Expected PPR from opportunity (ff_opportunity) and how far actual PPR was above it.
   - `build_volatility_features(weekly)`: Spread of last season's weekly PPR over the games a player played: SD, SD per point of mean, and the share of boom weeks.
   - `build_role_features(participation, pbp)`: Share of the team's pass and rush plays a player was on the field for, last season.
+  - `build_rookie_competition_features(roster)`: Per skill player and season t: is a first-round rookie WR/TE on his start roster (other than himself), and how early was the earliest one taken?
   - `build_ol_features(participation, pbp, roster)`: Offensive-line continuity of the team a player starts season t with, measured in last season's snaps.
   - `build_ol_quality_features(pbp, roster, ol_features)`: Prior-season team adjusted line yards (run) and adjusted sack rate (pass), relative to the league in the same down and distance, for the team a player starts season t with, plus both crossed with t...
   - `build_depth_features(depth_old, depth_new_by_season)`: Week-1 depth tier (1 = starter) for QB/RB/WR/TE in season t, from the chart published before the opener.
@@ -512,7 +517,7 @@ Data files, `archive/` and build output are not listed.
 ## tests/
 
 - **conftest.py** (34 lines): shared fixtures
-- **test_advanced_features.py** (84 lines): 7 tests
+- **test_advanced_features.py** (100 lines): 8 tests
 - **test_data_integrity.py** (192 lines): 16 tests
 - **test_draft_state.py** (79 lines): 10 tests
 - **test_export_projections.py** (170 lines): 13 tests

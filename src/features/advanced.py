@@ -33,10 +33,13 @@ ADVANCED_GROUPS = {
     "ol_quality": ["ol_aly_prev", "ol_asr_prev"],
     "ol_interaction": ["ol_aly_x_cont", "ol_asr_x_cont"],
     "volatility": ["weekly_sd_prev", "weekly_cv_prev", "weekly_boom_prev"],
+    "rookie_comp": ["rookie_r1_teammate", "rookie_top_pick"],
 }
 BOOM_PPR = 20.0            # a week at or above this many PPR points counts as a boom week
 MIN_VOLATILITY_GAMES = 4   # fewer games than this give a meaningless spread, left missing
 OL_STARTERS = 5            # the unit
+FIRST_ROUND_PICKS = 32      # a rookie taken this early is a receiving competitor for the incumbents
+TWO_WAY_PLAYERS = {"00-0040718"}   # listed WR but plays mostly defense (Travis Hunter, JAX 2025): not a receiving competitor
 OL_STARTER_SNAPS = 500     # plays on the field that mark an OL as a starter-level player
 
 
@@ -101,6 +104,32 @@ def build_role_features(participation, pbp):
     # (an unstable sort let the winner change with the pandas version, e.g. M.Sanu 2019: 379 plays each for ATL and NE)
     counts = counts.sort_values(["plays", "team"], ascending=[False, True]).drop_duplicates(["player_id", "season"])
     return _shift_to_next_season(counts[["player_id", "season"] + ADVANCED_GROUPS["role"]])
+
+
+def build_rookie_competition_features(roster):
+    """Per skill player and season t: is a first-round rookie WR/TE on his start roster (other than himself), and how early was the earliest one taken?
+
+    rookie_r1_teammate: 1 if there is one, else 0. rookie_top_pick: the draft pick number of the earliest such rookie (missing when none).
+    Known before the season starts: it uses the start roster and the draft, not the season's results.
+    """
+    r = roster[roster["position"].isin(["QB", "RB", "WR", "TE"]) & roster["gsis_id"].notna()].copy()
+    r["draft_number"] = pd.to_numeric(r["draft_number"], errors="coerce")
+    r["years_exp"] = pd.to_numeric(r["years_exp"], errors="coerce")
+    first = (r.sort_values(["season", "week"]).groupby(["gsis_id", "season"], as_index=False).first()
+             .rename(columns={"gsis_id": "player_id"}))
+    first["team_now"] = _norm(first["team"])
+    rookies = first[first["position"].isin(["WR", "TE"]) & (first["years_exp"] == 0) & (first["draft_number"] <= FIRST_ROUND_PICKS)
+                    & ~first["player_id"].isin(TWO_WAY_PLAYERS)]
+    by_team = {k: g[["player_id", "draft_number"]] for k, g in rookies.groupby(["team_now", "season"])}
+    flag, pick = [], []
+    for player, team, season in zip(first["player_id"], first["team_now"], first["season"]):
+        others = by_team.get((team, season))
+        others = others[others["player_id"] != player] if others is not None else None
+        has = others is not None and len(others) > 0
+        flag.append(float(has))
+        pick.append(float(others["draft_number"].min()) if has else np.nan)
+    first["rookie_r1_teammate"], first["rookie_top_pick"] = flag, pick
+    return first[["player_id", "season", "rookie_r1_teammate", "rookie_top_pick"]]
 
 
 def build_ol_features(participation, pbp, roster):
@@ -245,6 +274,7 @@ def load_advanced_context(roster):
         "depth": build_depth_features(pd.read_parquet(RAW / "depth_old_14_24.parquet"), depth_new),
         "team_epa": build_team_epa_features(pbp, roster),
         "ngs": build_ngs_features(ngs),
+        "rookie_comp": build_rookie_competition_features(roster),
         "volatility": build_volatility_features(pd.read_parquet(
             RAW / "weekly_20_25.parquet", columns=["player_id", "season", "week", "season_type", "fantasy_points_ppr"])),
     }

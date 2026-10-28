@@ -62,6 +62,22 @@ def test_role_features_for_a_traded_player_use_the_team_with_most_plays_and_brea
     assert build(more_for_kc + atl).loc["a", "rush_snap_share_prev"] == 1.0                      # 3 plays for KC beat 2 for ATL: KC's single team rush was his
 
 
+def test_rookie_competition_flags_a_first_round_rookie_receiver_on_the_roster_but_not_himself_or_a_two_way_player():
+    def row(pid, team, position, years_exp, pick, season=2024):
+        return {"gsis_id": pid, "season": season, "week": 1, "team": team, "position": position, "years_exp": years_exp, "draft_number": pick}
+    roster = pd.DataFrame([row("vet", "CHI", "WR", 11, 74), row("rookie", "CHI", "WR", 0, 9), row("late", "CHI", "WR", 0, 140),
+                           row("lonely", "KC", "WR", 5, 30), row("star", "KC", "WR", 0, 3), row(next(iter(adv.TWO_WAY_PLAYERS)), "JAX", "WR", 0, 2),
+                           row("jax_vet", "JAX", "WR", 3, 70)])
+    roster = pd.concat([roster, roster.iloc[[5]].assign(season=2024)], ignore_index=True)           # harmless duplicate row
+    out = adv.build_rookie_competition_features(roster).set_index("player_id")
+    assert out.loc["vet", "rookie_r1_teammate"] == 1 and out.loc["vet", "rookie_top_pick"] == 9
+    assert out.loc["rookie", "rookie_r1_teammate"] == 0 and np.isnan(out.loc["rookie", "rookie_top_pick"])        # not his own competitor
+    assert out.loc["late", "rookie_r1_teammate"] == 1                                                   # the first-round rookie counts for a later pick
+    assert out.loc["lonely", "rookie_r1_teammate"] == 1 and out.loc["lonely", "rookie_top_pick"] == 3
+    assert out.loc["jax_vet", "rookie_r1_teammate"] == 0                                                # the two-way player is not a receiving competitor
+    assert set(out["rookie_r1_teammate"]) <= {0.0, 1.0}
+
+
 def test_depth_tiers_match_across_chart_formats():
     old = pd.DataFrame({"season": [2024.0] * 3, "depth_position": ["HB", "WR", "WR"], "depth_team": ["1", "1", "2"],
                         "gsis_id": ["rb", "wr1", "wr3"]})
