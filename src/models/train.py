@@ -92,6 +92,24 @@ class Model:
         model.fit(x_train, y_train)
         return model
 
+    def refit_predict(self, x_train, y_train, x_val, y_val, x_pred, params, seeds=range(5), scale_trees=False):
+        """Mean prediction of the validated recipe: per seed, early-stop on x_val (fit on x_train), then refit on both at the best iteration.
+
+        With scale_trees the refit tree count is multiplied by the data-size ratio (len(train + val) / len(train)).
+        """
+        x_all, y_all = pd.concat([x_train, x_val]), pd.concat([y_train, y_val])
+        ratio = len(x_all) / len(x_train) if scale_trees else 1.0
+        predictions = []
+        for seed in seeds:
+            seeded = dict(params, random_state=seed)
+            stopped = lgb.LGBMRegressor(**seeded)
+            stopped.fit(x_train, y_train, eval_set=[(x_val, y_val)], eval_metric="rmse",
+                        callbacks=[lgb.early_stopping(50, verbose=False)])
+            refit = lgb.LGBMRegressor(**dict(seeded, n_estimators=max(1, round(stopped.best_iteration_ * ratio))))
+            refit.fit(x_all, y_all)
+            predictions.append(refit.predict(x_pred[x_train.columns]))
+        return np.mean(predictions, axis=0)
+
     def evaluate_model(self, model, x_test, y_test):
         y_pred = model.predict(x_test)
         mae = lk.mean_absolute_error(y_test, y_pred)

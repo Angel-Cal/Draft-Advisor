@@ -39,6 +39,14 @@ def drop_meta(df):
     df = df.drop(columns=['player_id', 'player_name', "injury_flag"])
     return df
 
+def refit_position(model, training_df, prediction_df, params):
+    """Projections from the validated recipe: early-stop on the newest training season, refit on all of them, 5 seeds averaged."""
+    newest = training_df["season"].max()
+    older, latest = training_df[training_df["season"] < newest], training_df[training_df["season"] == newest]
+    return model.refit_predict(drop_non_features(older), older["target_ppr"], drop_non_features(latest), latest["target_ppr"],
+                               prediction_df, params)
+
+
 if __name__ == "__main__":
     prediction_df, training_df, qb_params, rb_params, wr_params, te_params = load_data()
     qb_training_df, rb_training_df, wr_training_df, te_training_df = split_positions(training_df)
@@ -60,28 +68,10 @@ if __name__ == "__main__":
     te_prediction_df = drop_meta(te_prediction_df)
 
     model = Model()
-    qb_x_train = drop_non_features(qb_training_df)
-    qb_y_train = qb_training_df['target_ppr']
-
-    rb_x_train = drop_non_features(rb_training_df)
-    rb_y_train = rb_training_df['target_ppr']
-
-    wr_x_train = drop_non_features(wr_training_df)
-    wr_y_train = wr_training_df['target_ppr']
-
-    te_x_train = drop_non_features(te_training_df)
-    te_y_train = te_training_df['target_ppr']
-
-    qb_model = model.train_final_model(qb_x_train, qb_y_train, qb_params)
-    rb_model = model.train_final_model(rb_x_train,rb_y_train, rb_params)
-    wr_model = model.train_final_model(wr_x_train, wr_y_train, wr_params)
-    te_model = model.train_final_model(te_x_train, te_y_train, te_params)
-
-    # LightGBM predicts positionally, so line the columns up with the training matrix by name
-    qb_prediction = qb_model.predict(qb_prediction_df[qb_x_train.columns])
-    rb_prediction = rb_model.predict(rb_prediction_df[rb_x_train.columns])
-    wr_prediction = wr_model.predict(wr_prediction_df[wr_x_train.columns])
-    te_prediction = te_model.predict(te_prediction_df[te_x_train.columns])
+    qb_prediction = refit_position(model, qb_training_df, qb_prediction_df, qb_params)
+    rb_prediction = refit_position(model, rb_training_df, rb_prediction_df, rb_params)
+    wr_prediction = refit_position(model, wr_training_df, wr_prediction_df, wr_params)
+    te_prediction = refit_position(model, te_training_df, te_prediction_df, te_params)
 
     results = {}
     for name, meta, prediction in [("qb", qb_meta, qb_prediction), ("rb", rb_meta, rb_prediction),
