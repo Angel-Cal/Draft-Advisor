@@ -202,8 +202,8 @@ def profile_report(d, rng):
     print("by season:", strict.groupby("season")["over"].agg(["size", "mean"]).round(0).T.to_string())
 
 
-def live_2026_matches(weekly, roster):
-    """The same profile on the live 2026 WR pool (model projection against the ADP curve, 2025 weekly data, 2026 rosters)."""
+def live_2026_pool(weekly, roster):
+    """The live 2026 WRs with the model's projection, the ADP curve, the gap, the competition measures and the new-situation flag."""
     import json
     from src.draft.market_fallback import fit_position_curves, load_history
     r26 = pd.read_parquet(RAW / "roster_2026.parquet")
@@ -222,6 +222,12 @@ def live_2026_matches(weekly, roster):
     main = main_team(weekly)
     wr["from"] = [main.get((p, 2025)) for p in wr["player_id"]]
     wr["new_situation"] = (wr["from"].notna() & (wr["from"] != wr["team"])) | (wr["rookie_r1"] == 1)
+    return wr
+
+
+def live_2026_matches(weekly, roster):
+    """The same profile on the live 2026 WR pool (model projection against the ADP curve, 2025 weekly data, 2026 rosters)."""
+    wr = live_2026_pool(weekly, roster)
     print("\n=== live 2026 WR pool: absence 0.5+ and a new situation (model against the ADP curve)")
     matches = wr[(wr["absence_share"] >= 0.5) & wr["new_situation"]].sort_values("gap", ascending=False)
     print(matches[["player_name", "from", "team", "adp", "projected_ppr", "curve", "gap", "rookie_r1", "absence_share"]].round(2).to_string(index=False))

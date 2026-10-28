@@ -430,7 +430,7 @@ Data files, `archive/` and build output are not listed.
   - `partial_spearman(df, feature, target)`: Correlation of feature and target after removing the projection level and prior games (rank-based).
 - **seed_spread.py** (51 lines): How much of the simulator edge is the projection file's luck? (runnable)
   - `seed_set_predictions(frames, seeds)`: Per-row mean prediction of both recipes over `seeds`, one row per player-season in 2021-2025.
-- **target_competition.py** (323 lines): Does the model over-project wide receivers whose target competition got tougher, or whose last-year volume came while a teammate was out? (runnable)
+- **target_competition.py** (329 lines): Does the model over-project wide receivers whose target competition got tougher, or whose last-year volume came while a teammate was out? (runnable)
   - `load_weekly()`: Regular-season weekly rows of the pass catchers: player, season, week, team, targets.
   - `load_start_roster()`: Each player's team and rookie status on his earliest roster row of the season (the file is sparse after week 1, so this is how the pipeline finds the start team).
   - `season_rates(weekly)`: Per player-season over all teams: games, targets, targets per game (0 when under MIN_GAMES games).
@@ -441,11 +441,17 @@ Data files, `archive/` and build output are not listed.
   - `add_context(d, weekly, roster)`: Adds the team he came from and went to, whether it changed, games played, the over-projection and the new-situation flag.
   - `diff_interval(h, mask, column, rng)`: Mean of `column` where mask holds minus where it does not, with a 90% bootstrap interval resampling players.
   - `profile_report(d, rng)`: Healthy (9+ games) WRs: the combined profile against its parts and against thresholds, then the matches themselves.
+  - `live_2026_pool(weekly, roster)`: The live 2026 WRs with the model's projection, the ADP curve, the gap, the competition measures and the new-situation flag.
   - `live_2026_matches(weekly, roster)`: The same profile on the live 2026 WR pool (model projection against the ADP curve, 2025 weekly data, 2026 rosters).
   - `season_quality(seasonal, opportunity)`: Per WR player-season: targets, air yards, expected receiving points, air-yards share (from the team row with most games).
   - `add_role_change(d, quality, season_col)`: Last season's depth (aDOT), air-yards share and expected points per target minus the same over the two seasons before it.
   - `role_report(d, rng, cuts)`: Top-third flag on each role-change measure against the rest; returns the cut points so the 2026 pool can reuse them.
   - `live_2026_role(weekly, roster, quality, cuts)`: 2026 WRs whose 2025 depth, air-yards share and expected points per target jumped by more than the historical cut points.
+- **wr_case_studies.py** (141 lines): Single-player and list tools behind the WR case studies (K.Allen 2024, W.Robinson 2025-2026; LOG.md, 2026-10-28). (runnable)
+  - `player_id(name)`: The WR with this abbreviated name (the one with the most targets if several share it).
+  - `quality(names)`: Per season: targets and what they were worth.
+  - `attribute(name)`: What drives the live 2026 projection of a WR: contributions of each input (PPR points) and counterfactuals that change one group of inputs.
+  - `gaps()`: The WRs the model rates GAP+ PPR above the ADP curve: how reliable those gaps are, the healthy ones it over-projected, and the live 2026 list.
 - **wr_team_context.py** (64 lines): Ablation of WR team-context features, same protocol as rb_team_context. (runnable)
   - `load_wr(features)`
   - `variants(features)`
