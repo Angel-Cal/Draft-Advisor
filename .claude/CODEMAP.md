@@ -436,7 +436,7 @@ Data files, `archive/` and build output are not listed.
 
 ## src/features/
 
-- **advanced.py** (259 lines): 'Process' features from public nflverse sources.
+- **advanced.py** (260 lines): 'Process' features from public nflverse sources.
   - `last_regular_season_week(season)`: Regular seasons ran 17 weeks through 2020 and 18 from 2021; ff_opportunity also carries the playoffs after that.
   - `build_xfp_features(opportunity)`: Expected PPR from opportunity (ff_opportunity) and how far actual PPR was above it.
   - `build_volatility_features(weekly)`: Spread of last season's weekly PPR over the games a player played: SD, SD per point of mean, and the share of boom weeks.
@@ -500,7 +500,7 @@ Data files, `archive/` and build output are not listed.
 ## tests/
 
 - **conftest.py** (34 lines): shared fixtures
-- **test_advanced_features.py** (69 lines): 6 tests
+- **test_advanced_features.py** (84 lines): 7 tests
 - **test_data_integrity.py** (192 lines): 16 tests
 - **test_draft_state.py** (79 lines): 10 tests
 - **test_export_projections.py** (170 lines): 13 tests

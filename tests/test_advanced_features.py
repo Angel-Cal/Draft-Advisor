@@ -47,6 +47,21 @@ def test_role_features_count_plays_on_the_field():
     assert set(out["season"]) == {2021}
 
 
+def test_role_features_for_a_traded_player_use_the_team_with_most_plays_and_break_ties_alphabetically():
+    kc = [("g1", 1, "KC", "a;x", 1, 0), ("g1", 2, "KC", "a;x", 0, 1)]                        # a: 2 plays for KC, rush share 1.0
+    atl = [("g2", 1, "ATL", "a;y", 1, 0), ("g2", 2, "ATL", "a;y", 1, 0), ("g2", 3, "ATL", "y", 0, 1), ("g2", 4, "ATL", "y", 0, 1)]   # 2 plays for ATL, rush share 0.0
+
+    def build(rows):
+        participation = pd.DataFrame(rows, columns=["nflverse_game_id", "play_id", "possession_team", "offense_players", "pass", "rush"])
+        pbp = participation.rename(columns={"nflverse_game_id": "game_id"}).assign(season=2020, season_type="REG")[["game_id", "play_id", "season", "season_type", "pass", "rush"]]
+        return adv.build_role_features(participation.drop(columns=["pass", "rush"]), pbp).set_index("player_id")
+
+    for rows in (kc + atl, atl + kc):                                                             # row order must not matter
+        assert build(rows).loc["a", "rush_snap_share_prev"] == 0.0                                # tied on plays: ATL comes before KC
+    more_for_kc = kc + [("g1", 3, "KC", "a", 1, 0)]
+    assert build(more_for_kc + atl).loc["a", "rush_snap_share_prev"] == 1.0                      # 3 plays for KC beat 2 for ATL: KC's single team rush was his
+
+
 def test_depth_tiers_match_across_chart_formats():
     old = pd.DataFrame({"season": [2024.0] * 3, "depth_position": ["HB", "WR", "WR"], "depth_team": ["1", "1", "2"],
                         "gsis_id": ["rb", "wr1", "wr3"]})

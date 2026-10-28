@@ -97,8 +97,9 @@ def build_role_features(participation, pbp):
     counts = _on_field_counts(participation, pbp)
     counts["pass_snap_share_prev"] = counts["pass_plays"] / counts["team_pass"]
     counts["rush_snap_share_prev"] = counts["rush_plays"] / counts["team_rush"]
-    # a traded player keeps the team where he was on the field most
-    counts = counts.sort_values("plays", ascending=False).drop_duplicates(["player_id", "season"])
+    # a traded player keeps the team where he was on the field most; equal plays go to the alphabetically first team
+    # (an unstable sort let the winner change with the pandas version, e.g. M.Sanu 2019: 379 plays each for ATL and NE)
+    counts = counts.sort_values(["plays", "team"], ascending=[False, True]).drop_duplicates(["player_id", "season"])
     return _shift_to_next_season(counts[["player_id", "season"] + ADVANCED_GROUPS["role"]])
 
 

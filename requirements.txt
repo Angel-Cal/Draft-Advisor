@@ -80,14 +80,13 @@ nbclient==0.10.4
 nbconvert==7.16.6
 nbformat==5.10.4
 nest-asyncio==1.6.0
-nfl_data_py==0.3.3
 nflreadpy==0.1.5
 notebook==7.5.2
 notebook_shim==0.2.4
 numpy==1.26.4
 optuna==4.8.0
 packaging==25.0
-pandas==1.5.3
+pandas==2.3.3
 pandocfilters==1.5.1
 parso==0.8.5
 pathlib==1.0.1
