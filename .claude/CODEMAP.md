@@ -35,11 +35,12 @@ Data files, `archive/` and build output are not listed.
     - `int? NextPick(int team)`: The 1-based overall number of the team's next pick after the one on the clock; null if it has none left.
     - `IReadOnlyList<int> UpcomingPicks(int team, int count)`: The 1-based overall numbers of the team's next count picks after the one on the clock (fewer if the draft ends first).
     - `bool Draft(string playerId)`: Drafts the player for the team on the clock.
-- **Explainer.cs** (132 lines)
+- **Explainer.cs** (157 lines)
   - `enum ReasonLabel`: What a recommendation's reasons are about, for badges next to the text.
   - `record Explanation(ValuedPlayer Player, string Headline, IReadOnlyList<string> Reasons, IReadOnlyList<ReasonLabel> Labels)`: A recommendation in plain language: one headline sentence and a few supporting reasons.
   - `static class Explainer`: Turns the recommender's candidates into explanations for beginners.
     - `static IReadOnlyList<Explanation> Explain(DraftState state, int teamIndex, IReadOnlyList<ValueCandidate> candidates, ReachSettings reach, WaitSettings? wait = null)`: One explanation per candidate, in the order given.
+    - `static bool HasRoleCaution(Player player)`: True for a receiver whose last season is the kind that was often over-projected: at least half of his targets came while the team's top receiver was out, AND he has changed teams or a first-round r...
 - **LeagueSettings.cs** (26 lines)
   - `record LeagueSettings(int Teams = 12, int Qb = 1, int Rb = 2, int Wr = 3, int Te = 1, int Flex = 1, int Bench = 8)`: Team count and starting lineup; every replacement level, tier and recommendation derives from these.
     - `int Starters(Position position)`
@@ -51,8 +52,8 @@ Data files, `archive/` and build output are not listed.
     - `static double Best(IEnumerable<ValuedPlayer> players, LeagueSettings league, IReadOnlyDictionary<Position, double> replacement)`: Best lineup: each position's dedicated slots take its best players, then the FLEX slots take the best of the leftover RB/WR/TE.
     - `static double ByeCover(IReadOnlyList<ValuedPlayer> roster, LeagueSettings league, IReadOnlyDictionary<Position, double> replacement, ByeSchedule byes)`: What a roster earns in bye weeks beyond its season-total lineup.
     - `static double Gain(IReadOnlyList<ValuedPlayer> roster, ValuedPlayer candidate, LeagueSettings league, IReadOnlyDictionary<Position, double> replacement)`: How many points candidate adds to the roster's best lineup (0 if he would not start).
-- **Player.cs** (19 lines)
-  - `record Player(string PlayerId, string PlayerName, Position Position, string Team, double ProjectedPpr, int Games, int GamesDelta, double? Adp, bool InjuryFlag, bool MarketEstimate, double? ActualPpr, IReadOnlyList<double?>? WeeklyPpr = null)`: One row of a projection file (.claude/projection_schema_v1.md).
+- **Player.cs** (23 lines)
+  - `record Player(string PlayerId, string PlayerName, Position Position, string Team, double ProjectedPpr, int Games, int GamesDelta, double? Adp, bool InjuryFlag, bool MarketEstimate, double? ActualPpr, IReadOnlyList<double?>? WeeklyPpr = null, double? AbsenceSharePrev = null, bool? TeamChanged = null, bool? RookieR1Teammate = null)`: One row of a projection file (.claude/projection_schema_v1.md).
 - **Position.cs** (12 lines)
   - `enum Position`
   - `enum Slot`: A lineup slot: a position, or the FLEX slot that RB/WR/TE can fill.
@@ -268,14 +269,14 @@ Data files, `archive/` and build output are not listed.
 - **ByeTests.cs** (110 lines): 5 tests
 - **DiagnosticsTests.cs** (68 lines): 5 tests
 - **DraftStateTests.cs** (125 lines): 8 tests
-- **ExplainerTests.cs** (192 lines): 12 tests
+- **ExplainerTests.cs** (243 lines): 15 tests
 - **LeagueSeasonTests.cs** (112 lines): 8 tests
 - **LookaheadTests.cs** (96 lines): 6 tests
 - **MockDraftTests.cs** (131 lines): 12 tests
 - **NeedTests.cs** (156 lines): 11 tests
 - **NoiseCalibrationTests.cs** (90 lines): 4 tests
 - **OpponentBotTests.cs** (30 lines): 1 tests
-- **ProjectionFileTests.cs** (55 lines): 4 tests
+- **ProjectionFileTests.cs** (69 lines): 5 tests
 - **ReachTests.cs** (131 lines): 9 tests
 - **RecommenderTests.cs** (157 lines): 10 tests
 - **RolloutTests.cs** (96 lines): 5 tests
@@ -296,7 +297,8 @@ Data files, `archive/` and build output are not listed.
   - `fetch_html(season, timestamp)`
   - `parse_adp(html, season, timestamp)`
   - `attach_player_ids(adp, ids)`
-- **export_projections.py** (162 lines): Export projections_<season>_v1.json for the C# side (contract: .claude/projection_schema_v1.md). (runnable)
+- **export_projections.py** (185 lines): Export projections_<season>_v1.json for the C# side (contract: .claude/projection_schema_v1.md). (runnable)
+  - `attach_role_context(df, context, season)`: Add the optional role-context fields (src/features/role_context.py) for this season; null for everyone but WRs and for players with no history.
   - `durability_flag(seasonal, before_season)`: player_id -> True if they averaged under 15 games over their qualifying seasons before `before_season`.
   - `build_live(table, roster, adp_table)`: table: predictions_table.parquet; roster: roster_2026; adp_table: adp_table.csv (4for4 + player_id).
   - `weekly_lists(weekly, season)`: player_id -> 18 values, regular-season PPR for weeks 1-18; None where the player did not play (bye, injury, inactive).
@@ -319,7 +321,7 @@ Data files, `archive/` and build output are not listed.
   - `update_manifest(stage, info)`: Record a pipeline stage (pipeline, predict, ...) with the commit, timestamp and params that produced it.
   - `check_freshness(inputs, outputs, label, strict)`: Every output must be at least as new as every input; otherwise it was built from older data.
 - **scraper.py** (87 lines): NFL data scraping and API integration module. (runnable)
-- **validate.py** (248 lines): Data-integrity checks.
+- **validate.py** (253 lines): Data-integrity checks.
   - `class DataIntegrityError`
   - `class DataIntegrityWarning`
   - `drop_junk_rows(df, id_col)`: Raw nflverse files contain team-total rows with no player ID (games = 256-272).
@@ -404,6 +406,15 @@ Data files, `archive/` and build output are not listed.
 - **oos_predictions.py** (53 lines): (runnable)
   - `load_params(position)`
   - `position_oos(df, position, model, params)`: Walk-forward predictions for one position; one row per player-season in 2021-2025.
+- **preseason_eval.py** (151 lines): Freeze a season's projections and score them later with rules written down in advance (.claude/PREREGISTRATION_2026.md). (runnable)
+  - `sha256(path)`
+  - `snapshot(season, source)`: The projection file as a flat CSV, with the ADP-curve expectation (curves fit on earlier seasons only) and the role-caution flag.
+  - `history(before)`: The 2022 to before-1 WR rows with the same columns: the flag is the role caution, healthy seasons only.
+  - `season_rows(snapshot_path, actuals_path, season, draftable_only)`
+  - `with_errors(d)`
+  - `h1(d, label, rng)`
+  - `h2(d, label, rng)`
+  - `score(season, snapshot_path, actuals_path, exclude)`
 - **qb_depth_chart.py** (45 lines): Ablation of QB depth-chart features: expected starter, share of roster attempts, competition for the job. (runnable)
   - `load_qb_with_depth()`
   - `variants(base_cols)`
@@ -430,11 +441,10 @@ Data files, `archive/` and build output are not listed.
   - `partial_spearman(df, feature, target)`: Correlation of feature and target after removing the projection level and prior games (rank-based).
 - **seed_spread.py** (51 lines): How much of the simulator edge is the projection file's luck? (runnable)
   - `seed_set_predictions(frames, seeds)`: Per-row mean prediction of both recipes over `seeds`, one row per player-season in 2021-2025.
-- **target_competition.py** (329 lines): Does the model over-project wide receivers whose target competition got tougher, or whose last-year volume came while a teammate was out? (runnable)
+- **target_competition.py** (312 lines): Does the model over-project wide receivers whose target competition got tougher, or whose last-year volume came while a teammate was out? (runnable)
   - `load_weekly()`: Regular-season weekly rows of the pass catchers: player, season, week, team, targets.
   - `load_start_roster()`: Each player's team and rookie status on his earliest roster row of the season (the file is sparse after week 1, so this is how the pipeline finds the start team).
   - `season_rates(weekly)`: Per player-season over all teams: games, targets, targets per game (0 when under MIN_GAMES games).
-  - `main_team(weekly)`: (player, season) -> the team he played the most games for.
   - `add_measures(d, weekly, roster)`
   - `boot_diff(g, column, rng)`: Mean of `column` in the flagged rows minus the rest, with a 90% bootstrap interval resampling players.
   - `report(d, rng, label)`
@@ -487,6 +497,12 @@ Data files, `archive/` and build output are not listed.
   - `undeclared(columns)`
 - **registry.py** (19 lines): Which engineered columns each position's model uses.
   - `other_position_features(position)`
+- **role_context.py** (78 lines): Facts about a receiver's situation that are known before the season starts and say whether last year's workload may not carry over.
+  - `main_team(weekly)`: (player_id, season) -> the team he played the most games for.
+  - `absence_share_prev(weekly)`: (player_id, season t) -> share of his season t-1 targets earned while the team's top rival was out; keyed to the season it will be used for.
+  - `team_changed(weekly, roster)`: (player_id, season t) -> 1.0 if his start-of-season team (earliest roster row of t) differs from last season's main team, 0.0 if not; missing without both.
+  - `build_role_context(weekly, roster)`: One row per player-season with the three facts above (missing where there is no history, e.g. rookies).
+  - `role_caution(df)`: Boolean Series: absence share 0.5+ AND (changed teams OR a first-round rookie WR/TE on the roster).
 - **team_context.py** (229 lines): Team-context features for RBs.
   - `build_qb_depth_features(seasonal, roster)`: Per QB-season: is he the expected starter, his share of the roster's prior attempts, and his competition.
   - `build_team_context(seasonal, roster, schedules)`
@@ -531,8 +547,10 @@ Data files, `archive/` and build output are not listed.
 - **test_ol_features.py** (40 lines): 2 tests
 - **test_ol_quality.py** (31 lines): 2 tests
 - **test_prediction_season.py** (27 lines): 2 tests
+- **test_preseason_eval.py** (40 lines): 3 tests
 - **test_recommender.py** (131 lines): 15 tests
 - **test_refit.py** (39 lines): 2 tests
+- **test_role_context.py** (76 lines): 5 tests
 - **test_roster.py** (106 lines): 12 tests
 - **test_team_context.py** (143 lines): 9 tests
 - **test_validate.py** (159 lines): 16 tests

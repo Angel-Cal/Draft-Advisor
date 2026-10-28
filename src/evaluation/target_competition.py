@@ -29,13 +29,13 @@ from scipy.stats import spearmanr
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.evaluation.gap_reliability import load_rows, slope
 from src.features.advanced import TWO_WAY_PLAYERS
+from src.features.role_context import ROSTER_TEAMS, absence_share_prev, main_team
 
 RAW = Path(__file__).parent.parent.parent / "data" / "raw"
 CATCHERS = ["WR", "TE", "RB"]
 MIN_GAMES = 6            # fewer games than this: a rival's per-game rate is not trusted
 FIRST_ROUND = 32
 N_BOOT = 2000
-ROSTER_TEAMS = {"LAR": "LA", "ARZ": "ARI", "BLT": "BAL", "CLV": "CLE", "HST": "HOU", "OAK": "LV", "SD": "LAC", "SL": "LA", "STL": "LA"}
 
 
 def load_weekly():
@@ -64,17 +64,10 @@ def season_rates(weekly):
     return g
 
 
-def main_team(weekly):
-    """(player, season) -> the team he played the most games for."""
-    return (weekly.groupby(["player_id", "season", "team"])["week"].nunique().reset_index()
-            .sort_values(["player_id", "season", "week"], ascending=[True, True, False]).drop_duplicates(["player_id", "season"])
-            .set_index(["player_id", "season"])["team"])
-
-
 def add_measures(d, weekly, roster):
     rates = season_rates(weekly).set_index(["player_id", "season"])
     main = main_team(weekly)
-    team_weeks = weekly.groupby(["team", "season"])["week"].apply(set)
+    absence = absence_share_prev(weekly).set_index(["player_id", "season"])["absence_share_prev"]       # the same definition the projection files use
     by_team = {k: g for k, g in weekly.groupby(["team", "season"])}
     start = {k: g for k, g in roster.groupby(["team", "season"])}
     out = []
@@ -102,17 +95,7 @@ def add_measures(d, weekly, roster):
                           & (new_room["draft_number"] <= FIRST_ROUND)]
             rookie = float(len(rk) > 0)
 
-        share = np.nan
-        mine = old_room[old_room["player_id"] == pid] if old_room is not None else None
-        if mine is not None and mine["targets"].sum() > 0:
-            # the rival is the teammate with the highest targets per game (3+ games), not the highest total: a star who was out most of the year has few targets
-            others = old_room[old_room["player_id"] != pid].groupby("player_id").agg(targets=("targets", "sum"), games=("week", "nunique"))
-            others = others[others["games"] >= 3]
-            if len(others):
-                rival = (others["targets"] / others["games"]).idxmax()
-                rival_weeks = set(old_room.loc[old_room["player_id"] == rival, "week"])
-                away = mine[~mine["week"].isin(rival_weeks) & mine["week"].isin(team_weeks[(old_team, t - 1)])]
-                share = float(away["targets"].sum() / mine["targets"].sum())
+        share = absence.get((pid, t), np.nan)
         out.append((change, rookie, share))
     d = d.copy()
     d[["rivals_change", "rookie_r1", "absence_share"]] = pd.DataFrame(out, index=d.index)

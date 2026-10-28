@@ -231,6 +231,11 @@ def check_projection_file(doc):
                 gap = (players["weekly_ppr"].map(lambda w: sum(x for x in w if x is not None)) - players["actual_ppr"]).abs()
                 if (gap > 0.05).any():
                     errors.append(f"weekly_ppr does not add up to actual_ppr for {int((gap > 0.05).sum())} players")
+    if "absence_share_prev" in players.columns and not players["absence_share_prev"].dropna().between(0, 1).all():
+        errors.append("absence_share_prev outside [0, 1]")
+    for flag in ("team_changed", "rookie_r1_teammate"):
+        if flag in players.columns and not players[flag].dropna().isin([True, False]).all():
+            errors.append(f"{flag} must be true, false or null")
     _raise_if(errors, "projection file")
 
 

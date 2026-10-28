@@ -18,6 +18,7 @@ from src.data.run_manifest import _git, check_freshness, update_manifest
 from src.data.validate import NO_TEAM, check_projection_file
 from src.draft.market_fallback import fit_position_curves, load_history, market_projections
 from src.draft.vor import RMSE
+from src.features.role_context import build_role_context
 from src.features.team_context import TEAM_MAP
 
 ROOT = Path(__file__).parent.parent.parent
@@ -29,6 +30,21 @@ POOL_RANK = 300  # the live advisor table holds the ~300 players ranked by Under
 TEAM_FIXES = {**TEAM_MAP, "JAC": "JAX", "LAR": "LA"}  # FantasyPros / 4for4 spellings -> nflverse
 SCHEMA_COLUMNS = ["player_id", "player_name", "position", "team", "projected_ppr", "projected_half",
                   "projected_standard", "games", "games_delta", "adp", "injury_flag", "market_estimate", "actual_ppr"]
+
+
+ROLE_COLUMNS = ["absence_share_prev", "team_changed", "rookie_r1_teammate"]    # optional schema fields, WR rows only (the study behind them is WR-only)
+
+
+def attach_role_context(df, context, season):
+    """Add the optional role-context fields (src/features/role_context.py) for this season; null for everyone but WRs and for players with no history."""
+    this = context[context["season"] == season][["player_id"] + ROLE_COLUMNS]
+    df = df.merge(this, on="player_id", how="left")
+    for column in ROLE_COLUMNS:
+        df.loc[df["position"] != "WR", column] = float("nan")
+    df["absence_share_prev"] = df["absence_share_prev"].astype(float).round(3)
+    for flag in ("team_changed", "rookie_r1_teammate"):
+        df[flag] = df[flag].astype("boolean")          # true / false / null in the JSON
+    return df
 
 
 def _team(series):
@@ -140,15 +156,21 @@ if __name__ == "__main__":
 
     position_files = [PROCESSED / f"{p.lower()}_predictions.parquet" for p in POSITIONS]
     check_freshness(position_files, [PROCESSED / "predictions_table.parquet"], label="export (advisor table)")
+    weekly = pd.read_parquet(ROOT / "data" / "raw" / "weekly_20_25.parquet",
+                             columns=["player_id", "season", "week", "season_type", "fantasy_points_ppr", "team", "position", "targets"])
+    roster_columns = ["gsis_id", "season", "week", "team", "position", "years_exp", "draft_number"]
+    roster = pd.concat([pd.read_parquet(ROOT / "data" / "raw" / "seasonal_roster_20_25.parquet", columns=roster_columns),
+                        pd.read_parquet(ROOT / "data" / "raw" / "roster_2026.parquet", columns=roster_columns)], ignore_index=True)
+    context = build_role_context(weekly, roster)
     live = build_live(pd.read_parquet(PROCESSED / "predictions_table.parquet"),
                       pd.read_parquet(ROOT / "data" / "raw" / "roster_2026.parquet"),
                       pd.read_csv(PROCESSED / "adp_table.csv"))
+    live = attach_role_context(live, context, live_season)
     written = [write(to_document(live, live_season, "live", "underdog"))]
 
     training = pd.read_parquet(PROCESSED / "training_data.parquet")
     seasonal = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_20_25.parquet")
     seasonal = seasonal[seasonal["player_id"].notna()]
-    weekly = pd.read_parquet(ROOT / "data" / "raw" / "weekly_20_25.parquet", columns=["player_id", "season", "week", "season_type", "fantasy_points_ppr"])
     history = load_history()
     for season in BACKTEST_SEASONS:
         oos_path = PROCESSED / f"season_{season}.parquet"
@@ -157,6 +179,7 @@ if __name__ == "__main__":
         backtest = build_backtest(season, pd.read_parquet(oos_path),
                                   pd.read_csv(ROOT / "data" / "external" / f"adp_{season}.csv"),
                                   training, seasonal, curves, weekly)
+        backtest = attach_role_context(backtest, context, season)
         written.append(write(to_document(backtest, season, "backtest", "fantasypros")))
 
     update_manifest("export", {"files": [p.name for p in written], "validation": "passed"})

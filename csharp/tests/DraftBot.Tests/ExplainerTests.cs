@@ -12,6 +12,9 @@ public class ExplainerTests
     static ValuedPlayer V(string id, Position position, double projected, double adp, bool injury = false, bool market = false) =>
         new(Player(id, position, projected, adp: adp, injury: injury, market: market), projected - 100, 0, 0, false, 1, 0, 1, 50);
 
+    static ValuedPlayer WithRole(ValuedPlayer v, double? absence, bool? moved, bool? rookie) =>
+        v with { Player = v.Player with { AbsenceSharePrev = absence, TeamChanged = moved, RookieR1Teammate = rookie } };
+
     static DraftState Pool(params ValuedPlayer[] extra) =>
         new(extra.Concat(Enumerable.Range(1, 30).Select(i => V($"f{i}", Position.WR, 100, 100 + i))), Four);
 
@@ -175,6 +178,54 @@ public class ExplainerTests
         Assert.DoesNotContain(ReasonLabel.Starter, e.Labels);
         Assert.DoesNotContain(ReasonLabel.Backup, e.Labels);
         Assert.Contains("most projected value", e.Headline);
+    }
+
+    [Fact]
+    public void A_receiver_whose_targets_came_with_the_top_receiver_out_and_who_changed_teams_gets_a_role_caution()
+    {
+        var p = WithRole(V("p", Position.WR, 190, 30), 0.81, moved: true, rookie: false);
+        var state = Pool(p);
+
+        var e = Explainer.Explain(state, 0, [Candidate(p)], Reach)[0];
+
+        var reason = e.Reasons[e.Labels.ToList().IndexOf(ReasonLabel.RoleMayNotCarryOver)];
+        Assert.Contains("81% of his targets", reason);
+        Assert.Contains("changed teams", reason);
+        Assert.DoesNotContain("rookie", reason);
+        Assert.EndsWith("Caution: his role may not carry over.", e.Headline);
+        Assert.True(Explainer.HasRoleCaution(p.Player));
+    }
+
+    [Fact]
+    public void The_role_caution_names_a_first_round_rookie_and_both_reasons_when_both_apply()
+    {
+        var rookieOnly = WithRole(V("a", Position.WR, 190, 30), 0.6, moved: false, rookie: true);
+        var both = WithRole(V("b", Position.WR, 190, 31), 0.9, moved: true, rookie: true);
+        var state = Pool(rookieOnly, both);
+
+        var all = Explainer.Explain(state, 0, [Candidate(rookieOnly), Candidate(both)], Reach);
+        string Caution(Explanation e) => e.Reasons[e.Labels.ToList().IndexOf(ReasonLabel.RoleMayNotCarryOver)];
+
+        Assert.Contains("first-round rookie receiver is on his roster", Caution(all[0]));
+        Assert.DoesNotContain("changed teams", Caution(all[0]));
+        Assert.Contains("changed teams and a first-round rookie receiver is on the roster", Caution(all[1]));
+    }
+
+    [Theory]
+    [InlineData(0.49, true, true)]       // not enough of last year's targets came with the top receiver out
+    [InlineData(0.9, false, false)]      // a high share but nothing new about his situation
+    [InlineData(0.9, null, null)]        // situation unknown
+    [InlineData(null, true, true)]       // no history (a rookie, or no data)
+    public void There_is_no_role_caution_unless_a_high_absence_share_and_a_new_situation_coincide(double? absence, bool? moved, bool? rookie)
+    {
+        var p = WithRole(V("p", Position.WR, 190, 30), absence, moved, rookie);
+        var state = Pool(p);
+
+        var e = Explainer.Explain(state, 0, [Candidate(p)], Reach)[0];
+
+        Assert.DoesNotContain(ReasonLabel.RoleMayNotCarryOver, e.Labels);
+        Assert.DoesNotContain("Caution", e.Headline);
+        Assert.False(Explainer.HasRoleCaution(p.Player));
     }
 
     [Fact]

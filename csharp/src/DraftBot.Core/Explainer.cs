@@ -1,7 +1,7 @@
 namespace DraftBot.Core;
 
 /// <summary>What a recommendation's reasons are about, for badges next to the text.</summary>
-public enum ReasonLabel { Starter, Backup, RunningOut, Discount, Reach, InjuryHistory, EstimatedProjection }
+public enum ReasonLabel { Starter, Backup, RunningOut, Discount, Reach, InjuryHistory, EstimatedProjection, RoleMayNotCarryOver }
 
 /// <summary>
 /// A recommendation in plain language: one headline sentence and a few supporting reasons. Numbers in the text are projected season points or
@@ -25,6 +25,9 @@ public static class Explainer
     const double LikelyToLast = 0.5;
 
     const int MaxReasons = 4;
+
+    /// <summary>Share of last season's targets earned while the team's top receiver was out from which the role caution applies (together with a new team or a first-round rookie).</summary>
+    const double RoleCautionAbsenceShare = 0.5;
 
     /// <summary>
     /// One explanation per candidate, in the order given. <paramref name="wait"/> must be the settings the candidates were ranked with, so that the
@@ -56,13 +59,16 @@ public static class Explainer
         var scarcity = survival is null || nextPick is null || c.WaitBonus is not > 0 ? null : ScarcityReason(c, state, reach, survival, nextPick.Value);
         if (scarcity is not null) Add(scarcity, ReasonLabel.RunningOut);
 
+        var roleCaution = RoleCaution(player.Player);
+        if (roleCaution is not null) Add(roleCaution, ReasonLabel.RoleMayNotCarryOver);
+
         if (player.Player.InjuryFlag) Add("He has missed time in past seasons (under 15 games a year on average), so his projection carries more risk than most.", ReasonLabel.InjuryHistory);
         if (player.Player.MarketEstimate) Add("His projection is an estimate taken from where drafters rank him (a rookie or a player the model cannot score), so it is less reliable.", ReasonLabel.EstimatedProjection);
 
         var pick = state.OverallPick + 1;
         if (PriceReason(c, reach, pick) is { } price) Add(price.Text, price.Label);
 
-        return new Explanation(player, Headline(c, starts, scarcity is not null), reasons.Take(MaxReasons).ToList(), labels.Take(MaxReasons).ToList());
+        return new Explanation(player, Headline(c, starts, scarcity is not null) + (roleCaution is null ? "" : " Caution: his role may not carry over."), reasons.Take(MaxReasons).ToList(), labels.Take(MaxReasons).ToList());
     }
 
     static string Headline(ValueCandidate c, bool starts, bool scarce)
@@ -78,6 +84,25 @@ public static class Explainer
         if (wait > Math.Max(gain, bench)) return $"{who}: the {p.Position}s thin out before your next pick, so waiting costs you.";
         if (starts) return $"{who}: he would start for you, adding about {gain:F0} points over a replacement-level player.";
         return $"{who}: good insurance for your {p.Position} spot.";
+    }
+
+    /// <summary>
+    /// True for a receiver whose last season is the kind that was often over-projected: at least half of his targets came while the team's top receiver was out, AND he has
+    /// changed teams or a first-round rookie receiver arrived. Text only; it changes no score (LOG.md, 2026-10-28: a small sample, and the ADP list made the same error).
+    /// </summary>
+    public static bool HasRoleCaution(Player player) => RoleCaution(player) is not null;
+
+    static string? RoleCaution(Player player)
+    {
+        if (player.AbsenceSharePrev is not { } share || share < RoleCautionAbsenceShare) return null;
+        var moved = player.TeamChanged == true;
+        var rookie = player.RookieR1Teammate == true;
+        if (!moved && !rookie) return null;
+        var why = moved && rookie ? "he has changed teams and a first-round rookie receiver is on the roster"
+            : moved ? "he has changed teams"
+            : "a first-round rookie receiver is on his roster";
+        return $"Caution: {Math.Round(share * 100):0}% of his targets last season came in games when the team's top receiver was out, and {why}. That role may not carry over: "
+               + "receivers in this spot were often over-projected in past seasons (a small sample), and ADP rated them too high as well.";
     }
 
     static string StartReason(ValueCandidate c, Roster roster, LeagueSettings league)

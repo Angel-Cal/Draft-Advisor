@@ -1,0 +1,301 @@
+season,player_id,player_name,position,team,adp,in_top_adp,projected_ppr,market_estimate,injury_flag,curve,gap,absence_share_prev,team_changed,rookie_r1_teammate,role_caution
+2026,00-0038542,B.Robinson,RB,ATL,1.0,True,292.11,False,False,267.926,24.184,,,,False
+2026,00-0039139,J.Gibbs,RB,DET,2.0,True,299.09,False,False,267.926,31.164,,,,False
+2026,00-0036900,J.Chase,WR,CIN,3.0,True,253.43,False,False,278.868,-25.438,0.162,False,False,False
+2026,00-0039075,P.Nacua,WR,LA,4.0,True,253.77,False,True,278.868,-25.098,0.223,False,False,False
+2026,00-0038543,J.Smith-Njigba,WR,SEA,5.0,True,256.86,False,False,278.868,-22.008,0.055,False,False,False
+2026,00-0036223,J.Taylor,RB,IND,6.0,True,249.09,False,True,267.926,-18.836,,,,False
+2026,00-0033280,C.McCaffrey,RB,SF,7.0,True,253.34,False,True,267.926,-14.586,,,,False
+2026,00-0036358,C.Lamb,WR,DAL,8.0,True,194.58,False,False,278.868,-84.288,0.0,False,False,False
+2026,00-0036963,A.St. Brown,WR,DET,9.0,True,243.05,False,False,247.332,-4.282,0.0,False,False,False
+2026,00-0036322,J.Jefferson,WR,MIN,10.0,True,194.4,False,False,247.332,-52.932,0.142,False,False,False
+2026,00-0037248,J.Cook,RB,BUF,11.0,True,238.29,False,False,255.458,-17.168,,,,False
+2026,00-0040122,A.Jeanty,RB,LV,12.0,True,271.41,False,False,255.458,15.952,,,,False
+2026,00-0039040,D.Achane,RB,MIA,13.0,True,226.9,False,True,246.015,-19.115,,,,False
+2026,00-0040666,O.Hampton,RB,LAC,14.0,True,211.4,False,False,246.015,-34.615,,,,False
+2026,market:jeremiyah love,Jeremiyah Love,RB,FA,15.0,False,246.02,True,False,246.015,0.005,,,,False
+2026,00-0034844,S.Barkley,RB,PHI,16.0,True,212.37,False,True,246.015,-33.645,,,,False
+2026,00-0039337,M.Nabers,WR,NYG,17.0,True,159.75,False,True,247.332,-87.582,0.0,False,False,False
+2026,00-0037744,T.McBride,TE,ARI,18.0,True,218.43,False,False,234.02,-15.59,,,,False
+2026,00-0037238,D.London,WR,ATL,19.0,True,210.04,False,False,231.42,-21.38,0.0,False,False,False
+2026,00-0038134,K.Walker,RB,KC,20.0,True,197.85,False,True,246.015,-48.165,,,,False
+2026,00-0032764,D.Henry,RB,BAL,21.0,True,228.31,False,False,246.015,-17.705,,,,False
+2026,00-0038597,C.Brown,RB,CIN,22.0,True,199.46,False,False,228.18,-28.72,,,,False
+2026,00-0039338,B.Bowers,TE,LV,23.0,True,177.27,False,True,189.98,-12.71,,,,False
+2026,00-0037247,G.Pickens,WR,DAL,24.0,True,208.82,False,False,226.48,-17.66,0.255,False,False,False
+2026,00-0036554,N.Collins,WR,HOU,25.0,True,187.13,False,True,226.48,-39.35,0.0,False,False,False
+2026,00-0037239,C.Olave,WR,NO,26.0,True,197.87,False,True,209.38,-11.51,0.442,False,True,False
+2026,00-0035700,J.Jacobs,RB,GB,27.0,True,174.34,False,False,189.836,-15.496,,,,False
+2026,00-0034857,J.Allen,QB,BUF,28.0,True,299.81,False,False,356.212,-56.402,,,,False
+2026,00-0035676,A.Brown,WR,NE,29.0,True,187.58,False,False,199.987,-12.407,0.0,True,False,False
+2026,00-0036973,T.Etienne,RB,NO,30.0,True,204.85,False,False,189.836,15.014,,,,False
+2026,00-0040124,T.McMillan,WR,CAR,31.0,True,188.21,False,False,199.987,-11.777,0.607,False,False,False
+2026,00-0038120,B.Hall,RB,NYJ,32.0,True,193.2,False,True,183.586,9.614,,,,False
+2026,00-0036410,T.Higgins,WR,CIN,33.0,True,169.88,False,True,199.987,-30.107,0.061,False,False,False
+2026,00-0037840,K.Williams,RB,LA,34.0,True,208.51,False,True,183.586,24.924,,,,False
+2026,00-0039067,R.Rice,WR,KC,35.0,True,186.02,False,True,198.559,-12.539,0.0,False,False,False
+2026,00-0039361,B.Irving,RB,TB,36.0,True,184.05,False,True,183.586,0.464,,,,False
+2026,00-0037740,G.Wilson,WR,NYJ,37.0,True,148.53,False,True,198.559,-50.029,1.0,False,True,True
+2026,00-0039915,L.McConkey,WR,LAC,38.0,True,159.96,False,False,198.559,-38.599,0.0,False,False,False
+2026,00-0040129,E.Egbuka,WR,TB,39.0,True,178.91,False,False,198.559,-19.649,0.606,False,False,False
+2026,00-0036997,J.Williams,RB,DAL,40.0,True,197.36,False,True,183.586,13.774,,,,False
+2026,00-0039064,Z.Flowers,WR,BAL,41.0,True,208.11,False,False,198.559,9.551,0.0,False,False,False
+2026,00-0036912,D.Smith,WR,PHI,42.0,True,179.65,False,False,198.559,-18.909,0.115,False,True,False
+2026,00-0040735,L.Burden,WR,CHI,43.0,True,126.73,False,False,198.559,-71.829,0.433,False,False,False
+2026,00-0037240,J.Williams,WR,DET,44.0,True,186.04,False,True,198.559,-12.519,0.0,False,False,False
+2026,00-0040126,C.Loveland,TE,CHI,45.0,True,158.67,False,False,177.39,-18.72,,,,False
+2026,00-0036613,J.Waddle,WR,DEN,46.0,True,164.88,False,False,188.778,-23.898,0.77,True,False,True
+2026,00-0035659,T.McLaurin,WR,WAS,47.0,True,127.72,False,False,188.778,-61.058,0.0,False,False,False
+2026,00-0031381,D.Adams,WR,LA,48.0,True,169.9,False,True,171.605,-1.705,0.07,False,False,False
+2026,00-0040734,T.Henderson,RB,NE,49.0,True,182.26,False,False,183.586,-1.326,,,,False
+2026,00-0031408,M.Evans,WR,SF,50.0,True,120.53,False,True,171.605,-51.075,0.0,True,False,False
+2026,00-0034796,L.Jackson,QB,BAL,51.0,True,241.93,False,True,342.1,-100.17,,,,False
+2026,00-0039919,R.Odunze,WR,CHI,52.0,True,153.37,False,True,171.605,-18.235,0.089,False,False,False
+2026,00-0040784,Q.Judkins,RB,CLE,53.0,True,150.73,False,False,183.586,-32.856,,,,False
+2026,00-0034827,D.Moore,WR,BUF,54.0,True,132.87,False,False,171.375,-38.505,0.259,True,False,False
+2026,market:carnell tate,Carnell Tate,WR,FA,55.0,False,171.38,True,False,171.375,0.005,,,,False
+2026,00-0040715,C.Skattebo,RB,NYG,56.0,True,173.45,False,False,154.396,19.054,,,,False
+2026,00-0035685,D.Montgomery,RB,HOU,57.0,True,133.13,False,False,154.396,-21.266,,,,False
+2026,00-0038124,C.Watson,WR,GB,58.0,True,137.46,False,True,171.375,-33.915,0.855,False,False,False
+2026,00-0040719,B.Tuten,RB,JAX,59.0,True,115.58,False,False,154.396,-38.816,,,,False
+2026,00-0036275,D.Swift,RB,CHI,60.0,True,191.15,False,True,154.396,36.754,,,,False
+2026,00-0039893,B.Thomas,WR,JAX,61.0,True,153.48,False,False,171.375,-17.895,0.659,False,False,False
+2026,00-0039910,J.Daniels,QB,WAS,62.0,True,145.06,False,True,274.008,-128.948,,,,False
+2026,market:makai lemon,Makai Lemon,WR,FA,63.0,False,170.46,True,False,170.463,-0.003,,,,False
+2026,00-0039849,M.Harrison,WR,HOU,64.0,True,133.9,False,True,170.463,-36.563,0.0,True,False,False
+2026,00-0036442,J.Burrow,QB,CIN,65.0,True,165.0,False,True,274.008,-109.008,,,,False
+2026,00-0040730,R.Harvey,RB,DEN,66.0,True,164.03,False,False,154.396,9.634,,,,False
+2026,00-0040128,T.Warren,TE,IND,67.0,True,158.69,False,False,177.39,-18.7,,,,False
+2026,00-0039918,C.Williams,QB,CHI,68.0,True,281.29,False,False,270.177,11.113,,,,False
+2026,00-0037664,A.Pierce,WR,IND,69.0,True,165.74,False,False,170.463,-4.723,0.0,False,False,False
+2026,market:jordyn tyson,Jordyn Tyson,WR,FA,70.0,False,170.46,True,False,170.463,-0.003,,,,False
+2026,00-0036389,J.Hurts,QB,PHI,71.0,True,277.36,False,False,270.177,7.183,,,,False
+2026,00-0039851,D.Maye,QB,NE,72.0,True,284.74,False,False,270.177,14.563,,,,False
+2026,00-0038606,P.Washington,WR,JAX,73.0,True,145.04,False,True,170.463,-25.423,0.463,False,False,False
+2026,00-0034348,C.Sutton,WR,DEN,74.0,True,166.19,False,False,170.26,-4.07,0.0,False,False,False
+2026,00-0036555,C.Hubbard,RB,CAR,75.0,True,143.15,False,False,154.396,-11.246,,,,False
+2026,00-0035640,D.Metcalf,WR,PIT,76.0,True,159.32,False,False,170.26,-10.94,0.0,False,False,False
+2026,00-0038559,M.Wilson,WR,ARI,77.0,True,162.96,False,False,161.6,1.36,0.0,False,False,False
+2026,00-0037228,J.Warren,RB,PIT,78.0,True,167.63,False,False,154.396,13.234,,,,False
+2026,00-0036875,R.Stevenson,RB,NE,79.0,True,161.13,False,True,154.396,6.734,,,,False
+2026,00-0040663,H.Fannin,TE,CLE,80.0,True,162.46,False,False,158.62,3.84,,,,False
+2026,00-0033077,D.Prescott,QB,DAL,81.0,True,251.75,False,True,267.264,-15.514,,,,False
+2026,00-0036355,J.Herbert,QB,LAC,82.0,True,248.16,False,False,251.406,-3.246,,,,False
+2026,00-0039916,R.Pearsall,WR,SF,83.0,True,90.56,False,True,161.6,-71.04,0.0,False,False,False
+2026,00-0036971,T.Lawrence,QB,JAX,84.0,True,272.87,False,False,251.406,21.464,,,,False
+2026,00-0040691,J.Dart,QB,NYG,85.0,True,187.81,False,False,251.406,-63.596,,,,False
+2026,00-0034960,J.Meyers,WR,JAX,86.0,True,111.07,False,True,158.067,-46.997,0.246,False,False,False
+2026,00-0038994,J.Addison,WR,MIN,87.0,True,140.74,False,False,158.067,-17.327,0.0,False,False,False
+2026,00-0037263,T.Allgeier,RB,ARI,88.0,True,91.0,False,False,154.396,-63.396,,,,False
+2026,00-0038996,T.Kraft,TE,GB,89.0,True,121.83,False,True,154.96,-33.13,,,,False
+2026,00-0033873,P.Mahomes,QB,KC,90.0,True,287.5,False,False,251.406,36.094,,,,False
+2026,00-0033921,C.Godwin,WR,TB,91.0,True,115.62,False,True,158.067,-42.447,0.608,False,False,False
+2026,00-0036139,R.Dowdle,RB,PIT,92.0,True,125.15,False,True,142.269,-17.119,,,,False
+2026,00-0040236,K.Monangai,RB,CHI,93.0,True,102.54,False,False,142.269,-39.729,,,,False
+2026,00-0037834,B.Purdy,QB,SF,94.0,True,190.48,False,True,222.824,-32.344,,,,False
+2026,00-0036252,M.Pittman,WR,PIT,95.0,True,157.03,False,False,147.426,9.604,0.0,True,False,False
+2026,00-0037816,R.Doubs,WR,NE,96.0,True,139.08,False,True,147.426,-8.346,0.424,True,False,False
+2026,00-0039732,B.Nix,QB,DEN,97.0,True,297.04,False,False,222.824,74.216,,,,False
+2026,00-0036970,K.Pitts,TE,ATL,98.0,True,173.02,False,False,154.96,18.06,,,,False
+2026,00-0039738,B.Corum,RB,LA,99.0,True,97.45,False,False,142.269,-44.819,,,,False
+2026,00-0038544,Q.Johnston,WR,LAC,100.0,True,158.29,False,False,147.426,10.864,0.0,False,False,False
+2026,00-0039065,S.LaPorta,TE,DET,101.0,True,128.17,False,True,137.028,-8.858,,,,False
+2026,00-0038117,W.Robinson,WR,TEN,102.0,True,194.4,False,True,147.426,46.974,0.807,True,True,True
+2026,00-0026498,M.Stafford,QB,LA,103.0,True,267.09,False,True,222.824,44.266,,,,False
+2026,00-0036158,J.Dobbins,RB,DEN,104.0,True,145.3,False,True,142.269,3.031,,,,False
+2026,00-0035261,T.Pollard,RB,TEN,105.0,True,138.91,False,False,142.269,-3.359,,,,False
+2026,00-0033106,J.Goff,QB,DET,106.0,True,247.18,False,False,222.824,24.356,,,,False
+2026,00-0039146,J.Reed,WR,GB,107.0,True,105.03,False,True,147.426,-42.396,0.227,False,False,False
+2026,00-0035228,K.Murray,QB,MIN,108.0,True,120.69,False,True,222.824,-102.134,,,,False
+2026,market:jadarian price,Jadarian Price,RB,FA,109.0,False,142.27,True,False,142.269,0.001,,,,False
+2026,00-0039894,X.Worthy,WR,KC,110.0,True,123.9,False,False,147.426,-23.526,0.384,False,False,False
+2026,00-0036264,J.Love,QB,GB,111.0,True,216.36,False,True,211.216,5.144,,,,False
+2026,00-0040189,O.Gadsden,TE,LAC,112.0,True,133.21,False,False,137.028,-3.817,,,,False
+2026,00-0034855,B.Mayfield,QB,TB,113.0,True,255.77,False,False,211.216,44.554,,,,False
+2026,00-0036919,K.Gainwell,RB,TB,114.0,True,136.76,False,False,123.573,13.187,,,,False
+2026,00-0039491,J.Coker,WR,CAR,115.0,True,105.57,False,True,147.426,-41.856,0.0,False,False,False
+2026,market:kc concepcion,KC Concepcion,WR,FA,116.0,False,124.2,True,False,124.199,0.001,,,,False
+2026,00-0040743,T.Shough,QB,NO,117.0,True,123.0,False,False,211.216,-88.216,,,,False
+2026,00-0038933,D.Kincaid,TE,BUF,118.0,True,130.04,False,True,137.028,-6.988,,,,False
+2026,00-0037525,J.Mason,RB,MIN,119.0,True,95.77,False,True,123.573,-27.803,,,,False
+2026,00-0040667,M.Golden,WR,GB,120.0,True,82.05,False,False,124.199,-42.149,0.591,False,False,False
+2026,00-0038997,J.Downs,WR,IND,121.0,True,129.1,False,False,124.199,4.901,0.0,False,False,False
+2026,00-0033288,G.Kittle,TE,SF,122.0,True,153.82,False,True,137.028,16.792,,,,False
+2026,00-0038128,M.Willis,QB,MIA,123.0,True,81.47,False,True,205.048,-123.578,,,,False
+2026,00-0040130,J.Higgins,WR,HOU,124.0,True,82.82,False,False,124.199,-41.379,0.191,False,False,False
+2026,00-0037256,R.White,RB,WAS,125.0,True,113.73,False,False,123.573,-9.843,,,,False
+2026,00-0037261,K.Shakir,WR,BUF,126.0,True,145.14,False,True,124.199,20.941,0.316,False,False,False
+2026,00-0038041,J.Ferguson,TE,DAL,127.0,True,109.04,False,True,137.028,-27.987,,,,False
+2026,market:jonah coleman,Jonah Coleman,RB,FA,128.0,False,123.57,True,False,123.573,-0.003,,,,False
+2026,market:kenyon sadiq,Kenyon Sadiq,TE,FA,129.0,False,137.03,True,False,137.028,0.002,,,,False
+2026,00-0034869,S.Darnold,QB,SEA,130.0,True,253.08,False,True,205.048,48.032,,,,False
+2026,market:mike washington,Mike Washington Jr.,RB,FA,131.0,False,123.57,True,False,123.573,-0.003,,,,False
+2026,00-0039855,J.McMillan,WR,TB,132.0,True,62.18,False,True,116.74,-54.56,0.0,False,False,False
+2026,00-0030506,T.Kelce,TE,KC,133.0,True,173.19,False,False,137.028,36.162,,,,False
+2026,00-0036259,J.Jennings,WR,MIN,134.0,True,112.18,False,True,116.74,-4.56,0.0,True,False,False
+2026,market:denzel boston,Denzel Boston,WR,FA,135.0,False,116.74,True,False,116.74,-0.0,,,,False
+2026,00-0039163,C.Stroud,QB,HOU,136.0,True,211.66,False,False,200.31,11.35,,,,False
+2026,00-0034351,D.Goedert,TE,PHI,137.0,True,128.66,False,True,137.028,-8.368,,,,False
+2026,00-0033293,A.Jones,RB,MIN,138.0,True,141.82,False,True,118.174,23.646,,,,False
+2026,00-0040242,J.Croskey-Merritt,RB,WAS,139.0,True,110.58,False,False,118.174,-7.594,,,,False
+2026,00-0037545,R.Shaheed,WR,SEA,140.0,True,113.84,False,True,102.993,10.847,0.0,True,False,False
+2026,00-0038611,C.Rodriguez,RB,JAX,141.0,True,93.74,False,True,118.174,-24.434,,,,False
+2026,00-0040676,C.Ward,QB,TEN,142.0,True,196.28,False,False,200.31,-4.03,,,,False
+2026,00-0037838,I.Likely,TE,NYG,143.0,True,70.29,False,True,128.8,-58.51,,,,False
+2026,market:omar cooper,Omar Cooper Jr.,WR,FA,144.0,False,102.99,True,False,102.993,-0.003,,,,False
+2026,00-0035710,D.Jones,QB,IND,145.0,True,249.07,False,True,200.31,48.76,,,,False
+2026,00-0039165,Z.Charbonnet,RB,SEA,146.0,True,107.65,False,False,118.174,-10.524,,,,False
+2026,00-0039150,B.Young,QB,CAR,147.0,True,174.99,False,False,190.884,-15.894,,,,False
+2026,00-0034753,M.Andrews,TE,BAL,148.0,True,120.27,False,False,112.617,7.653,,,,False
+2026,00-0039384,T.Tracy,RB,NYG,149.0,True,125.56,False,False,106.033,19.527,,,,False
+2026,00-0031588,S.Diggs,WR,WAS,150.0,True,158.33,False,True,102.993,55.337,0.0,True,False,False
+2026,00-0038935,B.Strange,TE,JAX,151.0,True,112.98,False,True,112.617,0.363,,,,False
+2026,market:fernando mendoza,Fernando Mendoza,QB,FA,152.0,False,190.88,True,False,190.884,-0.004,,,,False
+2026,00-0039344,Jonathon Brooks,RB,CAR,153.0,False,106.03,True,False,106.033,-0.003,,,,False
+2026,00-0036261,Brandon Aiyuk,WR,SF,154.0,False,102.99,True,False,102.993,-0.003,,,,False
+2026,00-0040718,T.Hunter,WR,JAX,155.0,True,93.14,False,False,102.993,-9.853,1.0,False,False,False
+2026,00-0038454,K.Mitchell,RB,LAC,156.0,True,74.58,False,True,87.178,-12.598,,,,False
+2026,00-0036040,J.Johnson,TE,NO,157.0,True,123.67,False,True,112.617,11.053,,,,False
+2026,00-0033119,J.Brissett,QB,ARI,158.0,True,171.82,False,True,169.271,2.549,,,,False
+2026,00-0035719,D.Samuel,WR,SF,159.0,True,150.5,False,True,102.993,47.507,0.414,True,False,False
+2026,00-0036407,J.Jeudy,WR,CLE,160.0,True,125.39,False,False,102.993,22.397,0.057,False,True,False
+2026,00-0033553,James Conner,RB,ARI,161.0,False,87.18,True,False,87.178,0.002,,,,False
+2026,00-0033090,H.Henry,TE,NE,162.0,True,152.03,False,True,109.36,42.67,,,,False
+2026,00-0040583,W.Marks,RB,HOU,163.0,True,93.08,False,False,87.178,5.902,,,,False
+2026,00-0037809,C.Okonkwo,TE,WAS,164.0,True,110.65,False,False,109.36,1.29,,,,False
+2026,market:emmett johnson,Emmett Johnson,RB,FA,165.0,False,87.18,True,False,87.178,0.002,,,,False
+2026,00-0038797,E.Wilson,RB,SEA,166.0,True,53.79,False,True,87.178,-33.388,,,,False
+2026,00-0038608,K.Boutte,WR,HOU,167.0,False,88.78,False,True,100.538,-11.758,0.0,True,False,False
+2026,00-0037197,I.Pacheco,RB,DET,168.0,False,41.76,False,True,87.178,-45.418,,,,False
+2026,00-0039890,A.Mitchell,WR,NYJ,169.0,False,110.72,False,False,100.538,10.182,0.0,True,True,False
+2026,00-0034837,C.Ridley,WR,TEN,170.0,False,67.06,False,True,100.538,-33.478,0.0,False,True,False
+2026,00-0040669,I.TeSlaa,WR,DET,171.0,False,74.8,False,False,98.561,-23.761,0.0,False,False,False
+2026,00-0033040,T.Hill,WR,FA,172.0,False,90.5,False,True,98.561,-8.061,0.0,,,False
+2026,00-0030565,G.Smith,QB,NYJ,173.0,False,151.15,False,True,169.271,-18.121,,,,False
+2026,00-0039793,A.Barner,TE,SEA,174.0,False,110.15,False,False,109.36,0.79,,,,False
+2026,00-0037291,J.Nailor,WR,LV,175.0,False,97.94,False,True,98.561,-0.621,0.0,True,False,False
+2026,00-0039032,T.Spears,RB,TEN,176.0,False,109.45,False,True,87.178,22.272,,,,False
+2026,00-0035229,T.Hockenson,TE,MIN,177.0,False,107.51,False,True,95.981,11.529,,,,False
+2026,00-0038977,Tank Dell,WR,HOU,178.0,False,98.56,True,False,98.561,-0.001,,,False,False
+2026,00-0034383,D.Schultz,TE,HOU,179.0,False,133.65,False,True,95.981,37.669,,,,False
+2026,00-0040162,D.Sampson,RB,CLE,180.0,False,91.71,False,False,87.178,4.532,,,,False
+2026,00-0040727,T.Harris,WR,LAC,181.0,False,78.24,False,False,92.55,-14.31,0.0,False,False,False
+2026,market:eli stowers,Eli Stowers,TE,FA,182.0,False,95.98,True,False,95.981,-0.001,,,,False
+2026,00-0038951,S.Tucker,RB,TB,183.0,False,55.1,False,False,86.8,-31.7,,,,False
+2026,00-0038555,T.Bigsby,RB,PHI,184.0,False,96.65,False,True,86.8,9.85,,,,False
+2026,00-0036309,D.Mooney,WR,NYG,185.0,False,104.29,False,True,92.55,11.74,0.306,True,False,False
+2026,00-0037746,B.Robinson,RB,ATL,186.0,False,89.76,False,True,86.8,2.96,,,,False
+2026,00-0040705,C.Dike,WR,TEN,187.0,False,87.03,False,False,92.55,-5.52,0.095,False,True,False
+2026,00-0034775,C.Kirk,WR,SF,188.0,False,49.8,False,True,92.55,-42.75,0.038,True,False,False
+2026,00-0039880,M.Washington,WR,MIA,189.0,False,104.25,False,False,92.55,11.7,0.769,False,False,False
+2026,00-0033885,D.Njoku,TE,LAC,190.0,False,94.35,False,True,95.981,-1.631,,,,False
+2026,00-0038563,T.Tucker,WR,LV,191.0,False,133.42,False,False,92.55,40.87,0.315,False,False,False
+2026,market:nicholas singleton,Nicholas Singleton,RB,FA,192.0,False,86.8,True,False,86.8,-0.0,,,,False
+2026,00-0033906,A.Kamara,RB,NO,193.0,False,114.57,False,True,86.8,27.77,,,,False
+2026,00-0040736,M.Taylor,TE,NYJ,194.0,False,100.61,False,False,95.981,4.629,,,,False
+2026,00-0036212,T.Tagovailoa,QB,ATL,195.0,False,154.95,False,True,169.271,-14.321,,,,False
+2026,00-0038129,C.Otton,TE,TB,196.0,False,115.95,False,False,87.96,27.99,,,,False
+2026,00-0040134,P.Bryant,WR,DEN,197.0,False,73.15,False,False,92.55,-19.4,0.0,False,False,False
+2026,00-0040584,G.Helm,TE,TEN,198.0,False,77.44,False,False,87.96,-10.52,,,,False
+2026,00-0039794,B.Allen,RB,NYJ,199.0,False,61.78,False,True,86.8,-25.02,,,,False
+2026,00-0039391,K.Vidal,RB,LAC,200.0,False,80.02,False,True,86.8,-6.78,,,,False
+2026,market:elijah sarratt,Elijah Sarratt,WR,FA,201.0,False,92.55,True,False,92.55,0.0,,,,False
+2026,00-0039410,R.Flournoy,WR,DAL,202.0,False,81.28,False,True,92.55,-11.27,0.357,False,False,False
+2026,00-0039868,T.Franklin,WR,DEN,203.0,False,121.41,False,False,92.55,28.86,0.0,False,False,False
+2026,00-0040737,T.Ferguson,TE,LA,204.0,False,91.71,False,False,62.288,29.422,,,,False
+2026,00-0039921,T.Benson,RB,ARI,205.0,False,58.51,False,True,86.8,-28.29,,,,False
+2026,market:chris brazzell ii,Chris Brazzell II,WR,FA,206.0,False,69.92,True,False,69.918,0.002,,,,False
+2026,00-0023459,A.Rodgers,QB,PIT,207.0,False,205.08,False,False,169.271,35.809,,,,False
+2026,market:kaytron allen,Kaytron Allen,RB,FA,208.0,False,80.93,True,False,80.933,-0.003,,,,False
+2026,00-0036894,P.Freiermuth,TE,PIT,209.0,False,105.91,False,True,62.288,43.622,,,,False
+2026,market:hollywood brown,Hollywood Brown,WR,PHI,210.0,False,69.92,True,False,69.918,0.002,,,,False
+2026,00-0039875,R.Davis,RB,BUF,211.0,False,81.66,False,False,80.933,0.727,,,,False
+2026,00-0040648,T.Horton,WR,SEA,212.0,False,72.0,False,False,69.918,2.082,0.0,False,False,False
+2026,market:zachariah branch,Zachariah Branch,WR,FA,213.0,False,69.92,True,False,69.918,0.002,,,,False
+2026,00-0036893,Najee Harris,RB,NYG,214.0,False,80.93,True,False,80.933,-0.003,,,,False
+2026,market:germie bernard,Germie Bernard,WR,FA,215.0,False,69.92,True,False,69.918,0.002,,,,False
+2026,00-0039917,M.Penix,QB,ATL,216.0,False,122.51,False,True,110.016,12.494,,,,False
+2026,00-0037112,J.Tonges,TE,SF,217.0,False,66.5,False,False,26.5,40.0,,,,False
+2026,00-0040177,Jordan James,RB,SF,218.0,False,80.93,True,False,80.933,-0.003,,,,False
+2026,00-0040170,E.Ayomanor,WR,TEN,219.0,False,82.31,False,False,69.918,12.392,0.551,False,True,True
+2026,00-0040198,O.Gordon,RB,MIA,220.0,False,52.61,False,False,80.933,-28.323,,,,False
+2026,00-0039424,D.Vele,WR,NO,221.0,False,95.34,False,True,69.918,25.422,0.0,False,True,False
+2026,00-0039299,G.Holani,RB,SEA,222.0,False,33.27,False,False,80.933,-47.663,,,,False
+2026,market:ty simpson,Ty Simpson,QB,FA,223.0,False,110.02,True,False,110.016,0.004,,,,False
+2026,00-0036244,C.Parkinson,TE,LA,224.0,False,80.63,False,True,26.5,54.13,,,,False
+2026,00-0040131,K.Williams,WR,NE,225.0,False,56.2,False,False,69.918,-13.718,0.0,False,False,False
+2026,00-0040668,S.Sanders,QB,CLE,226.0,False,97.86,False,False,110.016,-12.156,,,,False
+2026,00-0040237,T.Johnson,WR,TB,227.0,False,69.37,False,False,69.918,-0.548,0.636,False,False,False
+2026,00-0040586,J.Blue,RB,PHI,228.0,False,46.23,False,False,80.933,-34.703,,,,False
+2026,00-0033908,C.Kupp,WR,SEA,229.0,False,77.62,False,True,69.918,7.702,0.0,False,False,False
+2026,00-0034975,J.Hill,RB,BAL,230.0,False,76.56,False,True,43.933,32.627,,,,False
+2026,00-0034829,M.Gesicki,TE,CIN,231.0,False,84.84,False,False,26.5,58.34,,,,False
+2026,market:chris bell,Chris Bell,WR,FA,232.0,False,69.92,True,False,69.918,0.002,,,,False
+2026,market:jakobi lane,Ja'Kobi Lane,WR,FA,233.0,False,69.92,True,False,69.918,0.002,,,,False
+2026,market:demond claiborne,Demond Claiborne,RB,FA,234.0,False,43.93,True,False,43.933,-0.003,,,,False
+2026,00-0036550,R.Bateman,WR,BAL,235.0,False,103.0,False,True,69.918,33.082,0.0,False,False,False
+2026,00-0040138,J.Noel,WR,HOU,236.0,False,72.5,False,False,69.918,2.582,0.2,False,False,False
+2026,00-0036945,J.Fields,QB,KC,237.0,False,120.37,False,True,110.016,10.354,,,,False
+2026,market:ted hurst,Ted Hurst,WR,FA,238.0,False,69.92,True,False,69.918,0.002,,,,False
+2026,00-0039847,T.Johnson,TE,NYG,239.0,False,105.01,False,True,26.5,78.51,,,,False
+2026,00-0038393,D.Wicks,WR,PHI,240.0,False,101.46,False,False,69.918,31.542,0.435,True,True,False
+2026,00-0037666,J.Tolbert,WR,MIA,241.0,False,93.37,False,True,69.918,23.452,0.412,True,False,False
+2026,00-0038705,E.Demercado,RB,DAL,242.0,False,45.09,False,True,32.15,12.94,,,,False
+2026,00-0037252,G.Dulcich,TE,MIA,243.0,False,83.13,False,True,26.5,56.63,,,,False
+2026,00-0036188,Antonio Williams,WR,FA,244.0,False,69.92,True,False,69.918,0.002,,,,False
+2026,00-0033881,E.Engram,TE,DEN,245.0,False,100.84,False,True,26.5,74.34,,,,False
+2026,00-0030279,K.Allen,WR,IND,246.0,False,115.62,False,True,69.918,45.702,0.107,True,False,False
+2026,00-0039901,K.Coleman,WR,BUF,247.0,False,86.81,False,True,69.918,16.892,0.068,False,False,False
+2026,00-0038104,T.Thornton,WR,KC,249.0,False,74.55,False,True,69.918,4.632,0.676,False,False,False
+2026,00-0033537,Deshaun Watson,QB,CLE,250.0,False,110.02,True,False,110.016,0.004,,,,False
+2026,00-0037741,J.Dotson,WR,ATL,251.0,False,99.82,False,True,69.918,29.902,0.278,True,False,False
+2026,00-0040238,L.Allen,RB,JAX,252.0,False,34.0,False,False,32.15,1.85,,,,False
+2026,00-0040179,D.Giddens,RB,IND,253.0,False,41.81,False,False,32.15,9.66,,,,False
+2026,00-0033897,Joe Mixon,RB,FA,254.0,False,32.15,True,False,32.15,0.0,,,,False
+2026,00-0039874,J.Wright,RB,MIA,255.0,False,81.17,False,True,32.15,49.02,,,,False
+2026,00-0035535,D.Slayton,WR,IND,256.0,False,57.57,False,True,69.918,-12.348,0.143,True,False,False
+2026,00-0033555,M.Hollins,WR,NE,257.0,False,71.13,False,True,69.918,1.212,0.0,False,False,False
+2026,00-0038558,D.Washington,TE,PIT,258.0,False,58.49,False,True,26.5,31.99,,,,False
+2026,00-0036849,T.Atwell,WR,LA,259.0,False,45.09,False,True,69.918,-24.828,0.0,False,False,False
+2026,market:seth mcgowan,Seth McGowan,RB,FA,260.0,False,32.15,True,False,32.15,0.0,,,,False
+2026,00-0038619,A.Iosivas,WR,CIN,261.0,False,78.27,False,True,69.918,8.352,0.121,False,False,False
+2026,00-0029604,K.Cousins,QB,LV,262.0,False,135.93,False,True,110.016,25.914,,,,False
+2026,market:skyler bell,Skyler Bell,WR,FA,263.0,False,69.92,True,False,69.918,0.002,,,,False
+2026,00-0040729,J.Bech,WR,LV,264.0,False,65.01,False,False,69.918,-4.908,0.345,False,False,False
+2026,00-0036972,M.Jones,QB,SF,265.0,False,141.4,False,True,110.016,31.384,,,,False
+2026,00-0035689,D.Knox,TE,BUF,266.0,False,76.27,False,True,26.5,49.77,,,,False
+2026,market:malachi fields,Malachi Fields,WR,FA,267.0,False,69.92,True,False,69.918,0.002,,,,False
+2026,00-0039923,J.McCarthy,QB,NYG,268.0,False,138.71,False,False,110.016,28.694,,,,False
+2026,00-0040739,E.Arroyo,TE,SEA,269.0,False,69.0,False,False,26.5,42.5,,,,False
+2026,00-0035537,Ty.Johnson,RB,BUF,270.0,False,55.46,False,True,32.15,23.31,,,,False
+2026,00-0040782,I.Bond,WR,CLE,271.0,False,78.28,False,False,69.918,8.362,0.045,False,True,False
+2026,market:max klare,Max Klare,TE,FA,272.0,False,26.5,True,False,26.5,0.0,,,,False
+2026,00-0033307,K.Bourne,WR,ARI,273.0,False,67.41,False,True,69.918,-2.508,0.0,True,False,False
+2026,00-0040142,K.Johnson,RB,GB,274.0,False,43.87,False,False,32.15,11.72,,,,False
+2026,00-0035208,O.Zaccheaus,WR,ATL,275.0,False,66.02,False,True,69.918,-3.898,0.169,True,False,False
+2026,00-0040202,D.Neal,RB,WAS,276.0,False,54.56,False,False,32.15,22.41,,,,False
+2026,00-0038685,C.Brooks,RB,GB,277.0,False,43.59,False,True,32.15,11.44,,,,False
+2026,00-0040078,B.Smith,RB,KC,278.0,False,49.23,False,False,32.15,17.08,,,,False
+2026,00-0037801,K.Turpin,WR,DAL,279.0,False,68.42,False,False,69.918,-1.498,0.184,False,False,False
+2026,00-0037267,J.Ford,RB,ARI,280.0,False,39.1,False,True,32.15,6.95,,,,False
+2026,market:bryce lance,Bryce Lance,WR,FA,281.0,False,69.92,True,False,69.918,0.002,,,,False
+2026,00-0033110,T.Higbee,TE,LA,282.0,False,64.03,False,True,26.5,37.53,,,,False
+2026,00-0039792,D.Walker,WR,BAL,283.0,False,48.29,False,False,69.918,-21.628,0.0,False,False,False
+2026,00-0039066,M.Mayer,TE,LV,284.0,False,64.58,False,True,26.5,38.08,,,,False
+2026,00-0037563,M.Davis,RB,DAL,285.0,False,69.37,False,True,32.15,37.22,,,,False
+2026,00-0039363,I.Guerendo,RB,SF,286.0,False,24.37,False,True,32.15,-7.78,,,,False
+2026,00-0036290,C.Kmet,TE,CHI,287.0,False,72.84,False,False,26.5,46.34,,,,False
+2026,00-0039356,J.Sanders,TE,CAR,288.0,False,62.87,False,True,26.5,36.37,,,,False
+2026,00-0038976,M.Mims,WR,DEN,289.0,False,78.11,False,False,69.918,8.192,0.0,False,False,False
+2026,00-0040164,J.Lane,WR,WAS,290.0,False,53.98,False,False,69.918,-15.938,0.188,False,False,False
+2026,00-0039342,X.Legette,WR,CAR,291.0,False,77.42,False,False,69.918,7.502,0.0,False,False,False
+2026,00-0033526,S.Perine,RB,CIN,292.0,False,81.88,False,True,32.15,49.73,,,,False
+2026,00-0040673,Jalen Milroe,QB,SEA,293.0,False,110.02,True,False,110.016,0.004,,,,False
+2026,00-0039811,MarShawn Lloyd,RB,GB,294.0,False,32.15,True,False,32.15,0.0,,,,False
+2026,00-0037837,C.Austin,WR,NYG,295.0,False,59.91,False,False,69.918,-10.008,0.127,True,False,False
+2026,00-0039164,Anthony Richardson,QB,IND,296.0,False,110.02,True,False,110.016,0.004,,,,False
+2026,00-0040208,T.Brooks,RB,CIN,297.0,False,23.21,False,False,32.15,-8.94,,,,False
+2026,00-0032464,K.Raymond,WR,CHI,298.0,False,60.19,False,True,69.918,-9.728,0.0,True,False,False
+2026,00-0037742,T.Burks,WR,WAS,299.0,False,43.24,False,True,69.918,-26.678,0.0,False,False,False
+2026,00-0038046,C.Kolar,TE,LAC,300.0,False,32.33,False,True,26.5,5.83,,,,False
+2026,market:michael trigg,Michael Trigg,TE,FA,301.0,False,26.5,True,False,26.5,0.0,,,,False

@@ -52,4 +52,18 @@ public class ProjectionFileTests
         }
         finally { File.Delete(path); }
     }
+
+    [Fact]
+    public void Optional_role_context_fields_load_when_present_and_are_null_when_absent()
+    {
+        var json = TestData.ProjectionJson().Replace("\"actual_ppr\": null}", "\"actual_ppr\": null, \"absence_share_prev\": 0.81, \"team_changed\": true, \"rookie_r1_teammate\": null}");
+
+        var players = ProjectionFile.Parse(json).Players;
+
+        Assert.Equal(0.81, players[1].AbsenceSharePrev);
+        Assert.True(players[1].TeamChanged);
+        Assert.Null(players[1].RookieR1Teammate);
+        Assert.Null(players[0].AbsenceSharePrev);          // files written before the fields existed still load
+        Assert.Null(players[0].TeamChanged);
+    }
 }
