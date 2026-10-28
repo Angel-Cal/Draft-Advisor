@@ -65,7 +65,7 @@ An earlier version of this table reported higher R² from a leaked feature (see 
 - ADP-reach cost that grows with the draft position (ADP is less predictive later); ADP: Underdog CSV via 4for4 (live), FantasyPros (backtests)
 - Ceiling/floor bands from position-level walk-forward RMSE; per-position tiers by value dropoff
 - A simulator drafts against ADP-plus-noise opponents calibrated to real mock drafts and scores rosters by weekly lineups with actual results
-- Not yet built: tier-cliff cost of waiting, position safety, run detection, plain-language reasoning (roadmap Phase 4)
+- Not yet built: position safety, run detection (roadmap Phase 4). Plain-language reasoning is built (`Explainer`; shown by `draft --recommender need`)
 - The earlier Python advisor in `src/draft/` is superseded by the C# core
 
 ## Project Structure
@@ -130,7 +130,7 @@ python src/data/pipeline.py
 # 3. Tune hyperparameters and train models (writes output to output.log)
 python src/models/train.py
 
-# 4. Generate 2026 projections
+# 4. Generate 2026 projections (early-stops on the newest season, refits on all seasons, averages 5 seeds)
 python src/models/predict.py
 
 # 5. Build the draft advisor's player table (adds ADP-derived projections for rookies/unmodeled players)

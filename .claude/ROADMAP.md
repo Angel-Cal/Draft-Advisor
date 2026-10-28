@@ -92,9 +92,9 @@ Also done in Phase 1 (unplanned, but it changed the results): fixed a target-sea
   - roster need (nonlinear, ramps up mid-draft): done 2026-10-22 as marginal lineup gain over replacement plus position-specific bench value (structural k-th-backup weights, option value over the waiver level, dead-pick exclusion), see `LOG.md`
   - tier cliff / cost of waiting until next pick: tested 2026-10-22 as a VONA bonus (`WaitSettings`, `tune-wait`); no gain on points alone, but under the league-finish metric (title odds +1.9 pp, points +11 at weight 4) it held up at every noise level and was adopted 2026-10-25 as the default advisor, see `LOG.md`
   - position safety (P(player survives to my next pick) from teams picking in between): shares its survival model with the waiting bonus, so expect little extra
-  - run detection (continuous intensity)
+  - run detection (continuous intensity): deferred by the user 2026-10-28 to early draft season (Aug 2027), when mock drafts against real drafters can show whether runs exist and which way to play them; see `STATUS.md` "Open / Deferred"
   - adaptive risk by round (floor early, ceiling mid, variance late): checked 2026-10-25, no player-level risk signal (RB/WR flat; QB/TE weak and upside-only), see `LOG.md`; would also need a league-finish metric to matter
-- [ ] Reasoning strings that explain each recommendation in plain language for beginners
+- [x] Reasoning strings that explain each recommendation in plain language for beginners: done 2026-10-28 (`Explainer` in Core, shown by `draft --recommender need`; see `LOG.md`)
 
 ### Phase 5: Desktop app (Apr to Jun 2027)
 - [ ] WPF + BlazorWebView shell

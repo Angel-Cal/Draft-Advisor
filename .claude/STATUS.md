@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-10-27
 **Active branch:** `phase-2-csharp` (Phase 2 plus Phase 4; pushed to `origin` up to 2026-10-22, with the later work uncommitted; not merged to `main`; `main` has Phases 0-1)
-**Phase:** Phases 0, 1 and 2 complete; Phase 4 (recommender v2) is essentially done: single score, reach control, roster need, bench value and the cost-of-waiting bonus are in, the league-finish metric exists, and the other ideas were tested and rejected (see "Hand-off" at the bottom). Next: fix the live training recipe, then reasoning strings and Phase 5. Phase 3 (model v2) waits for the 2026 season to end.
+**Phase:** Phases 0, 1 and 2 complete; Phase 4 (recommender v2) is essentially done: single score, reach control, roster need, bench value and the cost-of-waiting bonus are in, the league-finish metric exists, and the other ideas were tested and rejected (see "Hand-off" at the bottom). Next: Phase 5 (the reasoning strings and the live training fix are done). Phase 3 (model v2) waits for the 2026 season to end.
 **Why we chose things:** see `LOG.md` (decision log). Add an entry when a task produces a decision that rejected an alternative or changed results.
 
 ---
@@ -175,6 +175,7 @@ dotnet run -c Release --project src/DraftBot.Sim -- tune-where|tune-scarce|tune-
 dotnet run -c Release --project src/DraftBot.Sim -- diagnose-scales --seeds 30   # spread of value vs shortfall among the best candidates, by round (value is ~2.9x the shortfall: why a raw 4 is about equal importance)
 dotnet run -c Release --project src/DraftBot.Sim -- tune-horizon --seeds 60 [--metric ...]   # waiting bonus summed over my next 1-3 picks (rejected: behaves like a rescaled weight)
 dotnet run -c Release --project src/DraftBot.Sim -- tune-lookahead --seeds 60 [--metric ...]   # two-step lookahead (rejected; slow: the title sweep took hours, use few seeds)
+dotnet run -c Release --project src/DraftBot.Sim -- tune-rollout --seeds 20 --samples 10 --candidates 4 [--metric ...]   # rollout policy improvement (rejected; very slow: 1,200 drafts took 2 h, 300 drafts 11 min)
 dotnet run -c Release --project src/DraftBot.Sim -- calibrate-survival --seeds 30 [--scales 0.4,0.55,0.7,0.85,1,1.25]   # reliability of the survival model behind the waiting bonus
 dotnet run -c Release --project src/DraftBot.Sim -- calibrate-noise   # simulated vs real (FFC) pick spread by ADP bucket
 dotnet run -c Release --project src/DraftBot.Sim -- fit-noise         # grid-fit the opponent noise formula to the real spread
@@ -229,6 +230,8 @@ All tested with the standing protocol: 10-seed ablation + random-noise control, 
 
 ## Open / Deferred
 
+- **Run detection (deferred by the user 2026-10-28 to early draft season, Aug 2027; nothing built).** Not implemented in any form: the waiting bonus reads ADP only, and `SurvivalSampler` models drafter needs, not observed picks. Two reasons to wait: (1) the simulator's opponents draw independent noise, so they produce no runs and a detector could only be shown to do no harm there; (2) it is not even clear which way to play a run: leaning into it (take the position before it dries up) versus profiting from the players who fall because of it. Real pick-by-pick data decides that, and we have none (FFC is aggregate per player). Plan: use the early-season mock drafts against real drafters (Underdog / Sleeper) to log picks, check whether runs happen and what the fallers cost, then test a detector on that. Position safety shares the same blocker.
+- **Case study: Keenan Allen, 2024 (new situation; deferred by the user 2026-10-28, no work started).** The model had him at 235 projected PPR (ADP 78.4, injury flag set, team CHI after the move from LAC), the market was far lower, and he scored 184 actual: a miss of about 51 points, and the model's biggest disagreement with ADP at a position the recommender then has to ignore (it is past the reach cap at the picks where he matters; see the `tune-reachable` entry in `LOG.md`). The user's hypothesis, untested: the model handles players in new situations (team change, new QB or offense) poorly, so its confident calls on movers are the least trustworthy. Where to start when picked up: split the walk-forward OOS errors (2021-2025) into team changers and stayers, per position, and check the sign and size of the bias; look at what the lagged team-context features do for a mover (they are joined on the current team, so they describe the new team while his own history describes the old); compare against the other big 2024 movers. Related: `project_team_context_features` in memory (the "situation change" residuals).
 - **Coaching tendencies** (head-coach pass-over-expected, pace, 4th-down aggression; coach's prior-team tendency when the HC changes): deliberately deferred by the user — "requires more nuance before touching". Only head coaches are in public data (schedules).
 - **Week 1 line as a preseason team-strength feature** (user may try later): test the Week 1 spread/total as the legitimate version of the leaked implied total, QB first (see LOG.md "Deferred"). Low expected value for RB/WR/TE.
 - **PFR advanced stats** skipped (only 2018+, would halve usable training rows). Participation `route` field is mostly empty, so route participation is approximated by on-field share.
@@ -250,6 +253,8 @@ All tested with the standing protocol: 10-seed ablation + random-noise control, 
   projects 219 (= his 2025 total) vs an ADP-curve 147 (ADP 102, WR47): his edge over the market is the largest of all 123 WRs.
   FPOE measures conversion efficiency, not volume sustainability; a volume-sustainability signal (expected points vs his own prior
   seasons, vs teammates available, team change) is what the idea needs. WR vacated/competing targets were tested null earlier.
+- **Per-opponent style learning (deferred 2026-10-27, Phase 5 feature):** real friends have team-level habits (a QB-hungry owner, a rookie lover, someone who always reaches for name players). Estimating each opponent's tendencies online from the picks already made (position shares vs ADP expectation, reach size) would sharpen the survival estimate behind the waiting bonus in a real league, probably more than any tuning left in the simulator.
+  It cannot be validated here: `OpponentBot` biases are independent per player (fixed per seed and team, but no team-level trait such as a position preference), so there is nothing to learn, and the FFC data is aggregate per player, not per drafter. A test would need a team-level style written into the simulator by hand, which makes the result an assumption, not evidence. Build it with the live Sleeper-synced draft state (Phase 5), show it as an explained label, and treat it as unvalidated.
 - **Half-PPR / standard targets** not built (Phase 3 item).
 - Roadmap Phase 3 "team-context features" were largely done and tested in Phase 1 (see lists above); only features that survived are in the model. Phase 3 still needs: 2026 data retrain after the season ends, grading 2026 projections, half/standard targets.
 - Model-vs-ADP gaps remain QB −0.10, RB −0.05, WR −0.06, TE −0.01 (top-150). Remaining gap is likely information the data lacks (camp news, injuries, depth-chart changes). Untested ideas are in the memory file `project_feature_ideas.md`.
@@ -258,22 +263,15 @@ All tested with the standing protocol: 10-seed ablation + random-noise control, 
 
 ## Hand-off (read this first in a new session)
 
-**Where the project is (2026-10-27).** Python research side and the C# product core both work and are tested (138 pytest, 162 xUnit; code map current). The model
+**Where the project is (2026-10-27).** Python research side and the C# product core both work and are tested (140 pytest, 162 xUnit; code map current). The model
 still does not beat ADP at ranking players (Phase 1). The recommender, however, beats plain ADP in the simulator, both on starter points and in a head-to-head league season (13 weeks, 6-team playoff, odds averaged over
 200 random schedules): `need` (lineup gain + position-specific bench value, minus an ADP-reach cost) is +42 +/- 2 starter points (title odds 14.4% vs ADP's 11.4%); the **default advisor `need+wait`** (adds the cost-of-waiting bonus,
 raw weight 4, `draft --recommender need`) is +53 +/- 2 points, 65.2% playoff and 16.3% title odds (tables above, reasoning in `LOG.md`). The old Python recommender is the worst strategy (about -318 vs ADP).
 
-**NEXT TASK (the user chose this on 2026-10-27, to be done in a new session): make the live projections use the validated training recipe ("option 2").**
-1. In `src/models/train.py` add a refit routine. For one position and seed: fit on all seasons except the newest with `lgb.early_stopping(50)` evaluated on the newest season, read `best_iteration_`; then refit on all seasons through the newest with
-   `n_estimators = best_iteration_` (the user has not decided whether to scale this by the data-size ratio, about 1.1; ask, and log the choice). Repeat for seeds 0-4 (the validated files average `N_SEEDS = 5` seeds) and average the predictions. Keep `n_estimators: 1000` in
-   `models/*_params` as the cap.
-2. Use it in `src/models/predict.py` in place of `train_final_model` for QB, RB, WR and TE.
-3. Validate before regenerating anything: reproduce the procedure on the walk-forward folds (for test season s: early-stop on s-1 using seasons before s-1, refit on seasons before s, 5 seeds) and compare with the validated `season_<year>.parquet` and with
-   `data/processed/live_style_oos.parquet` (RMSE and top-150 Spearman, 2021-2025). Targets: close to validated (RMSE QB 84.5, RB 61.7, WR 55.0, TE 40.1; top-150 rho QB 0.310, RB 0.537, WR 0.512, TE 0.383) and clearly better than live-style (RMSE 87.1 / 63.5 / 56.2 / 42.5; rho 0.251 / 0.496 / 0.489 / 0.395).
-4. Optional but recommended: swap the new walk-forward predictions into the comparison in `src/evaluation/live_style_oos.py` (it has the JSON writer; run `backtest --data <dir> --seasons 2021-2025 --seeds 100`) to show the simulator gap closes.
-   Reference: validated `need+wait` +52.9 points / 16.3% title odds at noise x1; live-style +40.7 / 15.7%.
-5. Regenerate the live file in pipeline order (see "Pipeline: how to rebuild everything" above): `predict.py` -> `vor.py` (builds `predictions_table.parquet`) -> `export_projections.py`; add a unit test for the refit routine; run pytest and `dotnet test`;
-   update README / this file / `LOG.md`; regenerate the code map (`venv/Scripts/python tools/gen_codemap.py`). Then update the memory note `project_live_model_tree_count` and the index line (mark fixed).
+**DONE 2026-10-27: the live projections now use the refit recipe** (`Model.refit_predict` in `train.py`, called by `predict.py`; per seed 0-4 early-stop on the newest season, refit on all seasons at `best_iteration_`, average; no tree-count scaling, the user had us try both and they tied). `projections_2026_v1.json` was regenerated (predict -> vor -> export), pytest 140 / xUnit 162 pass.
+Walk-forward check (`src/evaluation/refit_oos.py`): RMSE 84.4 / 61.4 / 54.7 / 40.5 for QB / RB / WR / TE, as good as validated (84.5 / 61.7 / 55.0 / 40.1) and clearly better than live-style (87.1 / 63.5 / 56.2 / 42.5). **But the simulator edge only partly came back:** `need+wait` over ADP at the calibrated noise is +42.6 points / +4.1 pp title odds with the refit files
+(validated +52.9 / +4.8 pp, live-style +40.7 / +4.2 pp); at double noise +19.5 (validated +30.6, live-style +11.1). The shortfall is in 2021 and 2025 and is unexplained (see the 2026-10-27 LOG entry); plan on about +40 points, not +53.
+Follow-up done (`src/evaluation/seed_spread.py`, LOG entry "The validated-vs-refit simulator gap is real but small"): over three seed sets the validated recipe averages +48.5 and the refit +40.0 at x1 (so the +52.9 was a high draw); the gap is not seeds, not the header RMSE rescaling and not contrarianism, is about half QB, and does not show in title odds (+4.1 to +4.4 pp for both). Cause not identified; plan on about +40 points for the live file.
 
 **Code map.**
 - Python: `src/data/export_projections.py` writes `data/processed/projections_<season>_v1.json` (live 2026 + backtests 2021-2025 with `actual_ppr`
@@ -283,7 +281,7 @@ raw weight 4, `draft --recommender need`) is +53 +/- 2 points, 65.2% playoff and
   `DraftBot.Sim` = opponent bots, roster rules, weekly lineup scorer, strategies, experiments and the CLI; `DraftBot.Tests`.
 - CLI (`dotnet run -c Release --project csharp/src/DraftBot.Sim -- <command>`): `backtest`, `draft` (interactive mock draft; `--recommender
   need|value|position`), `diagnose`, `decompose`, `describe`, `calibrate-noise`, `fit-noise`, `tune-tiers`, `tune-reach`, `tune-value`, `tune-need`,
-  `tune-bench`, plus the 2026-10-25/27 additions: `tune-wait`, `tune-spread`, `tune-reach-wait`, `tune-horizon`, `tune-where`, `tune-scarce`, `tune-standardized`, `tune-starter`, `tune-lookahead` (slow),
+  `tune-bench`, plus the 2026-10-25/27 additions: `tune-wait`, `tune-spread`, `tune-reach-wait`, `tune-horizon`, `tune-where`, `tune-scarce`, `tune-standardized`, `tune-starter`, `tune-bye`, `tune-slot`, `tune-survival`, `tune-reachable`, `tune-rollout` (very slow), `tune-lookahead` (slow),
   `calibrate-survival`, `diagnose-scales`. The `draft` advisor options are `need` (= need + waiting bonus, the default), `need-only`, `value`, `position`, `bench`, `option`. The `tune-*` sweeps take `--metric points|wins|playoffs|title`
   and report a paired difference against the headline arm and a leave-one-season-out check. Options worth knowing: `--seeds N`, `--noise X`, `--unrestricted true` (lifts the sim's roster rules for the drafter only),
   `--season-totals true` (old scoring).
@@ -294,25 +292,18 @@ x option value over the waiver level, with dead picks (3rd QB/TE) ranked last; t
 (it favors WR by unfilled slots). Settled 2026-10-25/27: opponents' random draws are taken in player-id order, not pool order (so comparisons between projection files are valid); the cost-of-waiting bonus (survival to my next pick from the ADP model, same-position
 alternatives, raw weight 4, horizon 1) is the default and its weight is a mixing weight (about 1.4 in standardized units, earned at RB and TE in rounds 1-4); the league-finish metric is the second judge next to starter points.
 
-**After the next task (candidates).** Plain-language reasoning strings for beginners (the user saved them for last; probably the most valuable for the "friends and beginners" goal; risk and "backup to your RB1" can appear as labels, not score terms), then
+**After the next task (candidates).** Reasoning strings are done (2026-10-28: `Explainer`, see `LOG.md`). Next:
 Phase 5 (WPF + BlazorWebView app, Sleeper sync) and the Phase 3 retrain after the 2026 season (half-PPR/standard targets too). Recommender work is at diminishing returns. Tested and rejected, with numbers in `LOG.md` (do not redo): two-step lookahead,
 multi-pick horizon, variance-aware starter value, spread-normalized bonus, RB+TE-only bonus (ties the global one), handcuff logic (the absorber of a lead back's work is not identifiable preseason), prior-season weekly volatility as a risk score or a model feature,
-the 50/50 model + ADP-curve blend as the recommender's input (-12 points). Untested: a lighter blend weight (for example 25% ADP curve), a survival model that knows opponents' position caps, a first-principles derivation of the bonus weight. Position safety and
+the 50/50 model + ADP-curve blend as the recommender's input (-12 points), and shrinking only some disagreements by player type (position, gap sign, RB fades; each loses edge, 2026-10-27). Bye-week cover (weekly lineups with each team's bye, as points in the score) changes nothing (-3 to +2 points, title odds equal; 2026-10-27). A slot-dependent waiting weight (the edge itself ranges from +18 to +91 points by draft slot) does not hold up leave-one-season-out (-1.9 +/- 1.8 points; 2026-10-27). Survival estimated by simulating the other drafters' picks with their rosters, caps and forced fills (17% better Brier) gives the same picks' worth (0 +/- 1 points) and the same best weight, 4 (2026-10-27). Counting only alternatives the recommender could take at the later pick (inside the reach cap there) ties the adopted bonus (-1 +/- 2 points, -0.1 pp title odds); also applying the reach cost destroys it (-124 points), since lambda 1000 is a wall, not a price (2026-10-28). Rollout policy improvement (play the draft forward with sampled opponents for the top 4 candidates) gains +15 +/- 6 points over the adopted advisor but loses 55 in 2023, is optimistic (uses the simulator's own opponents) and costs minutes per draft (2026-10-28). Untested: a lighter blend weight (for example 25% ADP curve), a first-principles derivation of the bonus weight (the survival model that knows opponents' position caps is done: no gain). Position safety and
 run detection use the same survival signal and cannot be validated without real pick-by-pick draft data (the FFC data is aggregate per player).
 
 **Open questions / unvalidated.** How representative FFC hobbyist mock drafts are of the user's league; the option-value bench term assumes normal
 projection errors and a crude waiver level; weekly lineups are hindsight-optimal; the live ADP is Underdog but backtests use FantasyPros; the
 simulator's QB/TE caps for opponents are an assumption; hindsight regret is mostly luck (foresight regret is the informative one).
 
-**Known issue, OPEN: the live projections are not from the validated model (found by a bug sweep, 2026-10-25).** `src/models/predict.py` (`train_final_model`) trains the
-live 2026 models with the 1000-tree cap from `models/*_params` and no early stopping, from a single seed (`random_state` 42). Everything we validated (benchmark, `season_<year>.parquet`,
-every C# backtest) uses `oos_predictions.py`: early-stopped on the prior season (best iteration about 200-360 trees) and averaged over 5 seeds. On the five walk-forward folds
-the live-style model is worse: RMSE QB 86.4 vs 84.2, RB 60.5 vs 59.1, WR 54.2 vs 53.2, TE 40.7 vs 38.7; Spearman TE 0.734 vs 0.767. **Backtest and simulator results are NOT
-affected**; `projections_2026_v1.json` (the live file) is. **Stakes measured 2026-10-27** (`src/evaluation/live_style_oos.py`, see `LOG.md`): training the backtests the live way costs `need+wait` about 13 starter points and 0.6 pp of title odds at the calibrated noise
-(edge over ADP +53 -> +41 points, +4.8 -> +4.2 pp) and about 19 points at double noise (+31 -> +11); the edge survives at every noise level. Fix DECIDED 2026-10-27 (option 2, see NEXT TASK above); the alternatives that were considered: a fixed tree count per position (median best iteration of the
-other folds: QB ~251, RB ~253, WR ~342, TE ~209) trained on all data, or early-stopping on the newest season only. Then rerun predict -> vor -> export_projections. Not urgent (nothing is drafted from
-the 2026 file; it is replaced in the Phase 3 retrain) but fix it before Phase 5 so the app never ships the overfit models. Possible interaction, unmeasured: an overfit model makes
-larger model-vs-ADP disagreements, which the recommender's edge is built on. Detail: memory note `project_live_model_tree_count`.
+**Known issue FIXED 2026-10-27: the live projections were not from the validated model (bug sweep, 2026-10-25).** `predict.py` used to train the live models at the 1000-tree cap with no early stopping and one seed, while the validated files are early-stopped and 5-seed averaged;
+it now uses the refit recipe (see DONE above). Cost of the old recipe, measured with `src/evaluation/live_style_oos.py`: `need+wait` edge over ADP +53 -> +41 points at calibrated noise and +31 -> +11 at double noise. Nothing was drafted from the 2026 file; the Phase 3 retrain should reuse `refit_predict`.
 
 **Working agreements with the user.** Ask before any design decision that was not specified (memory: `feedback_ask_design_decisions`); fix mistakes as
 they are found, even while exploring (`feedback_fix_mistakes_when_found`); commit and push only when asked; log decisions that rejected an
