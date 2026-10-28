@@ -18,7 +18,11 @@ FP_URL = "fantasypros.com/nfl/adp/ppr-overall.php"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 POSITIONS = ["QB", "RB", "WR", "TE"]
 SEASON_OPENERS = {2021: "2021-09-09", 2022: "2022-09-08", 2023: "2023-09-07",
-                  2024: "2024-09-05", 2025: "2025-09-04"}
+                  2024: "2024-09-05", 2025: "2025-09-04", 2026: "2026-09-09"}
+# how far before the day before the opener to look for a capture; 2026 has none inside 21 days (the last pre-season capture is 2026-08-15, 24 days before)
+WINDOW_DAYS = {2026: 30}
+# the live page lists its sources' dates (ESPN, CBS, Sleeper, Fantrax 9/07, RTSports 9/06), so an export of it is the pre-season ADP, dated 2026-09-07
+LOCAL_EXPORT_SNAPSHOT = {2026: "20260907"}
 NAME_ALIASES = {"hollywood brown": "marquise brown", "gabe davis": "gabriel davis",
                 "kenny gainwell": "kenneth gainwell", "chig okonkwo": "chigoziem okonkwo",
                 "ken walker": "kenneth walker", "joshua palmer": "josh palmer",
@@ -43,8 +47,9 @@ def wayback_get(url, params=None, retries=8):
 def closest_snapshot(season):
     target = datetime.strptime(SEASON_OPENERS[season], "%Y-%m-%d") - timedelta(days=1)
     window = lambda days: (target + timedelta(days=days)).strftime("%Y%m%d")
+    back = WINDOW_DAYS.get(season, 21)
     resp = wayback_get("https://web.archive.org/cdx/search/cdx", params={
-        "url": FP_URL, "from": window(-21), "to": window(0), "output": "json",
+        "url": FP_URL, "from": window(-back), "to": window(0), "output": "json",
         "fl": "timestamp", "filter": "statuscode:200"})
     stamps = [row[0] for row in resp.json()[1:]]
     return min(stamps, key=lambda ts: abs(datetime.strptime(ts, "%Y%m%d%H%M%S") - target))
@@ -68,6 +73,15 @@ def parse_adp(html, season, timestamp):
     return df[df["position"].isin(POSITIONS) & df["Player"].notna()]
 
 
+def parse_adp_csv(path, season, snapshot):
+    """FantasyPros' own CSV export of the ADP page (columns Rank, "Player (Bye)", POS, ESPN, Sleeper, CBS, RTSports, Fantrax, AVG, Real-Time): same frame as parse_adp."""
+    table = pd.read_csv(path)
+    player = table["Player (Bye)"].str.extract(r"^(?P<Player>.+?)\s+(?P<team>[A-Z]{2,3})\s+\(\d+\)$")
+    df = pd.DataFrame({"season": season, "snapshot": snapshot, "rank": table["Rank"], "Player": player["Player"], "team": player["team"],
+                       "position": table["POS"].str.extract(r"^([A-Z]+)")[0], "adp": table["AVG"]})
+    return df[df["position"].isin(POSITIONS) & df["Player"].notna()]
+
+
 def attach_player_ids(adp, ids):
     adp = adp.copy()
     adp["Player"] = adp["Player"].str.replace(r"\s+(Sr\.?|II|IV|V)$", "", regex=True)
@@ -85,8 +99,15 @@ def attach_player_ids(adp, ids):
 
 
 if __name__ == "__main__":
+    seasons = [int(a) for a in sys.argv[1:]] or list(SEASON_OPENERS)      # e.g. `python adp_scraper.py 2026` refreshes one season
     frames = []
-    for season in SEASON_OPENERS:
+    for season in seasons:
+        local = ROOT / "data" / "external" / f"FantasyPros_{season}_Overall_ADP_Rankings.csv"      # a CSV export of the live page, when we have one
+        if local.exists():
+            timestamp = LOCAL_EXPORT_SNAPSHOT[season]
+            print(f"{season}: local FantasyPros export {local.name} (ADP dated {timestamp})")
+            frames.append(parse_adp_csv(local, season, timestamp))
+            continue
         timestamp = closest_snapshot(season)
         print(f"{season}: snapshot {timestamp}")
         frames.append(parse_adp(fetch_html(season, timestamp), season, timestamp))

@@ -291,11 +291,12 @@ Data files, `archive/` and build output are not listed.
 
 ## src/data/
 
-- **adp_scraper.py** (105 lines): Historical preseason ADP: FantasyPros PPR consensus ADP from Wayback Machine snapshots, closest to the day before each season's opener, mapped to gsis player_id. (runnable)
+- **adp_scraper.py** (126 lines): Historical preseason ADP: FantasyPros PPR consensus ADP from Wayback Machine snapshots, closest to the day before each season's opener, mapped to gsis player_id. (runnable)
   - `wayback_get(url, params, retries)`: Wayback throttles by refusing connections or returning 503, so back off and retry.
   - `closest_snapshot(season)`
   - `fetch_html(season, timestamp)`
   - `parse_adp(html, season, timestamp)`
+  - `parse_adp_csv(path, season, snapshot)`: FantasyPros' own CSV export of the ADP page (columns Rank, "Player (Bye)", POS, ESPN, Sleeper, CBS, RTSports, Fantrax, AVG, Real-Time): same frame as parse_adp.
   - `attach_player_ids(adp, ids)`
 - **export_projections.py** (185 lines): Export projections_<season>_v1.json for the C# side (contract: .claude/projection_schema_v1.md). (runnable)
   - `attach_role_context(df, context, season)`: Add the optional role-context fields (src/features/role_context.py) for this season; null for everyone but WRs and for players with no history.

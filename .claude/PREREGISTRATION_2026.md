@@ -17,7 +17,11 @@ rules below after the 2026 results are loaded; a change is a new hypothesis for 
 - The projections were last regenerated on 2026-10-27, after the 2026 season began (opener 2026-09-09). Their inputs hold no 2026 game results (the weekly and seasonal files end with 2025;
   the depth chart used is the last snapshot before the opener).
 - The 2026 rosters were scraped 2026-10-21, about seven weeks into the season, so `team_changed` and `rookie_r1_teammate` reflect those rosters, not the pre-season ones.
-- The ADP file is from 2026-03-25 (before camp), so the gap to the ADP curve is measured against an early ADP.
+- The ADP behind the snapshot is `data/external/4for4-adp-table.csv` (2026-03-31; the raw Underdog download is from 2026-03-25). That is before the NFL draft and before camp: rookies are listed with team TBD
+  (C.Tate at ADP 55 although the 2026 roster file has him drafted 4th overall by TEN; J.Love 15, F.Mendoza 152) and 33 of the 44 market-estimate rows carry no team. The model's own projections do not use ADP;
+  the pool, the market rows, the ADP ranks (so the curve, the gap and the top-150 population) and the live recommender do. Gaps for veterans who changed teams (Diggs, Samuel, K.Allen, Robinson) are measured
+  against prices set before they settled in and may be the ones that move most. How much the snapshot changes with a current ADP has not been measured; a second snapshot with a late-summer ADP would be a
+  sensitivity check, with this one staying primary.
 - The user had already seen W.Robinson's early-season result ("a massive miss so far") when these rules were written. His id, `00-0038117`, is reported with and without.
 - No other 2026 results are in this project's data. The first clean test is the 2027 pre-season freeze (see the end).
 
