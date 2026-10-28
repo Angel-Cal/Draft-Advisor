@@ -11,7 +11,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11"        # pandas==1.5.3 (pinned by nfl_data_py) has no Python 3.12 wheel, so pip tries to build it from source and fails
           cache: pip
       - run: pip install -r requirements.txt
       # data-integrity tests skip themselves when data/ is absent; unit tests and validator tests always run
