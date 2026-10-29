@@ -1,0 +1,8 @@
+<span class="tip @Class" tabindex="0" aria-label="@Label">?<span class="tipbox" role="tooltip">@ChildContent</span></span>
+
+@code {
+    /// <summary>Extra classes: "wide" opens the box across its container, "fromleft" anchors it to the left of the "?".</summary>
+    [Parameter] public string Class { get; set; } = "";
+    [Parameter] public string Label { get; set; } = "More information";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

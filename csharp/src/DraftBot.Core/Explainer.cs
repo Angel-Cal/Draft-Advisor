@@ -3,6 +3,23 @@ namespace DraftBot.Core;
 /// <summary>What a recommendation's reasons are about, for badges next to the text.</summary>
 public enum ReasonLabel { Starter, Backup, RunningOut, Discount, Reach, InjuryHistory, EstimatedProjection, RoleMayNotCarryOver }
 
+/// <summary>What a tag is called on screen. "Recommended" is the waiting-cost reason: it is about this particular player, not about the position.</summary>
+public static class ReasonLabels
+{
+    public static string DisplayName(this ReasonLabel label) => label switch
+    {
+        ReasonLabel.Starter => "Starter",
+        ReasonLabel.Backup => "Not a starter",
+        ReasonLabel.RunningOut => "Recommended",
+        ReasonLabel.Discount => "Bargain",
+        ReasonLabel.Reach => "Early pick",
+        ReasonLabel.InjuryHistory => "Injury history",
+        ReasonLabel.EstimatedProjection => "Estimate",
+        ReasonLabel.RoleMayNotCarryOver => "Role caution",
+        _ => label.ToString(),
+    };
+}
+
 /// <summary>
 /// A recommendation in plain language: one headline sentence and a few supporting reasons. Numbers in the text are projected season points or
 /// pick numbers, never units of the recommender's score.
@@ -18,8 +35,14 @@ public static class Explainer
     /// <summary>Lineup gain, in projected points, below which a player is described as not starting.</summary>
     const double MinGain = 1;
 
-    /// <summary>How far, in projected points, the player the waiting bonus assumes I would take instead must fall short of him before waiting counts as costly.</summary>
-    const double NoticeableDropOff = 5;
+    /// <summary>
+    /// Expected projected points lost by waiting from which waiting counts as costly: the reason is explained and the screen says "take now". A display
+    /// choice, not a tested one; the position tiles and the explanations share this one number.
+    /// </summary>
+    public const double NoticeableCost = 5;
+
+    /// <summary>How many standard deviations past (or ahead of) the pick a player's ADP must be before he is called an early pick (or a bargain). The advice also keeps early picks out of its recommendations.</summary>
+    public const double EarlyPickSigmas = 1;
 
     const int MaxReasons = 4;
 
@@ -50,7 +73,7 @@ public static class Explainer
         var starts = (c.Gain ?? 0) >= MinGain;
         if (c.Gain is not null) Add(starts ? StartReason(c, roster, state.League) : BackupReason(c, roster), starts ? ReasonLabel.Starter : ReasonLabel.Backup);
 
-        var scarcity = nextPick is null || c.WaitBonus is not > 0 ? null : ScarcityReason(c, nextPick.Value);
+        var scarcity = nextPick is null ? null : ScarcityReason(c, nextPick.Value);
         if (scarcity is not null) Add(scarcity, ReasonLabel.RunningOut);
 
         var roleCaution = RoleCaution(player.Player);
@@ -81,6 +104,22 @@ public static class Explainer
     }
 
     /// <summary>
+    /// Why a pick the advice backs is recommended when waiting on him is cheap (so there is no waiting-cost reason to show): it is the best overall once everything is weighed,
+    /// and whether he would be a reach.
+    /// </summary>
+    public static string BestPickReason(ValueCandidate c, int pick)
+    {
+        var text = "The best overall pick at this spot, weighing what he adds to your lineup, what waiting would cost, and how early you would be taking him.";
+        if (c.Player.Player.Adp is { } adp)
+            text += c.ReachSigmas < 0.25
+                ? $" Drafters usually take him around #{adp:F0}, so you are not reaching for him."
+                : $" Drafters usually take him around #{adp:F0}, a little after this pick.";
+        if (c.WaitShortfall is { } cost)
+            text += cost >= 0.5 ? $" Waiting on a {c.Player.Position} would cost about {cost:F1} points." : $" Waiting on a {c.Player.Position} costs almost nothing.";
+        return text;
+    }
+
+    /// <summary>
     /// True for a receiver whose last season is the kind that was often over-projected: at least half of his targets came while the team's top receiver was out, AND he has
     /// changed teams or a first-round rookie receiver arrived. Text only; it changes no score (LOG.md, 2026-10-28: a small sample, and the ADP list made the same error).
     /// </summary>
@@ -108,9 +147,9 @@ public static class Explainer
 
         var role =
             have.Count < starters ? $"fills an open starting {p.Position} spot"
-            : weakest is not null && p.Player.ProjectedPpr > weakest.Player.ProjectedPpr ? $"would start ahead of {weakest.Player.PlayerName} ({weakest.Player.ProjectedPpr:F0} projected)"
+            : weakest is not null && p.Player.ProjectedPpr > weakest.Player.ProjectedPpr ? $"would start ahead of {weakest.Player.PlayerName}"
             : "would fill your FLEX spot";
-        return $"He {role} and is projected for {p.Player.ProjectedPpr:F0} points, about {c.Gain:F0} more than a replacement-level {p.Position} (one you could still get in the later rounds) would add to your lineup.";
+        return $"He {role}.";
     }
 
     static string BackupReason(ValueCandidate c, Roster roster)
@@ -124,22 +163,23 @@ public static class Explainer
 
     static string? ScarcityReason(ValueCandidate c, int nextPick)
     {
-        var p = c.Player;
-        if (c.WaitFallback is not { } fallback) return $"Almost no {p.Position}s of note will still be there at your next pick (#{nextPick}).";
+        if (c.WaitShortfall is not { } cost || cost < NoticeableCost) return null;
 
-        var dropOff = p.Player.ProjectedPpr - fallback.Player.Player.ProjectedPpr;
-        return dropOff < NoticeableDropOff
-            ? null
-            : $"The {p.Position}s thin out before your next pick (#{nextPick}): the best one you could reasonably take then is {fallback.Player.Player.PlayerName}, projected {dropOff:F0} points lower.";
+        var p = c.Player;
+        if (c.WaitAlternatives?.FirstOrDefault() is not { } fallback) return $"Almost no {p.Position}s of note will still be there at your next pick (#{nextPick}).";
+
+        var who = fallback.Candidate.Player;
+        return $"Taking someone else now would cost about {cost:F1} points on average: the best {p.Position} likely to last until your next pick (#{nextPick}) is "
+               + $"{who.Player.PlayerName}, projected {who.Player.ProjectedPpr:F0}, and the chance he is still there is {Math.Round(fallback.Survival * 100):0}%.";
     }
 
     static (string Text, ReasonLabel Label)? PriceReason(ValueCandidate c, ReachSettings reach, int pick)
     {
         if (c.Player.Player.Adp is not { } adp) return null;
         var sigma = reach.Sigma(pick);
-        if (c.ReachSigmas >= 1)
+        if (c.ReachSigmas >= EarlyPickSigmas)
             return ($"This is an early pick for him: drafters usually take him around #{adp:F0} and you pick at #{pick}. The recommender still likes him enough to pay that price.", ReasonLabel.Reach);
-        if ((pick - adp) / sigma >= 1)
+        if ((pick - adp) / sigma >= EarlyPickSigmas)
             return ($"He is a bargain here: drafters usually take him around #{adp:F0} and you pick at #{pick}.", ReasonLabel.Discount);
         return null;
     }

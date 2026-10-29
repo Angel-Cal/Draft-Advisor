@@ -19,7 +19,8 @@ public class ExplainerTests
         new(extra.Concat(Enumerable.Range(1, 30).Select(i => V($"f{i}", Position.WR, 100, 100 + i))), Four);
 
     static ValueCandidate Candidate(ValuedPlayer p, double? gain = 50, double? bench = 0, double? wait = null, double sigmas = 0, ValuedPlayer? fallback = null) =>
-        new(p, 50, 0, sigmas, gain, gain is null ? null : 0.25, bench, wait, WaitFallback: fallback is null ? null : new ValueCandidate(fallback, 0, 0, 0));
+        new(p, 50, 0, sigmas, gain, gain is null ? null : 0.25, bench, wait,
+            WaitAlternatives: fallback is null ? null : [new WaitAlternative(new ValueCandidate(fallback, 0, 0, 0), 0.8)], WaitShortfall: wait / 4);
 
     [Fact]
     public void A_player_who_fills_an_open_slot_is_described_as_starting_with_the_points_he_adds()
@@ -29,8 +30,7 @@ public class ExplainerTests
 
         var e = Explainer.Explain(state, 0, [Candidate(star, gain: 80)], Reach)[0];
 
-        Assert.Contains("fills an open starting RB spot", e.Reasons[0]);
-        Assert.Contains("250", e.Reasons[0]);
+        Assert.Equal("He fills an open starting RB spot.", e.Reasons[0]);
         Assert.Equal(ReasonLabel.Starter, e.Labels[0]);
         Assert.StartsWith("star (RB, KC): he would start for you, adding about 80 points", e.Headline);
     }
@@ -45,7 +45,7 @@ public class ExplainerTests
 
         var e = Explainer.Explain(state, 0, [Candidate(better, gain: 50)], Reach)[0];
 
-        Assert.Contains("would start ahead of old (150 projected)", e.Reasons[0]);
+        Assert.Equal("He would start ahead of old.", e.Reasons[0]);
     }
 
     [Fact]
@@ -74,9 +74,10 @@ public class ExplainerTests
 
         Assert.Contains(ReasonLabel.RunningOut, e.Labels);
         var reason = e.Reasons[e.Labels.ToList().IndexOf(ReasonLabel.RunningOut)];
-        Assert.Contains("mid", reason);
+        Assert.Contains("mid, projected 190", reason);
         Assert.Contains("#8", reason);
-        Assert.Contains("60 points lower", reason);
+        Assert.Contains("about 7.5 points", reason);          // the bonus (30) over the weight (4)
+        Assert.Contains("is 80%", reason);
     }
 
     [Fact]
@@ -92,9 +93,8 @@ public class ExplainerTests
         var e = Explainer.Explain(state, 0, [ranked.Single(c => c.Player.Id == "star")], reach)[0];
 
         var reason = e.Reasons[e.Labels.ToList().IndexOf(ReasonLabel.RunningOut)];
-        Assert.Contains("near", reason);
+        Assert.Contains("near, projected 200", reason);
         Assert.DoesNotContain("far", reason);
-        Assert.Contains("50 points lower", reason);
     }
 
     [Fact]

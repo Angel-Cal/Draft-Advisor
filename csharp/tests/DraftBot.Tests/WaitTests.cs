@@ -330,12 +330,17 @@ public class WaitTests
         var league = new LeagueSettings(Teams: 4, Qb: 1, Rb: 1, Wr: 1, Te: 1, Flex: 0, Bench: 3);
         ValuedPlayer V(string id, Position position, double projected, double adp) => new(Player(id, position, projected, adp: adp), projected - 100, 0, 0, false, 1, 0, 1, 50);
         ValuedPlayer[] Fillers() => Enumerable.Range(1, 30).Select(i => V($"f{i}", Position.WR, 100, 100 + i)).ToArray();
-        var state = new DraftState([V("star", Position.RB, 250, 2), V("gone", Position.RB, 245, 3), V("far", Position.RB, 240, 60), V("near", Position.RB, 160, 9), .. Fillers()], league);
+        var state = new DraftState([V("star", Position.RB, 250, 2), V("gone", Position.RB, 245, 3), V("far", Position.RB, 240, 60), V("near", Position.RB, 160, 9),
+                                    V("near2", Position.RB, 150, 12), V("near3", Position.RB, 140, 14), .. Fillers()], league);
         var reach = ValueRecommender.DefaultReach;
 
         ValueCandidate Star(WaitSettings wait) => ValueRecommender.Rank(state, reach, NeedSettings.Default, 0, wait).Single(c => c.Player.Id == "star");
 
-        Assert.Equal("near", Star(ValueRecommender.DefaultWait).WaitFallback!.Player.Id);
+        var star = Star(ValueRecommender.DefaultWait);
+        Assert.Equal("near", star.WaitFallback!.Player.Id);
+        Assert.Equal(["near", "near2"], star.WaitAlternatives!.Select(a => a.Candidate.Player.Id));          // best first, at most two
+        Assert.All(star.WaitAlternatives!, a => Assert.True(a.Survival >= 0.5));
+        Assert.Equal(star.WaitBonus!.Value, star.WaitShortfall!.Value * 4, 6);
         Assert.Equal("far", Star(new WaitSettings(4, Reachable: AlternativeReach.Any)).WaitFallback!.Player.Id);
 
         var alone = new DraftState([V("star", Position.RB, 250, 2), .. Fillers()], league);

@@ -1,0 +1,346 @@
+@implements IDisposable
+@inject PracticeDraft Session
+
+@if (Session.Advice is not { } advice)
+{
+    <main style="padding:24px 28px 40px;display:flex;flex-direction:column;gap:20px;max-width:1440px;margin:0 auto">
+        <section class="panel" style="padding:22px 24px;display:flex;flex-direction:column;gap:12px">
+            <h1 style="margin:0;font-size:24px;font-weight:600">Practice draft complete</h1>
+            <div class="muted">Every team has a full roster. Your picks, in order:</div>
+            <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px">
+                @foreach (var pick in Session.State.History.Where(p => p.Team == Session.Slot))
+                {
+                    <li><span class="pos pos-@pick.Player.Position">@pick.Player.Position</span> <b style="font-weight:600">@pick.Player.Player.PlayerName</b> <span class="muted">@pick.Player.Player.Team</span></li>
+                }
+            </ol>
+        </section>
+    </main>
+    return;
+}
+
+<main style="padding:24px 28px 40px;display:flex;flex-direction:column;gap:20px;max-width:1440px;margin:0 auto">
+
+<section class="panel" style="display:flex;flex-wrap:wrap;align-items:stretch;gap:0" aria-label="Draft status">
+<div style="flex:0 0 auto;padding:18px 28px;border-right:1px solid #2A333F;background:#231D0E;border-radius:10px 0 0 10px;min-width:240px">
+<div class="eyebrow" style="color:#F2B84B">You are on the clock</div>
+<div style="display:flex;align-items:baseline;gap:12px;margin-top:4px">
+<span class="mono" style="font-size:40px;font-weight:500;line-height:1">@Clock()</span>
+<span class="muted" style="font-size:13px">of @Format(PracticeDraft.PickClockSeconds)</span>
+</div>
+<div style="margin-top:6px;font-size:13px">Round @Session.State.Round · Pick @advice.Pick of @(Session.League.Teams * Session.League.RosterSize)</div>
+<div style="margin-top:8px;display:flex;align-items:center;gap:10px"><button class="btn btn-ghost pause-btn" type="button" @onclick="TogglePause">@(Session.IsPaused ? "Resume" : "Pause")</button>@if (Session.IsPaused) { <span class="badge b-est">Paused</span> }</div>
+</div>
+<div style="flex:0 0 auto;padding:18px 28px;border-right:1px solid #2A333F;min-width:200px">
+<div class="eyebrow">Your next pick</div>
+@if (advice.NextPick is { } next)
+{
+    <div class="mono" style="font-size:28px;font-weight:500;margin-top:4px">#@next</div>
+    <div class="muted" style="font-size:13px">@(next - advice.Pick) picks from now</div>
+}
+else
+{
+    <div class="mono" style="font-size:28px;font-weight:500;margin-top:4px">None</div>
+    <div class="muted" style="font-size:13px">This is your last pick</div>
+}
+</div>
+<div style="flex:1 1 420px;min-width:0;padding:18px 28px">
+<div class="eyebrow">Last five picks</div>
+<ol style="list-style:none;margin:10px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:8px 10px">
+@foreach (var (pick, number) in LastPicks())
+{
+    <li style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:#222B36"><span class="mono muted" style="font-size:12px">#@number</span><span class="pos pos-@pick.Player.Position">@pick.Player.Position</span><span style="font-weight:500">@pick.Player.Player.PlayerName</span><span class="muted" style="font-size:12px">@Session.TeamName(pick.Team)</span></li>
+}
+</ol>
+</div>
+</section>
+
+<section class="panel" style="padding:22px 24px;display:flex;flex-wrap:wrap;gap:22px 32px;align-items:stretch" aria-label="Take now or wait">
+<div style="flex:1 1 280px;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:8px">
+<div class="eyebrow">Take now or wait until #@(advice.NextPick)?</div>
+<h2 style="margin:0;font-size:30px;line-height:1.15;font-weight:600">@Headline(advice)</h2>
+<p style="margin:0;font-size:15px">@Explanation(advice)</p>
+</div>
+<div style="flex:3 1 640px;min-width:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+@foreach (var tile in Tiles(advice))
+{
+    <div class="@TileClass(tile)">
+    <span class="blk" style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span class="pos pos-@tile.Position">@tile.Position</span><span class="@VerdictClass(tile)">@VerdictText(tile)</span></span>
+    <span class="blk"><span class="mono cost" style="color:@CostColor(tile)">@CostText(tile)</span><span class="eyebrow blk" style="margin-top:4px">Cost of waiting</span></span>
+    <span class="blk" style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid #33404F;padding-top:10px"><span class="muted">Top @tile.Position now</span><span><b style="font-weight:600">@tile.Top.Player.Player.PlayerName</b> <span class="mono muted">@Points(tile.Top)</span></span></span>
+    <span class="blk"><span class="eyebrow blk" style="margin-bottom:6px">Likely still there at #@advice.NextPick</span>
+    @foreach (var alt in tile.LikelyThere)
+    {
+        <span class="altrow" style="margin-top:4px"><span><b style="font-weight:600">@alt.Candidate.Player.Player.PlayerName</b> <span class="mono muted">@Points(alt.Candidate)</span></span><span class="mono muted">@Math.Round(alt.Survival * 100)%</span></span>
+    }
+    @if (tile.LikelyThere.Count == 0)
+    {
+        <span class="muted">No one worth waiting for</span>
+    }
+    </span>
+    </div>
+}
+</div>
+</section>
+
+<div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+
+<section style="flex:2 1 620px;min-width:0;display:flex;flex-direction:column;gap:14px" aria-label="Recommendations">
+<div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px">
+<h1 style="margin:0;font-size:20px;font-weight:600">Recommended for pick #@advice.Pick</h1>
+<span class="muted" style="font-size:13px">Need + wait advisor · 2026 projections, FantasyPros ADP</span>
+</div>
+
+<div class="card-grid">
+@foreach (var pick in advice.Recommended.Take(3))
+{
+    <article class="@(pick.Rank == 1 ? "panel pick-card first" : "panel pick-card")">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+    <span class="@(pick.Rank == 1 ? "mono rank first" : "mono rank")">@pick.Rank</span>
+    <span style="font-size:18px;font-weight:600">@pick.Candidate.Player.Player.PlayerName</span>
+    <span class="pos pos-@pick.Candidate.Player.Position">@pick.Candidate.Player.Position</span><span class="muted">@pick.Candidate.Player.Player.Team</span>
+    </div>
+    <div class="stats">
+    <div><div class="eyebrow">Proj</div><div class="mono v">@Points(pick.Candidate)</div></div>
+    <div><div class="eyebrow" style="display:flex;align-items:center">Over replacement<Tip Class="fromleft" Label="What over replacement means"><b>Over replacement</b> is how many more points this player is projected to score than a replacement-level player at his position: someone you could still get in the later rounds. The bigger the number, the bigger the upgrade.</Tip></div><div class="mono v" style="color:@OverColor(pick.Candidate.Vor)">@Over(pick.Candidate.Vor)</div></div>
+    <div><div class="eyebrow">ADP</div><div class="mono v">@Adp(pick.Candidate)</div></div>
+    <div><div class="eyebrow">Tier</div><div class="mono v">@pick.Candidate.Player.Tier</div></div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+    @foreach (var tag in pick.Tags)
+    {
+        <Tag Value="tag" Large="true" />
+    }
+    </div>
+    <div style="margin-top:auto"><button class="@(pick.Rank == 1 ? "btn btn-primary draft-btn" : "btn btn-ghost draft-btn")" type="button" disabled="@Session.IsPaused" @onclick="() => Session.Draft(pick.Candidate.Player.Id)">Draft</button></div>
+    </article>
+}
+</div>
+
+@if (advice.Recommended.Count > 3)
+{
+    <div class="panel" style="padding:14px 18px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px">
+    <span class="eyebrow">Also on the list</span>
+    @foreach (var pick in advice.Recommended.Skip(3))
+    {
+        <span style="display:inline-flex;align-items:center;gap:8px"><span class="mono muted">@pick.Rank</span><span class="pos pos-@pick.Candidate.Player.Position">@pick.Candidate.Player.Position</span><span style="font-weight:500">@pick.Candidate.Player.Player.PlayerName</span>
+        @foreach (var tag in pick.Tags.Where(t => t.Label != ReasonLabel.Starter))
+        {
+            <Tag Value="tag" />
+        }
+        </span>
+    }
+    </div>
+}
+</section>
+
+<aside style="flex:1 1 340px;min-width:0;display:flex;flex-direction:column;gap:14px" aria-label="Your team">
+<section class="panel" style="padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><h2 style="margin:0;font-size:16px;font-weight:600">Your roster</h2></div>
+@foreach (var slot in roster.Starters)
+{
+    if (slot.Player is { } filled)
+    {
+        <div class="slot"><span class="@PosClass(slot, filled)">@PosLabel(slot, filled)</span><span style="font-weight:500">@filled.Player.PlayerName</span><span class="muted" style="font-size:12px">@filled.Player.Team · #@Session.PickNumber(filled.Id)</span><span class="mono" style="margin-left:auto">@Math.Round(filled.Player.ProjectedPpr)</span></div>
+    }
+    else
+    {
+        <div class="slot open"><span class="@SlotPillClass(slot)">@slot.Label</span><span>Open</span>@if (slot.Replacement is { } repl) { <span class="mono" style="margin-left:auto;font-size:12px">@Math.Round(repl) pts</span> }</div>
+    }
+}
+<details style="margin-top:2px">
+<summary style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;background:#222B36"><span class="badge b-est" style="min-width:30px;text-align:center">BENCH</span><span class="muted" style="margin-left:auto;font-size:13px">@roster.Bench.Count of @roster.BenchSpots filled &#9662;</span></summary>
+<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px">
+@foreach (var player in roster.Bench)
+{
+    <div class="slot"><span class="pos pos-@player.Position">@player.Position</span><span style="font-weight:500">@player.Player.PlayerName</span></div>
+}
+@for (var i = roster.Bench.Count; i < roster.BenchSpots; i++)
+{
+    <div class="slot open" style="justify-content:center;padding:8px 6px">Open</div>
+}
+</div>
+</details>
+<div class="muted" style="font-size:13px;margin-top:4px;position:relative">Open starting spots count at replacement level.<Tip Class="wide" Label="What a replacement-level player means">An empty starting spot counts as a replacement-level player at that position: the kind of player you could still pick up for free. The number beside each open spot is that player's projected points. A player is only worth drafting for the points he adds above that.</Tip></div>
+</section>
+
+@if (advice.PastTheWall.Count > 0)
+{
+    <section class="panel" style="padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px"><h2 style="margin:0;font-size:16px;font-weight:600">Past the wall</h2><span class="badge b-est">Not ranked</span></div>
+    <div class="muted" style="font-size:13px">Players the model likes who are further above their ADP than the advisor will recommend. It passes on them: reaching this far lost points in our simulations. Shown for when you disagree with ADP.</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+    @foreach (var wall in advice.PastTheWall)
+    {
+        <div style="padding:10px 12px;border-radius:8px;background:#222B36"><div style="display:flex;align-items:center;gap:8px"><span class="pos pos-@wall.Player.Position">@wall.Player.Position</span><b style="font-weight:600">@wall.Player.Player.PlayerName</b><span class="muted" style="font-size:12px">@wall.Player.Player.Team</span>@if (wall.Player.Player.InjuryFlag) { <span class="badge b-risk" style="margin-left:auto">Injury</span> }</div><div class="muted" style="font-size:13px;margin-top:4px"><span class="mono">@Over(wall.Player.Vor)</span> over replacement · ADP @Format1(wall.Player.Player.Adp), <span class="mono">@Math.Round(wall.PicksEarly)</span> picks early</div></div>
+    }
+    </div>
+    @if (WaitingIsCheap(advice) is { } cheap)
+    {
+        <div class="muted" style="font-size:13px">@cheap</div>
+    }
+    </section>
+}
+</aside>
+</div>
+
+</main>
+
+@code {
+    Timer? clock;
+    RosterView roster = default!;
+
+    protected override void OnInitialized()
+    {
+        Session.Changed += OnChanged;
+        Refresh();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender) clock = new Timer(_ => InvokeAsync(StateHasChanged), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    void TogglePause()
+    {
+        if (Session.IsPaused) Session.Resume();
+        else Session.Pause();
+    }
+
+    void OnChanged()
+    {
+        Refresh();
+        InvokeAsync(StateHasChanged);
+    }
+
+    void Refresh()
+    {
+        if (Session.Advice is { } advice)
+            roster = RosterView.Build(Session.State.Teams[Session.Slot], Session.League, advice.Replacement);
+    }
+
+    public void Dispose()
+    {
+        Session.Changed -= OnChanged;
+        clock?.Dispose();
+    }
+
+    IEnumerable<(Pick Pick, int Number)> LastPicks() =>
+        Session.State.History.Select((p, i) => (Pick: p, Number: i + 1)).TakeLast(5).Reverse();
+
+    string Clock() => Format(Math.Max(0, PracticeDraft.PickClockSeconds - (int)Session.ElapsedOnPick.TotalSeconds));
+
+    static string Format(int seconds) => $"{seconds / 60}:{seconds % 60:00}";
+
+    static string Format1(double? value) => value is { } v ? v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) : "-";
+
+    static string Adp(ValueCandidate c) => Format1(c.Player.Player.Adp);
+
+    static string Points(ValueCandidate c) => Math.Round(c.Player.Player.ProjectedPpr).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    static string Over(double value) => (value >= 0 ? "+" : "-") + Math.Abs(Math.Round(value)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    static string OverColor(double value) => value >= 0 ? "#7FDBB6" : "#F3A0A0";
+
+    static string PosName(Position position) => position switch
+    {
+        Position.QB => "quarterback",
+        Position.RB => "running back",
+        Position.WR => "receiver",
+        _ => "tight end",
+    };
+
+    // the positions the advice backs come first, then the ones that are costly to wait on (most costly first), then the rest in position order
+    static IEnumerable<PositionAdvice> Tiles(Advice advice) =>
+        advice.Positions.Where(p => p.IsRecommended).OrderByDescending(p => p.CostOfWaiting)
+            .Concat(advice.Positions.Where(p => !p.IsRecommended && p.TakeNow).OrderByDescending(p => p.CostOfWaiting))
+            .Concat(advice.Positions.Where(p => !p.IsRecommended && !p.TakeNow));
+
+    // amber only on a position the advice backs; a position that is merely costly to wait on is marked in neutral
+    static string TileClass(PositionAdvice tile) => tile.IsRecommended ? "tile take" : "tile";
+
+    static string VerdictText(PositionAdvice tile) => tile.IsRecommended ? (tile.TakeNow ? "Take now" : "Best pick") : (tile.TakeNow ? "Costly to wait" : "Can wait");
+
+    static string VerdictClass(PositionAdvice tile) => tile.IsRecommended ? "verdict v-take" : tile.TakeNow ? "verdict v-costly" : "verdict v-free";
+
+    static string CostText(PositionAdvice tile) =>
+        tile.CostOfWaiting >= 0.5 ? "-" + tile.CostOfWaiting.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " pts" : "None";
+
+    static string CostColor(PositionAdvice tile) =>
+        tile.IsRecommended ? "#F2B84B" : tile.TakeNow ? "#E7ECF2" : tile.CostOfWaiting >= 0.5 ? "#9AA6B4" : "#7FDBB6";
+
+    // the headline follows the top pick: a close call between two positions says so, a costly top position says "take now", otherwise it names the best pick
+    static string Headline(Advice advice)
+    {
+        var top = advice.Recommended[0].Candidate.Player.Position;
+        if (advice.Rival is { } rival) return $"Close call: a {PosName(top)} or a {PosName(rival)}.";
+        if (advice.Positions.First(p => p.Position == top).TakeNow) return $"Take a {PosName(top)} now.";
+        return advice.Positions.Any(p => p.TakeNow) ? $"Best pick: a {PosName(top)}." : "Nothing is urgent.";
+    }
+
+    static string Cost(PositionAdvice tile) => tile.CostOfWaiting.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+
+    // costly positions are not the pick either because their best player would be a reach at this pick (drafters take him later) or because the top pick is worth more; one sentence per reason
+    static IEnumerable<string> WhyNotThese(IReadOnlyList<PositionAdvice> costly, Position topPosition, int pick)
+    {
+        static int After(PositionAdvice tile, int pick) => tile.Top.Player.Player.Adp is { } adp ? (int)Math.Round(adp - pick) : 0;
+        bool Reach(PositionAdvice tile) => tile.Top.ReachSigmas >= 0.25 && After(tile, pick) >= 1;
+
+        var reach = costly.Where(Reach).ToList();
+        if (reach.Count > 0)
+        {
+            var costs = JoinWithAnd(reach.Select(t => Cost(t)).ToList());
+            var names = string.Join(" or ", reach.Select(t => t.Top.Player.Player.PlayerName));
+            var from = reach.Min(t => After(t, pick));
+            var to = reach.Max(t => After(t, pick));
+            var gap = from == to ? $"{from} pick{(from == 1 ? "" : "s")}" : $"{from} to {to} picks";
+            yield return $"Waiting on {JoinWithAnd(reach.Select(t => t.Position.ToString()).ToList())} would cost about {costs} points, but taking {names} now would be a reach: {(reach.Count == 1 ? "he usually goes" : "they usually go")} {gap} after this one.";
+        }
+
+        var better = costly.Where(t => !Reach(t)).ToList();
+        if (better.Count > 0)
+            yield return $"Waiting on {JoinWithAnd(better.Select(t => t.Position.ToString()).ToList())} would cost about {JoinWithAnd(better.Select(t => Cost(t)).ToList())} points too, but the {PosName(topPosition)} is the better use of this pick.";
+    }
+
+    static string CostPhrase(PositionAdvice tile) => tile.CostOfWaiting >= 0.5 ? $"about {Cost(tile)} points" : "almost nothing";
+
+    static string Explanation(Advice advice)
+    {
+        var topPosition = advice.Recommended[0].Candidate.Player.Position;
+        var backed = advice.Positions.Where(p => p.IsRecommended).OrderByDescending(p => p.CostOfWaiting).ToList();
+        var others = advice.Positions.Where(p => !p.IsRecommended).ToList();
+        var costly = others.Where(p => p.TakeNow).ToList();
+        var cheap = others.Where(p => !p.TakeNow).Select(p => p.Position.ToString()).ToList();
+
+        var sentences = new List<string>();
+        if (advice.Rival is not null)
+        {
+            sentences.Add("Both are strong picks right now.");
+            sentences.Add($"Waiting on {backed[0].Position} costs {CostPhrase(backed[0])} and on {backed[1].Position} {CostPhrase(backed[1])}, on average.");
+        }
+        else
+        {
+            sentences.Add($"Waiting on {backed[0].Position} costs {CostPhrase(backed[0])} on average.");
+        }
+        sentences.AddRange(WhyNotThese(costly, topPosition, advice.Pick));
+        if (cheap.Count > 0)
+            sentences.Add($"At {JoinWithAnd(cheap)} the players the model likes best are likely to last, so {(cheap.Count == 1 ? "that can" : "those can")} wait.");
+        return string.Join(" ", sentences);
+    }
+
+    static string JoinWithAnd(IReadOnlyList<string> items) =>
+        items.Count == 1 ? items[0] : string.Join(", ", items.Take(items.Count - 1)) + " and " + items[^1];
+
+    static string? WaitingIsCheap(Advice advice)
+    {
+        var cheap = advice.PastTheWall.Select(w => w.Player.Position).Distinct()
+            .Where(position => advice.Positions.FirstOrDefault(p => p.Position == position) is { TakeNow: false })
+            .Select(position => position.ToString()).ToList();
+        return cheap.Count == 0 ? null : $"Waiting on {JoinWithAnd(cheap)} costs little or nothing, so there is little reason to reach for them now.";
+    }
+
+    static string PosLabel(SlotView slot, ValuedPlayer player) => slot.Label == "FLEX" ? player.Position.ToString() : slot.Label;
+
+    static string PosClass(SlotView slot, ValuedPlayer player) => $"pos pos-{player.Position}";
+
+    static string SlotPillClass(SlotView slot) => slot.Position is { } position ? $"pos pos-{position}" : "badge b-est";
+}

@@ -1,0 +1,19 @@
+<span class="@Classes" tabindex="0">@Value.Name<span class="tipbox" role="tooltip">@Value.Text</span></span>
+
+@code {
+    [Parameter, EditorRequired] public AdviceTag Value { get; set; } = default!;
+    [Parameter] public bool Large { get; set; }
+
+    string Classes => $"badge {(Large ? "lg " : "")}{Color} has-tip";
+
+    // Amber (b-reach) is reserved for the recommendation itself; a bargain gets its own bright color; the tags without a designed color stay grey.
+    string Color => Value.Label switch
+    {
+        ReasonLabel.Starter => "b-starter",
+        ReasonLabel.RunningOut => "b-reach",
+        ReasonLabel.InjuryHistory => "b-risk",
+        ReasonLabel.RoleMayNotCarryOver => "b-caution",
+        ReasonLabel.Discount => "b-bargain",
+        _ => "b-est",
+    };
+}

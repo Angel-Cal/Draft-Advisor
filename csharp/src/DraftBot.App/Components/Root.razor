@@ -1,0 +1,9 @@
+<AppShell LeagueText="@LeagueText">
+    <DraftScreen />
+</AppShell>
+
+@code {
+    [Inject] PracticeDraft Session { get; set; } = default!;
+
+    string LeagueText => $"Practice league · {Session.League.Teams} teams · PPR";
+}

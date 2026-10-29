@@ -151,6 +151,9 @@ public sealed record WaitSettings(double Weight, double SpreadScale = 1.0, int H
     /// <summary>Survival chance from which an alternative counts as "likely still there" at my next pick, i.e. can be named as the player I would take instead.</summary>
     internal const double LikelyToLast = 0.5;
 
+    /// <summary>How many likely-to-last alternatives a candidate carries for display (the first one is the fallback the explanation names).</summary>
+    internal const int DisplayedAlternatives = 2;
+
     /// <summary>
     /// P(the player is still there at pick <paramref name="nextPick"/>): his draft position is Normal around his ADP with the spread the reach
     /// cost uses for a pick at that ADP. A player with no ADP is one nobody takes.
@@ -174,6 +177,9 @@ public sealed record WaitSettings(double Weight, double SpreadScale = 1.0, int H
         return shortfall + noneYet * Math.Max(0, value);
     }
 }
+
+/// <summary>An alternative to taking a candidate now: who he is (valued as if drafted by me) and the chance he is still there at my next pick.</summary>
+public sealed record WaitAlternative(ValueCandidate Candidate, double Survival);
 
 /// <summary>Which players the waiting bonus may count as my alternative at a later pick.</summary>
 public enum AlternativeReach
@@ -224,12 +230,16 @@ public sealed record LookaheadSettings(double Beta, int Candidates = 15, int Per
 /// <param name="StarterPremium">Points of option premium for the part of him that starts (<see cref="NeedSettings.StarterOption"/>); null when off.</param>
 /// <param name="NextTurn">Expected value of my best pick at my next turn if I take him now (<see cref="LookaheadSettings"/>), before the weight; null when not looked ahead.</param>
 /// <param name="ByeCover">Points of bye-week cover he adds to the roster (<see cref="NeedSettings.Byes"/>); null when off.</param>
-/// <param name="WaitFallback">
-/// The player the waiting bonus assumes I would take instead at my next pick: the best alternative at his position, by the same rule and order the bonus
-/// uses, who is likely to last (<see cref="WaitSettings.LikelyToLast"/>). Null when there is no bonus or no such player.
+/// <param name="WaitAlternatives">
+/// The players the waiting bonus assumes I might take instead at my next pick, best first: the best alternatives at his position, by the same rule and order the bonus
+/// uses, that are likely to last (<see cref="WaitSettings.LikelyToLast"/>), at most <see cref="WaitSettings.DisplayedAlternatives"/>. Null when there is no bonus; empty when no one qualifies.
 /// </param>
-public sealed record ValueCandidate(ValuedPlayer Player, double Score, double ReachPenalty, double ReachSigmas, double? Gain = null, double? BenchWeight = null, double? BenchValue = null, double? WaitBonus = null, double? StarterPremium = null, double? NextTurn = null, double? ByeCover = null, ValueCandidate? WaitFallback = null)
+/// <param name="WaitShortfall">Expected projected points lost by waiting for the alternatives instead of taking him now (the bonus is this times the weight); null when there is no bonus.</param>
+public sealed record ValueCandidate(ValuedPlayer Player, double Score, double ReachPenalty, double ReachSigmas, double? Gain = null, double? BenchWeight = null, double? BenchValue = null, double? WaitBonus = null, double? StarterPremium = null, double? NextTurn = null, double? ByeCover = null, IReadOnlyList<WaitAlternative>? WaitAlternatives = null, double? WaitShortfall = null)
 {
+    /// <summary>The first of <see cref="WaitAlternatives"/>: the player the explanation names as the alternative to taking him now; null when there is none.</summary>
+    public ValueCandidate? WaitFallback => WaitAlternatives?.FirstOrDefault()?.Candidate;
+
     public double Vor => Player.Vor;
 
     /// <summary>The value before the reach cost and the waiting bonus: lineup gain plus bench value and starter premium, or plain VOR when roster need is off.</summary>
@@ -377,10 +387,10 @@ public static class ValueRecommender
 
         var withShortfall = scored.Select(c =>
         {
-            if (!wait.AppliesTo(state.Round, c.Player.Position)) return (Candidate: c, Shortfall: 0.0, Fallback: (ValueCandidate?)null);
+            if (!wait.AppliesTo(state.Round, c.Player.Position)) return (Candidate: c, Shortfall: 0.0, Alternatives: (IReadOnlyList<WaitAlternative>?)null);
             var sameSpot = alternatives.GetValueOrDefault(c.Player.Position, []).Where(a => a.Id != c.Player.Id).ToList();
             var shortfall = 0.0;
-            ValueCandidate? fallback = null;
+            IReadOnlyList<WaitAlternative> alternativesNow = [];
             for (var step = 0; step < upcoming.Count; step++)
             {
                 var atStep = step;
@@ -392,13 +402,15 @@ public static class ValueRecommender
                         .Select(a => (Value: a.BaseValue - reach.Lambda * a.Reach[atStep] * a.Reach[atStep], Survival: a.Survival[atStep], a.Candidate)).OrderByDescending(a => a.Value),
                 }).ToList();
                 shortfall += Math.Pow(wait.HorizonDecay, step) * WaitSettings.ExpectedShortfall(c.BaseValue, options.Select(o => (o.Value, o.Survival)));
-                if (step == 0) fallback = options.Where(o => o.Survival >= WaitSettings.LikelyToLast).Select(o => o.Candidate).FirstOrDefault();
+                if (step == 0)
+                    alternativesNow = options.Where(o => o.Survival >= WaitSettings.LikelyToLast).Take(WaitSettings.DisplayedAlternatives)
+                        .Select(o => new WaitAlternative(o.Candidate, o.Survival)).ToList();
             }
-            return (Candidate: c, Shortfall: shortfall, Fallback: fallback);
+            return (Candidate: c, Shortfall: shortfall, Alternatives: alternativesNow);
         }).ToList();
 
         if (!wait.Standardize)
-            return withShortfall.Select(x => x.Candidate with { Score = x.Candidate.Score + wait.Weight * x.Shortfall, WaitBonus = wait.Weight * x.Shortfall, WaitFallback = x.Fallback }).ToList();
+            return withShortfall.Select(x => x.Candidate with { Score = x.Candidate.Score + wait.Weight * x.Shortfall, WaitBonus = wait.Weight * x.Shortfall, WaitAlternatives = x.Alternatives, WaitShortfall = x.Shortfall }).ToList();
 
         // standardize the value (before the reach cost, which stays a separate wall in points: the best candidates by one-step score include heavily penalized ones)
         var pool = withShortfall.OrderByDescending(x => x.Candidate.Score).Take(wait.StandardizePool).ToList();
@@ -414,7 +426,7 @@ public static class ValueRecommender
             var mixed = meanValue + sdValue * (zValue + wait.Weight * zShortfall) / (1 + wait.Weight);
             var apart = c.Score - (c.BaseValue - c.ReachPenalty);                 // what the one-step score holds beyond value and reach cost (the dead-pick offset)
             var score = mixed - c.ReachPenalty + apart;
-            return c with { Score = score, WaitBonus = score - c.Score, WaitFallback = x.Fallback };
+            return c with { Score = score, WaitBonus = score - c.Score, WaitAlternatives = x.Alternatives, WaitShortfall = x.Shortfall };
         }).ToList();
     }
 
