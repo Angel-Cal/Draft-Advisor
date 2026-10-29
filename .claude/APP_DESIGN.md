@@ -41,6 +41,7 @@ the reworded "Recommended" hover, the roster, and the drafter-tendency numbers (
 | Navigation | azure `#4DA3FF` | active tab underline, gear icon on Settings. Tried on the board and rejected |
 | QB / RB / WR / TE | pink / green / blue / violet (`#F4B3D0`, `#7FDBB6`, `#9BC3F7`, `#B79CFF`) | position pills, board cells, tendency bars |
 | Risk | red `#F3A0A0` | Injury history tag, negative over-replacement |
+| Bargain | lime `#B6E65A`, solid fill | the Bargain tag only: a player available well after his ADP. Lime is the hue farthest from every other color in use, but it is the nearest to amber of the free ones, so watch it |
 | Caution | purple `#C9B3F5` | Role caution tag, "Planned" badge |
 | Everything else | off-white `#E7ECF2` / greys | primary buttons on Setup/Settings, selected options, your board column |
 
@@ -71,7 +72,7 @@ that Settings promises has no screen).
 - *Also on the list:* ranks 4 and 5 as one quiet line, with the role caution tag hoverable. A bench-only player is described as "bench insurance for X".
 - *Side panel:* roster card (filled and open starting slots, open slots count as replacement-level points with the "?" hover, a collapsed BENCH row "0 of 8 filled"), then "Past the wall".
 - *Past the wall* (unranked): the policy decision is that the advisor keeps the tested reach limits for ranked picks, and shows players the model likes beyond them as information only. Compute it with the reach
-  cost off, within 2.5 sigma of the pick, by score without the cost; show points over replacement and how many picks early. The footer sentence must follow the data (QB waiting costs a little, so it says "little or nothing").
+  cost off, within 1.5 sigma of the pick (slight reaches only), by score without the cost; show points over replacement and how many picks early. The footer sentence must follow the data (QB waiting costs a little, so it says "little or nothing").
   A longer-term idea (not built): the pick log could measure how far this league's drafters really reach and loosen the wall.
 
 **Players tab:** every available player sorted by ADP, with position chips, search, and columns Rec. (rank among the engine's top five, else a dash), Player, Pos, Team, Proj, Over replacement, ADP, Tier, Flags
@@ -84,12 +85,37 @@ user's turn** (another team's turn must use the plain grey border). Two panels a
 three advisor variants, projection file details). The user-facing line is "Projections current as of ...". Implications: the app needs a **practice (mock) draft mode**, and the draft screen needs a clear **"Practice" marker** so it cannot be mistaken for a live draft (not designed);
 the "Plain-language reasons" toggle predates the tags-only design and may be unnecessary (the reasons now only exist as hover text); the Role caution toggle must stay text-only and never change a score.
 
-## 4. Engine and code changes the mockup implies (none built yet)
+## 4. Engine and code changes the mockup implies
 
-1. `Explainer.StartReason` still writes projected points and the "about N more than a replacement-level..." figure; the UI wants just "He fills an open starting RB spot." (or the displaced-starter wording without numbers).
-2. Map `ReasonLabel.RunningOut` to the UI label "Recommended" and keep its sentence; consider renaming the enum to avoid confusion with the position-level idea.
-3. Expose per-position wait advice (top candidate, shortfall, two fallbacks) and the "past the wall" list as engine outputs, so the screen does not recompute them.
-4. Pick log + run detection + drafter tendencies (Phase 5) for the status sentence and the Planned panels.
-5. The "Take now" cutoff and tile verdict rule must live in one place, and be the same constant the Explainer uses.
-6. Practice-draft mode, connection-state handling and manual pick entry (see Settings and navigation above).
-7. Half-PPR and standard scoring need the Phase 3 retrain before the disabled options can be enabled.
+Done in milestone 1 (2026-10-28, `DraftAdvisor` and `Explainer` in Core): the Starter reason is now just "He fills an open starting RB spot." (or "would start ahead of X");
+`ReasonLabel.RunningOut` is shown as "Recommended" (`ReasonLabels.DisplayName`) with a sentence that carries the same cost figure as the tile; one call, `DraftAdvisor.Advise`,
+returns the top 5 with tags, the four position tiles (cost, "take now", two likely-to-last players with their chance) and the "past the wall" list; the "take now" cutoff and the explanation
+cutoff are the one constant `Explainer.NoticeableCost` (5 points). "Past the wall" lists slight reaches only (within 1.5 sigma; at 2.5 it also listed a running back 20 picks early).
+One advice call takes about 1-2 ms on the mockup's state.
+
+Milestone 2 (the app on a practice draft) settled three things the mockup left open: the draft screen's header shows a neutral "Practice draft" chip where the Sleeper chip goes, so a practice draft
+cannot be mistaken for a live one; the take/wait tiles are ordered "take now" first (most costly first) and then in QB, RB, WR, TE order (a plain sort by cost put TE ahead of WR on a 0.03-point difference); and
+tags without a designed color (Bargain, Early pick, Estimate, Not a starter) are grey, never amber. "Not a starter" now appears as a grey tag on the "Also on the list" row, where the mockup had a text note.
+
+After the user tried the app (2026-10-28): the Pause/Resume button sits beside the pick clock, not in the header. A player who is an early pick (`Explainer.EarlyPickSigmas`, 1 sigma or more past his ADP) is never a
+recommendation: the cards and the "Also on the list" line hold only sane picks, and early picks within 1.5 sigma go under "Past the wall" (so a card never reads both "Early pick" and "Recommended"); if only early
+picks are left they are shown anyway. The headline follows the top pick's position, and when the best pick at another position scores within 5% (at least 5 points) it says "Close call: a X or a Y." instead of
+"Take a X now." (`DraftAdvisor.RivalPosition`; a display choice, not a tested one). The Bargain tag is lime.
+
+Second round of feedback (same day): amber and "Recommended" go only to what the advice backs, never to something that merely costs points to wait on. A position tile is amber ("Take now", or "Best pick" if waiting is cheap)
+only for the top pick's position and, in a close call, the other position; a position that is costly to wait on (5 points or more) but not backed reads "Costly to wait" in neutral, with its cost in off-white. The "Recommended" tag is on the top
+pick only (and the best pick at the other position in a close call), so a card for a different position never says it. The explanation then says why: "Waiting on RB would cost about 22.3 points too, but the receiver is the
+better use of this pick." The four card stats are a fixed 2 x 2 grid (Proj, Over replacement / ADP, Tier) so cards line up whatever the numbers.
+
+Third round (same day, from a screenshot at pick 20): the top pick always carries "Recommended"; when waiting on him costs under 5 points the hover text is the best-overall reason (`Explainer.BestPickReason`:
+weighs lineup value, waiting cost and how early he would be taken, and says whether he is a reach). The headline's explanation says why a costly position is not the pick: its best player would be a reach ("taking J.Allen or
+B.Bowers now would be a reach: they usually go 3 picks after this one") or the top pick is worth more. What decided that screen: Allen and Bowers had the larger waiting bonus (62 and 53 against 14 for London) and would have won
+without the reach cost, but taking them 3 picks before their ADP costs 379 and 290 points of score, so London, the only strong player available right at his ADP, wins; the engine weights the reach cost very heavily on purpose
+(tested). The Bargain tag is solid white.
+Open: players like Allen and Bowers (about 0.6 sigma early) still get cards 2 and 3, while the sentence calls them reaches; "early pick" for the cards is 1 sigma but the sentence uses 0.25 sigma. One line for both is needed.
+
+Still to do:
+
+1. Pick log + run detection + drafter tendencies (Phase 5) for the status sentence and the Planned panels (not in version 1; picks are still recorded silently).
+2. Practice-draft mode, connection-state handling and manual pick entry (see Settings and navigation above).
+3. Half-PPR and standard scoring need the Phase 3 retrain before the disabled options can be enabled.

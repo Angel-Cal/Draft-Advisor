@@ -14,6 +14,17 @@ Standing rules (apply to every entry below):
 
 ---
 
+## 2026-10-28 — Question (user): is the reach wall a design flaw? Partly: it dominates the score and ignores whether the player lasts; a survival-aware version is to be tested
+**Finding:** in a pick-20 state (practice seed 15351) the advice backed D.London (WR, waiting cost 3.6) over J.Allen (QB, waiting cost 15.4) and B.Bowers (TE, 13.2). Scores: London 82 (lineup gain 69 + waiting bonus 14 - reach 1); Allen -266 (52 + 62 - 379); Bowers -189 (49 + 53 - 290). Without the reach cost Allen would win (113 against 83); it only flips if Allen's reach cost is under about 30 points, i.e. a reach of under one pick.
+So the waiting-cost signal has no say once a player is more than about a pick past his ADP. The sweeps support the wall (lambda 0 lost 17-31 points and was erratic, lambda 100 unstable, lambda 400+ a plateau, 1000 best) but only ever varied the strength of the same quadratic charge, and the charge ignores survival: Allen has about an 82% chance of being gone by the next pick.
+**Decision:** nothing changed in the engine. Test the reach cost scaled by P(player still there at my next pick); adopt only if it beats the adopted advisor on points and title odds and the held-out check agrees. Plan and code pointers: `STATUS.md`, hand-off 2026-10-28 evening.
+**Display consequence meanwhile:** the advice's explanation now says why a costly position is not the pick ("taking J.Allen or B.Bowers now would be a reach"), and the top pick always carries "Recommended".
+
+## 2026-10-28 — App milestone 2: Razor class library plus thin WPF host; practice draft uses the simulator's bots
+**Decision:** the UI lives in `DraftBot.App` (Razor class library, no Windows dependency) and `DraftBot.Desktop` is only the WPF window around a BlazorWebView. The practice draft reuses `OpponentBot` and `DraftRules` from `DraftBot.Sim` by project reference instead of copying them.
+**Why:** a library with no WPF in it can be rendered to HTML in tests and by a headless browser, which is how the screen was compared with the mockup; the opponents are the same bots the experiments use, so practice drafts behave like the simulated ones.
+**Rejected:** a single WPF project (untestable without a window); copying the bots into the app (two versions to keep in step). If referencing an exe project from the library causes trouble, move the bots and rules into Core.
+
 ## 2026-10-28 — App mockup settled (four tabs plus gear); amber reserved for "act now"; reach stays unranked ("Past the wall"); details in `APP_DESIGN.md`
 **Decision:** the mockup (`mockup/`, branch `app-mockup`) has Draft, Players, Board and a Settings gear, with a one-time first-run setup. Roster and Setup tabs were dropped (bench became a dropdown on the roster card), the available-players table moved to its own tab, and every card shows tags with hover text instead of sentences. Amber means only "act now" (recommendation, clock, on-the-clock cell, brand mark); TE is violet and navigation azure so no other element competes with it.
 **Why:** the user's concern was information overload under time pressure; each cut removed text that repeated a number already on screen. Reaches beyond the tested wall are shown as an unranked "Past the wall" panel, not recommended, because the tested edge came with the wall and the user wanted the information without changing the advice.

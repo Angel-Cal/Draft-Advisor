@@ -96,7 +96,7 @@ DraftBot/
 │       ├── draft_state.py    # Snake draft order and 12-team player pool
 │       ├── recommender.py    # Position + player scoring and recommendation (superseded by csharp/)
 │       └── advisor.py        # Interactive CLI draft assistant (superseded by csharp/)
-├── csharp/                   # DraftBot.Core (draft logic), DraftBot.Sim (simulator + CLI), DraftBot.Tests (xUnit)
+├── csharp/                   # DraftBot.Core (draft logic), DraftBot.Sim (simulator + CLI), DraftBot.App + DraftBot.Desktop (the app), DraftBot.Tests (xUnit)
 ├── .claude/                  # STATUS.md (hand-off), LOG.md (decision log), ROADMAP.md, projection schema
 ├── plan.txt                  # Draft advisor design spec
 ├── requirements.txt

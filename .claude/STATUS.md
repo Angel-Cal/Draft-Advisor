@@ -1,7 +1,7 @@
 # DraftBot — Project Status
 
-**Last updated:** 2026-10-27
-**Active branch:** `phase-2-csharp` (Phase 2 plus Phase 4; pushed to `origin` up to 2026-10-22, with the later work uncommitted; not merged to `main`; `main` has Phases 0-1)
+**Last updated:** 2026-10-28
+**Active branch:** `app-build` (the app, from `main` at `0e0800a`; `main` and `origin/main` hold everything up to the mockup, Phases 0-4 included)
 **Phase:** Phases 0, 1 and 2 complete; Phase 4 (recommender v2) is essentially done: single score, reach control, roster need, bench value and the cost-of-waiting bonus are in, the league-finish metric exists, and the other ideas were tested and rejected (see "Hand-off" at the bottom). Next: Phase 5 (the reasoning strings and the live training fix are done). Phase 3 (model v2) waits for the 2026 season to end.
 **Why we chose things:** see `LOG.md` (decision log). Add an entry when a task produces a decision that rejected an alternative or changed results.
 
@@ -269,7 +269,34 @@ All tested with the standing protocol: 10-seed ablation + random-noise control, 
 
 ## Hand-off (read this first in a new session)
 
-### Session handoff, 2026-10-28 (newest; the older hand-off text below is still accurate for the recommender)
+### Session handoff, 2026-10-28 evening (newest): the app is being built; the next task is a reach-cost experiment
+
+**Repo state.** Branch `app-build` (pushed to `origin`), created from `main` after the mockup was merged and pushed. Tests: 220 xUnit, 151 pytest, all passing. `.claude/settings.local.json` is the user's own and is never committed by Claude.
+Read `APP_SCOPE.md` (what version 1 is, milestones, how to run), `APP_DESIGN.md` (every visual rule and what it obliges the engine to do) and the LOG entries dated 2026-10-28 headed "App".
+
+**Built this session.** Milestone 1: `DraftAdvisor.Advise` (Core) returns everything the draft screen shows. Milestone 2: `DraftBot.App` (Razor class library) and `DraftBot.Desktop` (WPF + BlazorWebView) play a practice draft from slot 5 of 12
+against the simulator's bots; run it with `dotnet run --project csharp/src/DraftBot.Desktop` (it needs `data/processed/projections_2026_v1.json` or `DRAFTBOT_PROJECTIONS`). Close the app before rebuilding or the build fails on locked files.
+After the user tried it: Pause/Resume beside the clock; reaches (1 sigma or more past ADP) are kept out of the recommendations and listed under "Past the wall"; the headline says "Close call" when the top two picks at different positions score within 5%;
+amber and the "Recommended" tag only go to what the advice backs; the top pick is always tagged "Recommended"; the bargain tag is solid white; card stats are a 2 x 2 grid. Still to build: milestone 3 (Players, Board, Settings gear, first-run), then Sleeper (milestone 4).
+
+**NEXT TASK (user approved, to be done in a fresh session): test a survival-aware reach cost.**
+*Why.* At pick 20 (practice seed 15351, then draft B.Robinson at pick 5) the screen recommended D.London (WR) although waiting costs far more at QB (15.4 points) and TE (13.2) than at WR (3.6). Cause: the reach cost (lambda 1000 x z^2, sigma = 2 + 0.16 x pick)
+charged 379 points for taking J.Allen (ADP 23.2, 3 picks past the pick) and 290 for B.Bowers, against waiting bonuses of 62 and 53; without the reach cost Allen scores 113 against London's 83. The wall only lets through players less than about one pick past ADP, and it ignores
+whether the player will last: Allen has about an 82% chance of being gone by the next pick (#29), so "he would be there later" is false. The user's view: reach protection should stop wild picks, not force a pick.
+*What the old tests say.* Lowering lambda was worse in the simulator (lambda 0: -17 to -31 points and title odds swinging 3% to 29% between seasons; lambda 100 unstable; lambda 400 and up a plateau, 1000 best; LOG 2026-10-21 to 2026-10-25), but all of that
+was the same quadratic charge at other strengths, never one that depends on survival. The simulator's opponents follow ADP plus noise by construction, so it cannot reward exploiting a run. The waiting weight of 4 is still unexplained (LOG).
+*Idea.* Scale the reach cost by S = P(player still available at my next pick) (S = 1 with no next pick): penalty = lambda x z^2 x S (also try S squared). A wild reach of a player who would last anyway stays blocked; a player who is about to go can be taken.
+*Where.* The penalty is `var penalty = reach.Lambda * sigmas * sigmas` in `ScoreWith` inside `ValueRecommender.Rank` (ValueRecommender.cs, about line 300); survival is `WaitSettings.Survival(player, nextPick, reach, spreadScale)` (normal around ADP with sd 2 + 0.16 x ADP; `SurvivalSampler` is the simulated version) and the next pick is
+`state.NextPick(teamIndex)`; the pool cap (4 sigma) is `BaselineRecommender.RecommendablePool`. Add the option with the adopted behavior as the default, so nothing changes until an arm wins.
+*How to test.* Copy the `tune-reach-wait` pattern (`Program.cs` case "tune-reach-wait", `ReachTuning.ReportReachWait`; options `--seeds`, `--noise`, `--metric points|wins|playoffs|title`; `ArmSweep` does the leave-one-season-out check). Arms: the adopted advisor as control, S-scaled lambda 1000, S-scaled lambda 3000, S squared.
+60 seeds, noise x1 (x0.5 and x2 as a check), points and title odds; formula arms are fast (the slow runs in this repo are the rollouts).
+*Adoption rule (the project's).* Adopt only if it beats the adopted `need+wait` on points and title odds and the held-out check agrees; otherwise keep the wall, log the numbers in `LOG.md` and do not re-run. Either way, record the result and update `APP_DESIGN.md`.
+*Then the UI question that depends on it.* The cards use a 1 sigma line for "early pick" while the sentence explaining a costly position uses 0.25 sigma (APP_DESIGN, "Open"); pick one line. If the new cost is adopted, re-check the pick-20 state; recommended: cards only for players you can take without a reach, the rest under "Past the wall".
+*How the screens were checked (not in the repo, rebuild if needed).* A console project referencing `DraftBot.App` renders `Root` to HTML with `HtmlRenderer` (`RenderComponentAsync`), and headless Edge screenshots the page (`--headless=new --screenshot`); `PracticeDraft(file, league, 4, seed)` reproduces any draw, and `Draft(id)` plays the user's pick.
+
+**Known gaps.** Players and Board are greyed-out tabs and there is no gear or Settings yet; the practice slot is fixed at 5; window size and display scaling are untuned; the pick clock only counts down (nothing forced at zero).
+
+### Session handoff, 2026-10-28 (earlier; the older hand-off text below is still accurate for the recommender)
 
 **Repo state.** Branch `role-caution-and-2026-freeze` is 1 commit (`8350dbe`) ahead of `main`. `main` holds 3 commits that are not on `origin/main` (`0e86b76`, `f73ba37`, `df6e229`). Nothing from this session after the pandas merge (`3cda9ea`, pushed) is pushed.
 Uncommitted: the FantasyPros rewire (see DONE below) and its docs. `.claude/settings.local.json` is the user's own permissions edit and is deliberately never committed by Claude.
