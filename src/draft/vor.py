@@ -25,33 +25,31 @@ def load_predictions():
     return qb_predictions, rb_predictions, wr_predictions, te_predictions
 
 def add_adp(qb_predictions, rb_predictions, wr_predictions, te_predictions):
-    id = pd.read_parquet(filepath.parent / "raw" / "ids.parquet" )
-    adp_table = pd.read_csv(filepath.parent / "external" / "4for4-adp-table.csv")  # source of truth; adp_table.csv is output
-
-    id = id[id["position"].isin(["QB", "RB", "WR", "TE"])]
+    """Attach FantasyPros ADP (data/external/adp_<season>.csv, written by adp_scraper.py) and write processed/adp_table.csv."""
+    season = int(pd.read_parquet(filepath / "prediction_data.parquet", columns=["season"])["season"].max()) + 1      # same rule export_projections uses
+    adp = pd.read_csv(filepath.parent / "external" / f"adp_{season}.csv")      # source of truth; adp_table.csv is output
+    adp_table = pd.DataFrame({"Player": adp["name"], "Position": adp["position"], "ADP": adp["adp"],
+                              "Team": adp["team"], "player_id": adp["player_id"]})
     adp_table = normalize_names(adp_table)
-    adp_table = add_player_id(adp_table, id)
-    adp_table = fix_duplicates(adp_table)
-    adp_table = adp_table.dropna(subset=["Underdog"])
-    adp_table = adp_table.sort_values("player_id", na_position="last").drop_duplicates(["Player", "Position"])
+    adp_table = adp_table.dropna(subset=["ADP"]).drop_duplicates("player_id")
     adp_table = adp_table.sort_values("ADP").reset_index(drop=True)
     adp_table.to_csv(filepath.parent/"processed"/ "adp_table.csv", index=False)
     qb_predictions = add_adp_helper(adp_table, qb_predictions)
-    qb_predictions = qb_predictions.dropna(subset=["underdog"])
+    qb_predictions = qb_predictions.dropna(subset=["adp"])
     rb_predictions = add_adp_helper(adp_table, rb_predictions)
-    rb_predictions = rb_predictions.dropna(subset=["underdog"])
+    rb_predictions = rb_predictions.dropna(subset=["adp"])
     wr_predictions = add_adp_helper(adp_table, wr_predictions)
-    wr_predictions = wr_predictions.dropna(subset=["underdog"])
+    wr_predictions = wr_predictions.dropna(subset=["adp"])
     te_predictions = add_adp_helper(adp_table, te_predictions)
-    te_predictions = te_predictions.dropna(subset=["underdog"])
+    te_predictions = te_predictions.dropna(subset=["adp"])
     return qb_predictions, rb_predictions, wr_predictions, te_predictions
 
 
 
 def add_adp_helper(adp_table, prediction_df):
-    prediction_df = prediction_df.drop(columns=["underdog"], errors="ignore")
-    merged_df = prediction_df.merge(adp_table[["player_id", "Underdog"]], on="player_id", how="left")
-    merged_df = merged_df.rename(columns={"Underdog" : "underdog"})
+    prediction_df = prediction_df.drop(columns=["adp"], errors="ignore")
+    merged_df = prediction_df.merge(adp_table[["player_id", "ADP"]], on="player_id", how="left")
+    merged_df = merged_df.rename(columns={"ADP" : "adp"})
     
     return merged_df
 
@@ -64,30 +62,6 @@ def normalize_names(df):
                       .str.replace("jr", "")
                       .str.strip())
     return df
-
-def fix_duplicates(adp_table):
-    NAME_TO_ID = {"oronde gadsden": "00-0040189", "kyle williams": "00-0040131", "chris brooks": "00-0038685"}
-    overrides = adp_table["merge_name"].map(NAME_TO_ID)
-    adp_table["player_id"] = overrides.combine_first(adp_table["player_id"])
-    adp_table = adp_table.drop_duplicates()
-    return adp_table
-
-def add_player_id(adp_table, id):
-    """Match on (name, position) with one player per name+position; rows without a gsis_id are never matched.
-
-    Falls back to a name-only match for active players when the sources disagree on position (e.g. Taysom Hill).
-    """
-    adp_table = adp_table.drop(columns=["player_id"], errors="ignore") # prevents duplicate cols being created on each pipeline run
-    adp_table["pos"] = adp_table["Position"].str[:2]
-    ids = id.dropna(subset=["gsis_id"]).sort_values("draft_year", ascending=False)  # newest player wins a name clash
-    by_position = ids.drop_duplicates(["merge_name", "position"]).rename(columns={"position": "pos", "gsis_id": "player_id"})
-    merged_table = adp_table.merge(by_position[["merge_name", "pos", "player_id"]], on=["merge_name", "pos"], how="left")
-
-    active = ids[ids["db_season"] >= ids["db_season"].max() - 1]
-    unique_active = active.drop_duplicates("merge_name", keep=False).set_index("merge_name")["gsis_id"]
-    merged_table["player_id"] = merged_table["player_id"].fillna(merged_table["merge_name"].map(unique_active))
-    return merged_table.drop(columns="pos")
-
 
 def compute_vor(df, baseline_pos):
     df = df.sort_values(by="projected_ppr", ascending=False).reset_index(drop=True)
@@ -111,7 +85,7 @@ def compute_ceiling_floor(df, rmse):
 def compute_value_gap(df):
     df = df.sort_values(by="vor", ascending = False).reset_index(drop=True)
     df["vor_rank"] = df["vor"].rank(ascending=False, method="min")
-    df["value_gap"] = df["underdog"] - df["vor_rank"]
+    df["value_gap"] = df["adp"] - df["vor_rank"]
     return df
 
 def compute_tiers(df):

@@ -9,7 +9,7 @@
 
 `projections_<season>_v1.json`, saved to `data/processed/` locally; the live file is published as a GitHub Release asset.
 
-- **Live file** (`kind: "live"`): next season's projections, e.g. `projections_2026_v1.json`. ADP is the Underdog CSV.
+- **Live file** (`kind: "live"`): next season's projections, e.g. `projections_2026_v1.json`. ADP is FantasyPros (the final pre-season export, `data/external/adp_<season>.csv`).
 - **Backtest files** (`kind: "backtest"`): one per held-out season 2021–2025. Projections are walk-forward (out of
   sample), ADP is FantasyPros (day before the opener), and every player carries `actual_ppr` for the simulator.
   Same schema as the live file, so the simulator runs the code path the app ships.
@@ -23,7 +23,7 @@ Strict JSON (no `NaN`; missing values are `null`).
 | `schema_version` | string | Literal `"v1"`. C# refuses a file it does not understand. |
 | `kind` | string | `"live"` or `"backtest"`. |
 | `season` | int | The season being projected (2026 for the live file). |
-| `adp_source` | string | `"underdog"` (live) or `"fantasypros"` (backtest). The two price positions differently. |
+| `adp_source` | string | `"fantasypros"` (live and backtest; before 2026-10-28 the live file used `"underdog"`, which prices positions differently). |
 | `position_rmse` | object | Walk-forward RMSE per position, `{QB, RB, WR, TE}` (QB 84.28, RB 58.86, WR 53.48, TE 38.69 as of 2026-10; 5-seed mean over test seasons 2021–2025). Used for ceiling/floor and tier thresholds in C#. |
 | `generated_utc`, `git_commit` | string | Provenance. |
 | `players` | array | One object per player, below. |

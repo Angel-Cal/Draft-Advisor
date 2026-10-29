@@ -116,7 +116,7 @@ Also done in Phase 1 (unplanned, but it changed the results): fixed a target-sea
 ---
 
 ## Open Questions / Deferred
-- Current-season ADP source for 2027 (currently a manual Underdog CSV via 4for4)
+- Current-season ADP source for 2027 (currently a FantasyPros CSV export saved by hand into `data/external/`; `adp_scraper.py <season>` reads it)
 - Code signing
 - Real rookie model (college production, draft capital, landing spot), post-August
 - Coaching tendencies (head-coach pass-over-expected, pace, 4th-down aggression): deferred, needs scoping

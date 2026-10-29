@@ -98,19 +98,19 @@ class TestComputeCeilingFloor:
 
 
 class TestComputeValueGap:
-    def test_value_gap_equals_underdog_minus_vor_rank(self):
+    def test_value_gap_equals_adp_minus_vor_rank(self):
         df = pd.DataFrame({
             "vor":     [100.0, 50.0, 0.0],
-            "underdog": [1.0,   3.0,  5.0],
+            "adp":      [1.0,   3.0,  5.0],
         })
         result = compute_value_gap(df)
-        expected = result["underdog"] - result["vor_rank"]
+        expected = result["adp"] - result["vor_rank"]
         pd.testing.assert_series_equal(result["value_gap"], expected, check_names=False)
 
     def test_sorted_descending_by_vor(self):
         df = pd.DataFrame({
             "vor":     [0.0, 100.0, 50.0],
-            "underdog": [5.0,  1.0,   3.0],
+            "adp":      [5.0,  1.0,   3.0],
         })
         result = compute_value_gap(df)
         assert result["vor"].is_monotonic_decreasing

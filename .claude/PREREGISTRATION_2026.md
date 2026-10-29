@@ -21,7 +21,7 @@ rules below after the 2026 results are loaded; a change is a new hypothesis for 
   (C.Tate at ADP 55 although the 2026 roster file has him drafted 4th overall by TEN; J.Love 15, F.Mendoza 152) and 33 of the 44 market-estimate rows carry no team. The model's own projections do not use ADP;
   the pool, the market rows, the ADP ranks (so the curve, the gap and the top-150 population) and the live recommender do. Gaps for veterans who changed teams (Diggs, Samuel, K.Allen, Robinson) are measured
   against prices set before they settled in and may be the ones that move most. How much the snapshot changes with a current ADP has not been measured; a second snapshot with a late-summer ADP would be a
-  sensitivity check, with this one staying primary.
+  sensitivity check, with this one staying primary. **Done 2026-10-28, before any 2026 results were loaded:** `.claude/snapshots/projections_2026_preseason_fp_adp.csv` (SHA-256 `06bd9aa9f3d57d1393141826ac5705ad7c4ccf23252bc401308c3a3fb675a440`) uses the FantasyPros export dated 2026-09-07 (rookies with real teams; Diggs, Wicks, K.Allen, Samuel and Robinson all moved toward the model). It is scored with the same rules next to the primary one and never replaces it; see the LOG entry of that date for the diff.
 - The user had already seen W.Robinson's early-season result ("a massive miss so far") when these rules were written. His id, `00-0038117`, is reported with and without.
 - No other 2026 results are in this project's data. The first clean test is the 2027 pre-season freeze (see the end).
 

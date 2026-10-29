@@ -245,7 +245,7 @@ def check_advisor_table(table):
     dupes = table["player_id"].duplicated()
     if dupes.any():
         errors.append(f"{int(dupes.sum())} duplicate player_id rows, e.g. {table.loc[dupes, 'player_id'].head(3).tolist()}")
-    for col in ["projected_ppr", "vor", "tier", "underdog", "position", "market_estimate"]:
+    for col in ["projected_ppr", "vor", "tier", "adp", "position", "market_estimate"]:
         if col in table.columns and table[col].isna().any():
             errors.append(f"{int(table[col].isna().sum())} nulls in {col}")
     if "market_estimate" in table.columns and not table["market_estimate"].isin([True, False]).all():

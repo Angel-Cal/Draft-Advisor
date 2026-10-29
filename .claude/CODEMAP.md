@@ -35,11 +35,11 @@ Data files, `archive/` and build output are not listed.
     - `int? NextPick(int team)`: The 1-based overall number of the team's next pick after the one on the clock; null if it has none left.
     - `IReadOnlyList<int> UpcomingPicks(int team, int count)`: The 1-based overall numbers of the team's next count picks after the one on the clock (fewer if the draft ends first).
     - `bool Draft(string playerId)`: Drafts the player for the team on the clock.
-- **Explainer.cs** (157 lines)
+- **Explainer.cs** (146 lines)
   - `enum ReasonLabel`: What a recommendation's reasons are about, for badges next to the text.
   - `record Explanation(ValuedPlayer Player, string Headline, IReadOnlyList<string> Reasons, IReadOnlyList<ReasonLabel> Labels)`: A recommendation in plain language: one headline sentence and a few supporting reasons.
   - `static class Explainer`: Turns the recommender's candidates into explanations for beginners.
-    - `static IReadOnlyList<Explanation> Explain(DraftState state, int teamIndex, IReadOnlyList<ValueCandidate> candidates, ReachSettings reach, WaitSettings? wait = null)`: One explanation per candidate, in the order given.
+    - `static IReadOnlyList<Explanation> Explain(DraftState state, int teamIndex, IReadOnlyList<ValueCandidate> candidates, ReachSettings reach)`: One explanation per candidate, in the order given.
     - `static bool HasRoleCaution(Player player)`: True for a receiver whose last season is the kind that was often over-projected: at least half of his targets came while the team's top receiver was out, AND he has changed teams or a first-round r...
 - **LeagueSettings.cs** (26 lines)
   - `record LeagueSettings(int Teams = 12, int Qb = 1, int Rb = 2, int Wr = 3, int Te = 1, int Flex = 1, int Bench = 8)`: Team count and starting lineup; every replacement level, tier and recommendation derives from these.
@@ -92,7 +92,7 @@ Data files, `archive/` and build output are not listed.
     - `static List<ValuedPlayer> Value(IReadOnlyList<Player> players, IReadOnlyDictionary<Position, double> rmse, LeagueSettings league, ValuationSettings? settings = null)`: Values the whole pool.
     - `static (double Ceiling, double Floor, bool Availability) CeilingFloor(Player player, double rmse)`: Ceiling is projection + RMSE.
     - `static Dictionary<string, int> Tiers(IReadOnlyList<Player> players, IReadOnlyDictionary<Position, double> rmse, double gapRmse)`: Per-position tiers, 1 = best: a new tier starts wherever the next player drops by more than k x RMSE.
-- **ValueRecommender.cs** (422 lines)
+- **ValueRecommender.cs** (433 lines)
   - `record NeedSettings(double BenchFraction, double? MissProbability = null, bool OptionValue = false, double StarterOption = 0, bool Byes = false)`: Roster need.
     - `static double OptionPremium(double projection, double sd, double waiver)`: E[max(X, waiver)] - max(projection, waiver) for X ~ Normal(projection, sd): what the right to cut a bust is worth.
     - `static double ExpectedExcess(double mean, double sd, double waiver)`: E[max(0, X - waiver)] for X ~ Normal(mean, sd).
@@ -107,7 +107,7 @@ Data files, `archive/` and build output are not listed.
   - `enum AlternativeReach`: Which players the waiting bonus may count as my alternative at a later pick.
   - `record LookaheadSettings(double Beta, int Candidates = 15, int PerPosition = 12, double SpreadScale = 1.0)`: Two-step lookahead.
     - `static double ExpectedBest(IEnumerable<(double Value, double Survival)> alternativesBestFirst)`: E[value of the best survivor]: the first survivor in value order is the one I get; if none lasts, nothing above replacement.
-  - `record ValueCandidate(ValuedPlayer Player, double Score, double ReachPenalty, double ReachSigmas, double? Gain = null, double? BenchWeight = null, double? BenchValue = null, double? WaitBonus = null, double? StarterPremium = null, double? NextTurn = null, double? ByeCover = null)`
+  - `record ValueCandidate(ValuedPlayer Player, double Score, double ReachPenalty, double ReachSigmas, double? Gain = null, double? BenchWeight = null, double? BenchValue = null, double? WaitBonus = null, double? StarterPremium = null, double? NextTurn = null, double? ByeCover = null, ValueCandidate? WaitFallback = null)`
   - `static class ValueRecommender`: One score across every position, replacing the position-first selection: value (points over replacement, optionally measured as the gain to the team's lineup) minus a reach cost for taking a player...
     - `static IReadOnlyList<ValueCandidate> Rank(DraftState state, ReachSettings reach, NeedSettings? need = null, int teamIndex = 0, WaitSettings? wait = null, LookaheadSettings? lookahead = null)`: Every recommendable player, best first.
     - `static (double Mean, double Sd) MeanAndSd(IEnumerable<double> values)`: Mean and population standard deviation.
@@ -269,7 +269,7 @@ Data files, `archive/` and build output are not listed.
 - **ByeTests.cs** (110 lines): 5 tests
 - **DiagnosticsTests.cs** (68 lines): 5 tests
 - **DraftStateTests.cs** (125 lines): 8 tests
-- **ExplainerTests.cs** (243 lines): 15 tests
+- **ExplainerTests.cs** (244 lines): 15 tests
 - **LeagueSeasonTests.cs** (112 lines): 8 tests
 - **LookaheadTests.cs** (96 lines): 6 tests
 - **MockDraftTests.cs** (131 lines): 12 tests
@@ -287,21 +287,22 @@ Data files, `archive/` and build output are not listed.
 - **TuningAndRegretTests.cs** (110 lines): 7 tests
 - **ValuationTests.cs** (141 lines): 9 tests
 - **ValueRecommenderTests.cs** (121 lines): 9 tests
-- **WaitTests.cs** (327 lines): 23 tests
+- **WaitTests.cs** (349 lines): 24 tests
 
 ## src/data/
 
-- **adp_scraper.py** (126 lines): Historical preseason ADP: FantasyPros PPR consensus ADP from Wayback Machine snapshots, closest to the day before each season's opener, mapped to gsis player_id. (runnable)
+- **adp_scraper.py** (143 lines): Historical preseason ADP: FantasyPros PPR consensus ADP from Wayback Machine snapshots, closest to the day before each season's opener, mapped to gsis player_id. (runnable)
   - `wayback_get(url, params, retries)`: Wayback throttles by refusing connections or returning 503, so back off and retry.
   - `closest_snapshot(season)`
   - `fetch_html(season, timestamp)`
   - `parse_adp(html, season, timestamp)`
   - `parse_adp_csv(path, season, snapshot)`: FantasyPros' own CSV export of the ADP page (columns Rank, "Player (Bye)", POS, ESPN, Sleeper, CBS, RTSports, Fantrax, AVG, Real-Time): same frame as parse_adp.
   - `attach_player_ids(adp, ids)`
+  - `fill_from_roster(adp, roster)`: Fill missing player_ids by (name, position) from a season roster (ids.parquet predates that year's draft, so its rookies are absent).
 - **export_projections.py** (185 lines): Export projections_<season>_v1.json for the C# side (contract: .claude/projection_schema_v1.md). (runnable)
   - `attach_role_context(df, context, season)`: Add the optional role-context fields (src/features/role_context.py) for this season; null for everyone but WRs and for players with no history.
   - `durability_flag(seasonal, before_season)`: player_id -> True if they averaged under 15 games over their qualifying seasons before `before_season`.
-  - `build_live(table, roster, adp_table)`: table: predictions_table.parquet; roster: roster_2026; adp_table: adp_table.csv (4for4 + player_id).
+  - `build_live(table, roster, adp_table)`: table: predictions_table.parquet; roster: roster_2026; adp_table: adp_table.csv (FantasyPros ADP + player_id).
   - `weekly_lists(weekly, season)`: player_id -> 18 values, regular-season PPR for weeks 1-18; None where the player did not play (bye, injury, inactive).
   - `build_backtest(season, oos, adp, training, seasonal, curves, weekly)`: oos: season_<year>.parquet; adp: adp_<year>.csv; training: training_data; seasonal: raw season stats.
   - `to_document(df, season, kind, adp_source)`
@@ -363,13 +364,11 @@ Data files, `archive/` and build output are not listed.
     - `add_player(player_id, pos)`
     - `get_needs()`
     - `get_picks()`
-- **vor.py** (166 lines): (runnable)
+- **vor.py** (140 lines): (runnable)
   - `load_predictions()`
-  - `add_adp(qb_predictions, rb_predictions, wr_predictions, te_predictions)`
+  - `add_adp(qb_predictions, rb_predictions, wr_predictions, te_predictions)`: Attach FantasyPros ADP (data/external/adp_<season>.csv, written by adp_scraper.py) and write processed/adp_table.csv.
   - `add_adp_helper(adp_table, prediction_df)`
   - `normalize_names(df)`
-  - `fix_duplicates(adp_table)`
-  - `add_player_id(adp_table, id)`: Match on (name, position) with one player per name+position; rows without a gsis_id are never matched.
   - `compute_vor(df, baseline_pos)`
   - `compute_ceiling_floor(df, rmse)`
   - `compute_value_gap(df)`
@@ -407,9 +406,9 @@ Data files, `archive/` and build output are not listed.
 - **oos_predictions.py** (53 lines): (runnable)
   - `load_params(position)`
   - `position_oos(df, position, model, params)`: Walk-forward predictions for one position; one row per player-season in 2021-2025.
-- **preseason_eval.py** (151 lines): Freeze a season's projections and score them later with rules written down in advance (.claude/PREREGISTRATION_2026.md). (runnable)
+- **preseason_eval.py** (152 lines): Freeze a season's projections and score them later with rules written down in advance (.claude/PREREGISTRATION_2026.md). (runnable)
   - `sha256(path)`
-  - `snapshot(season, source)`: The projection file as a flat CSV, with the ADP-curve expectation (curves fit on earlier seasons only) and the role-caution flag.
+  - `snapshot(season, source, output)`: The projection file as a flat CSV, with the ADP-curve expectation (curves fit on earlier seasons only) and the role-caution flag.
   - `history(before)`: The 2022 to before-1 WR rows with the same columns: the flag is the role caution, healthy seasons only.
   - `season_rows(snapshot_path, actuals_path, season, draftable_only)`
   - `with_errors(d)`
@@ -442,6 +441,13 @@ Data files, `archive/` and build output are not listed.
   - `partial_spearman(df, feature, target)`: Correlation of feature and target after removing the projection level and prior games (rank-based).
 - **seed_spread.py** (51 lines): How much of the simulator edge is the projection file's luck? (runnable)
   - `seed_set_predictions(frames, seeds)`: Per-row mean prediction of both recipes over `seeds`, one row per player-season in 2021-2025.
+- **skill_vs_market.py** (138 lines): Do per-opportunity skill rates explain what the ADP curve and the model miss? (runnable)
+  - `receiving_rates()`: Per player-season (2020-2025): pass plays on the field, targets, yards and first downs per pass play, yards per target.
+  - `rb_contact_rates()`: Per player-season (2018-2025): yards after and before contact and broken tackles per carry (PFR), plus plain yards per carry.
+  - `persistence(rates, metrics, positions)`: Pearson correlation of each metric with the same metric the next season, for the players in `positions` ({player_id: position}).
+  - `ols_coef(y, gap, z)`: Coefficient of z in y ~ 1 + gap + z.
+  - `test_cell(g, metric, rng)`: Spearman with both residuals, the z coefficient in actual - curve ~ gap + z, its bootstrap 90% interval and permutation p.
+  - `run_tests(d, rates, metrics, positions, rng, title)`
 - **target_competition.py** (312 lines): Does the model over-project wide receivers whose target competition got tougher, or whose last-year volume came while a teammate was out? (runnable)
   - `load_weekly()`: Regular-season weekly rows of the pass catchers: player, season, week, team, targets.
   - `load_start_roster()`: Each player's team and rookie status on his earliest roster row of the season (the file is sparse after week 1, so this is how the pipeline finds the start team).
@@ -463,6 +469,8 @@ Data files, `archive/` and build output are not listed.
   - `quality(names)`: Per season: targets and what they were worth.
   - `attribute(name)`: What drives the live 2026 projection of a WR: contributions of each input (PPR points) and counterfactuals that change one group of inputs.
   - `gaps()`: The WRs the model rates GAP+ PPR above the ADP curve: how reliable those gaps are, the healthy ones it over-projected, and the live 2026 list.
+- **wr_target_rank.py** (55 lines): Ablation of WR1/WR2 rank features (by prior-season targets) added to the WR model, same protocol as advanced_features.py: 10 seeds, a random-noise control of the same size, top-150 Spearman as the... (runnable)
+  - `load_wr()`
 - **wr_team_context.py** (64 lines): Ablation of WR team-context features, same protocol as rb_team_context. (runnable)
   - `load_wr(features)`
   - `variants(features)`
@@ -510,6 +518,8 @@ Data files, `archive/` and build output are not listed.
   - `add_rb_features(df, context, season_offset)`: Merge the RB feature set onto df; season_offset=1 maps a 2025 prediction row to the 2026 context.
   - `add_qb_features(df, depth, season_offset)`: Merge the QB feature set onto df; season_offset=1 maps a 2025 prediction row to the 2026 context.
   - `build_rb_depth_features(seasonal, roster)`: Per RB-season: his share of the roster RBs' prior carries, whether he is the lead back, and his competition.
+- **wr_rank.py** (38 lines): WR1/WR2 split by prior-season targets: each WR's rank among his season-t team's WRs, from stats only (no depth chart).
+  - `build_wr_rank_features(seasonal, roster)`: Per WR and season t: wr_target_rank (by season t-1 targets) and wr_target_rank_pg (by targets per game in t-1, else t-2 when t-1 had < MIN_RATE_GAMES games).
 
 ## src/models/
 
@@ -540,11 +550,11 @@ Data files, `archive/` and build output are not listed.
 ## tests/
 
 - **conftest.py** (34 lines): shared fixtures
-- **test_advanced_features.py** (100 lines): 8 tests
+- **test_advanced_features.py** (120 lines): 9 tests
 - **test_data_integrity.py** (192 lines): 16 tests
 - **test_draft_state.py** (79 lines): 10 tests
 - **test_export_projections.py** (170 lines): 13 tests
-- **test_market_fallback.py** (75 lines): 5 tests
+- **test_market_fallback.py** (66 lines): 5 tests
 - **test_ol_features.py** (40 lines): 2 tests
 - **test_ol_quality.py** (31 lines): 2 tests
 - **test_prediction_season.py** (27 lines): 2 tests

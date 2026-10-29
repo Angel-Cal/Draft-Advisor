@@ -2,7 +2,7 @@
 
 An isotonic curve per position maps rank-within-position (by ADP) to expected season PPR, fit on 2021-2025
 FantasyPros ADP and actual results. Rank within position, not overall ADP, is the input because sources price
-positions differently (Underdog's top 100 holds ~60 WRs; FantasyPros ~43), while the order within a position agrees.
+positions differently (Underdog's top 100 holds ~60 WRs; FantasyPros ~43), while the order within a position agrees (the live ADP is FantasyPros too, so this guards against a source change).
 """
 
 import numpy as np
@@ -42,7 +42,7 @@ def fit_position_curves(history):
 def market_projections(adp_table, model_player_ids, curves):
     """Fallback rows for every skill player in the ADP table the model has no projection for.
 
-    adp_table needs: Player, merge_name, Position ('WR-33' style), ADP, Underdog, player_id (NaN if unknown).
+    adp_table needs: Player, merge_name, Position (first two letters = position, e.g. 'WR'), ADP, player_id (NaN if unknown).
     """
     table = adp_table.copy()
     table["position"] = table["Position"].str[:2]
@@ -56,5 +56,5 @@ def market_projections(adp_table, model_player_ids, curves):
     return pd.DataFrame({
         "player_name": table["Player"], "player_id": table["player_id"], "games": 17.0, "games_delta": 0.0,
         "injury_flag": False, "projected_ppr": table["projected_ppr"], "position": table["position"],
-        "underdog": table["Underdog"], "market_estimate": True,
+        "adp": table["ADP"], "market_estimate": True,
     }).reset_index(drop=True)

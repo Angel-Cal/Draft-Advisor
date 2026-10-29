@@ -98,3 +98,23 @@ def test_team_epa_features_use_prior_season_of_the_starting_team():
     out = adv.build_team_epa_features(pbp, roster).iloc[0]
     assert out["season"] == 2021 and out["team_pass_epa_prev"] == pytest.approx(0.3)
     assert out["team_rush_epa_prev"] == pytest.approx(0.0) and out["team_success_prev"] == pytest.approx(0.5)
+
+
+def test_wr_rank_is_among_wrs_only_uses_per_game_rate_with_a_fallback_and_ignores_players_without_history():
+    from src.features.wr_rank import build_wr_rank_features
+
+    def stat(pid, season, targets, games, position="WR"):
+        return {"player_id": pid, "season": season, "position": position, "targets": targets, "games": games}
+
+    def row(pid, position="WR", team="KC", season=2024):
+        return {"gsis_id": pid, "season": season, "week": 1, "team": team, "position": position}
+    seasonal = pd.DataFrame([stat("a", 2023, 100, 17), stat("hurt", 2023, 60, 5), stat("b", 2023, 80, 17), stat("te", 2023, 150, 17, "TE"),
+                             stat("back", 2022, 170, 17), stat("back", 2023, 2, 1)])
+    roster = pd.DataFrame([row("a"), row("hurt"), row("b"), row("te", "TE"), row("back"), row("rookie"), row("other", team="DEN")])
+    out = build_wr_rank_features(seasonal, roster).set_index("player_id")
+    assert out.loc["a", "wr_target_rank"] == 1 and out.loc["b", "wr_target_rank"] == 2        # the TE with 150 targets does not push WRs down
+    assert out.loc["hurt", "wr_target_rank"] == 3 and out.loc["back", "wr_target_rank"] == 4  # total targets: a 5-game year and a 1-game year rank low
+    assert out.loc["hurt", "wr_target_rank_pg"] == 1                                          # 60 targets in 5 games is 12 a game, the best rate
+    assert out.loc["back", "wr_target_rank_pg"] == 2 and out.loc["a", "wr_target_rank_pg"] == 3   # back's 1-game year is skipped for 2022's 10 a game
+    assert np.isnan(out.loc["rookie", "wr_target_rank"]) and np.isnan(out.loc["rookie", "wr_target_rank_pg"])   # no history, no rank, and no effect on others
+    assert np.isnan(out.loc["other", "wr_target_rank"])

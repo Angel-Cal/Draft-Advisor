@@ -98,6 +98,18 @@ def attach_player_ids(adp, ids):
     return adp
 
 
+def fill_from_roster(adp, roster):
+    """Fill missing player_ids by (name, position) from a season roster (ids.parquet predates that year's draft, so its rookies are absent)."""
+    roster = roster[roster["position"].isin(POSITIONS)].dropna(subset=["gsis_id", "full_name"])
+    roster = normalize_names(roster.rename(columns={"full_name": "Player"})).rename(columns={"Player": "name"})
+    roster = roster.drop_duplicates(subset=["merge_name", "position"], keep=False)
+    by_key = roster.set_index(["merge_name", "position"])["gsis_id"]
+    keys = pd.MultiIndex.from_frame(adp[["merge_name", "position"]])
+    adp = adp.copy()
+    adp["player_id"] = adp["player_id"].fillna(pd.Series(by_key.reindex(keys).to_numpy(), index=adp.index))
+    return adp
+
+
 if __name__ == "__main__":
     seasons = [int(a) for a in sys.argv[1:]] or list(SEASON_OPENERS)      # e.g. `python adp_scraper.py 2026` refreshes one season
     frames = []
@@ -113,6 +125,11 @@ if __name__ == "__main__":
         frames.append(parse_adp(fetch_html(season, timestamp), season, timestamp))
     adp = pd.concat(frames, ignore_index=True)
     adp = attach_player_ids(adp, pd.read_parquet(ROOT / "data" / "raw" / "ids.parquet"))
+    for season in seasons:
+        roster_path = ROOT / "data" / "raw" / f"roster_{season}.parquet"      # exists for the not-yet-played season only
+        if roster_path.exists():
+            this = adp["season"] == season
+            adp[this] = fill_from_roster(adp[this], pd.read_parquet(roster_path))
 
     unmatched = adp[adp["player_id"].isna()]
     print(f"{len(adp)} rows, {len(unmatched)} without player_id")

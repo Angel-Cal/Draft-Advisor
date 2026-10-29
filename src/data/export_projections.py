@@ -1,6 +1,6 @@
 """Export projections_<season>_v1.json for the C# side (contract: .claude/projection_schema_v1.md).
 
-One live file (next season's projections, ADP from the Underdog CSV) and one backtest file per held-out season
+One live file (next season's projections, ADP from the FantasyPros export) and one backtest file per held-out season
 (walk-forward projections, FantasyPros ADP, plus the actual points the simulator scores rosters with). Both use the
 same schema so the simulator runs the code path the app ships.
 
@@ -26,8 +26,8 @@ PROCESSED = ROOT / "data" / "processed"
 POSITIONS = ["QB", "RB", "WR", "TE"]
 BACKTEST_SEASONS = range(2021, 2026)
 WEEKS = 18
-POOL_RANK = 300  # the live advisor table holds the ~300 players ranked by Underdog
-TEAM_FIXES = {**TEAM_MAP, "JAC": "JAX", "LAR": "LA"}  # FantasyPros / 4for4 spellings -> nflverse
+POOL_RANK = 300  # the live advisor table holds the ~300 players ranked by ADP
+TEAM_FIXES = {**TEAM_MAP, "JAC": "JAX", "LAR": "LA"}  # FantasyPros spellings -> nflverse
 SCHEMA_COLUMNS = ["player_id", "player_name", "position", "team", "projected_ppr", "projected_half",
                   "projected_standard", "games", "games_delta", "adp", "injury_flag", "market_estimate", "actual_ppr"]
 
@@ -79,12 +79,12 @@ def durability_flag(seasonal, before_season):
 
 
 def build_live(table, roster, adp_table):
-    """table: predictions_table.parquet; roster: roster_2026; adp_table: adp_table.csv (4for4 + player_id)."""
+    """table: predictions_table.parquet; roster: roster_2026; adp_table: adp_table.csv (FantasyPros ADP + player_id)."""
     teams = (roster.sort_values("week").groupby("gsis_id").tail(1).set_index("gsis_id")["team"])
     adp_table = adp_table.assign(key=adp_table["player_id"].fillna("market:" + adp_table["merge_name"]))
     adp_teams = adp_table.drop_duplicates("key").set_index("key")["Team"]
 
-    df = table.rename(columns={"underdog": "adp"}).copy()
+    df = table[table["adp"].rank(method="first") <= POOL_RANK].copy()      # the same pool size as the backtests
     df["team"] = df["player_id"].map(teams).fillna(df["player_id"].map(adp_teams))
     df["team"] = _team(df["team"])
     return _finish(df)
@@ -113,11 +113,11 @@ def build_backtest(season, oos, adp, training, seasonal, curves, weekly=None):
     scored["injury_flag"] = scored["player_id"].map(durability_flag(seasonal, season)).fillna(False)
     scored = scored.rename(columns={"oos_pred_ppr": "projected_ppr"}).assign(market_estimate=False)
 
-    # market rows go through the same function the live advisor uses, which expects the 4for4-style table
+    # market rows go through the same function the live advisor uses, which expects the live ADP table's shape
     table = pd.DataFrame({"Player": pool["name"], "merge_name": pool["name"].str.lower(),
-                          "Position": pool["position"] + "-00", "ADP": pool["adp"], "Underdog": pool["adp"],
+                          "Position": pool["position"], "ADP": pool["adp"],
                           "player_id": pool["player_id"]})
-    market = market_projections(table, set(oos["player_id"]), curves).rename(columns={"underdog": "adp"})
+    market = market_projections(table, set(oos["player_id"]), curves)
     market = market.merge(pool[["player_id", "team"]], on="player_id")
 
     actual = seasonal[seasonal["season"] == season].set_index("player_id")["fantasy_points_ppr"]
@@ -166,7 +166,7 @@ if __name__ == "__main__":
                       pd.read_parquet(ROOT / "data" / "raw" / "roster_2026.parquet"),
                       pd.read_csv(PROCESSED / "adp_table.csv"))
     live = attach_role_context(live, context, live_season)
-    written = [write(to_document(live, live_season, "live", "underdog"))]
+    written = [write(to_document(live, live_season, "live", "fantasypros"))]
 
     training = pd.read_parquet(PROCESSED / "training_data.parquet")
     seasonal = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_20_25.parquet")

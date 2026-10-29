@@ -1,7 +1,7 @@
 """Freeze a season's projections and score them later with rules written down in advance (.claude/PREREGISTRATION_2026.md).
 
-  python src/evaluation/preseason_eval.py snapshot --season 2026 [--source data/processed/projections_2026_v1.json]
-      writes .claude/snapshots/projections_<season>_preseason.csv: the projections, the ADP-curve expectation, the gap and the role-caution inputs and flag, and
+  python src/evaluation/preseason_eval.py snapshot --season 2026 [--source data/processed/projections_2026_v1.json] [--output path.csv]
+      writes .claude/snapshots/projections_<season>_preseason.csv (or --output): the projections, the ADP-curve expectation, the gap and the role-caution inputs and flag, and
       prints the SHA-256 of the source file and the snapshot so the freeze can be checked later.
   python src/evaluation/preseason_eval.py score --season 2026 --actuals data/raw/seasonal_20_26.parquet [--snapshot path] [--exclude 00-0038117]
       scores the frozen snapshot against the season's results: the role-caution comparison (H1), the reliability of big model-above-ADP gaps against big
@@ -36,7 +36,7 @@ def sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def snapshot(season, source):
+def snapshot(season, source, output=None):
     """The projection file as a flat CSV, with the ADP-curve expectation (curves fit on earlier seasons only) and the role-caution flag."""
     import json
     players = pd.DataFrame(json.load(open(source))["players"])
@@ -53,9 +53,9 @@ def snapshot(season, source):
     players["season"] = season
     out = players[COLUMNS].round(3).sort_values("adp")
     SNAPSHOTS.mkdir(parents=True, exist_ok=True)
-    path = SNAPSHOTS / f"projections_{season}_preseason.csv"
+    path = Path(output) if output else SNAPSHOTS / f"projections_{season}_preseason.csv"
     out.to_csv(path, index=False, lineterminator="\n")        # LF, so the SHA-256 is the same on every machine (compare after removing carriage returns if git converted them)
-    print(f"wrote {path.relative_to(ROOT)}: {len(out)} players, {int(out['role_caution'].sum())} with the role caution, {int(out['in_top_adp'].sum())} in the top {TOP_N_ADP} by ADP")
+    print(f"wrote {path.resolve().relative_to(ROOT)}: {len(out)} players, {int(out['role_caution'].sum())} with the role caution, {int(out['in_top_adp'].sum())} in the top {TOP_N_ADP} by ADP")
     print(f"source {Path(source).name} sha256 {sha256(source)}\nsnapshot sha256 {sha256(path)}")
 
 
@@ -139,12 +139,13 @@ if __name__ == "__main__":
     parser.add_argument("command", choices=["snapshot", "score"])
     parser.add_argument("--season", type=int, required=True)
     parser.add_argument("--source", default=None, help="snapshot: the projection json (default data/processed/projections_<season>_v1.json)")
+    parser.add_argument("--output", default=None, help="snapshot: where to write the csv (default .claude/snapshots/projections_<season>_preseason.csv, the primary freeze; use another name for a sensitivity snapshot)")
     parser.add_argument("--snapshot", default=None, help="score: the frozen csv (default .claude/snapshots/projections_<season>_preseason.csv)")
     parser.add_argument("--actuals", default=None, help="score: seasonal stats parquet that holds the season's results")
     parser.add_argument("--exclude", nargs="*", default=[], help="score: player ids whose early results were already known when the rules were frozen")
     args = parser.parse_args()
     if args.command == "snapshot":
-        snapshot(args.season, args.source or ROOT / "data" / "processed" / f"projections_{args.season}_v1.json")
+        snapshot(args.season, args.source or ROOT / "data" / "processed" / f"projections_{args.season}_v1.json", args.output)
     else:
         if not args.actuals:
             sys.exit("score needs --actuals (a seasonal stats parquet with the season's results)")

@@ -21,7 +21,7 @@ def curves():
 def valid_doc(**changes):
     player = {"player_id": "a", "player_name": "A", "position": "WR", "team": "KC", "projected_ppr": 200.0,
               "games": 16, "games_delta": 0, "adp": 5.0, "injury_flag": False, "market_estimate": False}
-    doc = {"schema_version": "v1", "kind": "live", "season": 2026, "adp_source": "underdog",
+    doc = {"schema_version": "v1", "kind": "live", "season": 2026, "adp_source": "fantasypros",
            "position_rmse": {"QB": 84.0, "RB": 59.0, "WR": 53.0, "TE": 39.0},
            "players": [player, {**player, "player_id": "b", "player_name": "B"}]}
     return {**doc, **changes}
