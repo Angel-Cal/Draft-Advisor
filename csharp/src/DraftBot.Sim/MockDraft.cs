@@ -206,7 +206,7 @@ public sealed class MockDraft
         }
 
         output.WriteLine();
-        var explanations = Explainer.Explain(state, slot, candidates, settings, wait);
+        var explanations = Explainer.Explain(state, slot, candidates, settings);
         for (var i = 0; i < explanations.Count; i++)
         {
             output.WriteLine((i == 0 ? "Recommended: " : $"  Or #{i + 1}: ") + explanations[i].Headline);

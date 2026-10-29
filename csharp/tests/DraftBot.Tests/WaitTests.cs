@@ -323,5 +323,27 @@ public class WaitTests
         Assert.True(cost >= cap);                    // and the reach cost can only make the remaining alternatives look worse
     }
 
+    [Fact]
+    public void The_fallback_is_the_best_alternative_likely_to_last_that_the_recommender_could_take_at_the_next_pick()
+    {
+        // 4 teams: I pick 1st and 8th. "gone" is better than "near" but will not last to pick 8; "far" will last but is far past his ADP there
+        var league = new LeagueSettings(Teams: 4, Qb: 1, Rb: 1, Wr: 1, Te: 1, Flex: 0, Bench: 3);
+        ValuedPlayer V(string id, Position position, double projected, double adp) => new(Player(id, position, projected, adp: adp), projected - 100, 0, 0, false, 1, 0, 1, 50);
+        ValuedPlayer[] Fillers() => Enumerable.Range(1, 30).Select(i => V($"f{i}", Position.WR, 100, 100 + i)).ToArray();
+        var state = new DraftState([V("star", Position.RB, 250, 2), V("gone", Position.RB, 245, 3), V("far", Position.RB, 240, 60), V("near", Position.RB, 160, 9), .. Fillers()], league);
+        var reach = ValueRecommender.DefaultReach;
+
+        ValueCandidate Star(WaitSettings wait) => ValueRecommender.Rank(state, reach, NeedSettings.Default, 0, wait).Single(c => c.Player.Id == "star");
+
+        Assert.Equal("near", Star(ValueRecommender.DefaultWait).WaitFallback!.Player.Id);
+        Assert.Equal("far", Star(new WaitSettings(4, Reachable: AlternativeReach.Any)).WaitFallback!.Player.Id);
+
+        var alone = new DraftState([V("star", Position.RB, 250, 2), .. Fillers()], league);
+        var onlyHim = ValueRecommender.Rank(alone, reach, NeedSettings.Default, 0, ValueRecommender.DefaultWait).Single(c => c.Player.Id == "star");
+        Assert.True(onlyHim.WaitBonus > 0);
+        Assert.Null(onlyHim.WaitFallback);
+        Assert.All(ValueRecommender.Rank(state, reach, NeedSettings.Default, 0), c => Assert.Null(c.WaitFallback));
+    }
+
     static List<ValuedPlayer> RealisticValued() => Valuator.Value(RealisticPool(), Rmse, new LeagueSettings());
 }

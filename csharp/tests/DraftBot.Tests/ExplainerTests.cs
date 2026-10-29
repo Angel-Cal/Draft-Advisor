@@ -18,8 +18,8 @@ public class ExplainerTests
     static DraftState Pool(params ValuedPlayer[] extra) =>
         new(extra.Concat(Enumerable.Range(1, 30).Select(i => V($"f{i}", Position.WR, 100, 100 + i))), Four);
 
-    static ValueCandidate Candidate(ValuedPlayer p, double? gain = 50, double? bench = 0, double? wait = null, double sigmas = 0) =>
-        new(p, 50, 0, sigmas, gain, gain is null ? null : 0.25, bench, wait);
+    static ValueCandidate Candidate(ValuedPlayer p, double? gain = 50, double? bench = 0, double? wait = null, double sigmas = 0, ValuedPlayer? fallback = null) =>
+        new(p, 50, 0, sigmas, gain, gain is null ? null : 0.25, bench, wait, WaitFallback: fallback is null ? null : new ValueCandidate(fallback, 0, 0, 0));
 
     [Fact]
     public void A_player_who_fills_an_open_slot_is_described_as_starting_with_the_points_he_adds()
@@ -64,14 +64,13 @@ public class ExplainerTests
     }
 
     [Fact]
-    public void The_waiting_reason_names_the_best_player_at_his_position_who_will_probably_last_and_how_much_worse_he_is()
+    public void The_waiting_reason_names_the_fallback_the_waiting_bonus_assumed_and_how_much_worse_he_is()
     {
         var star = V("star", Position.RB, 250, 2);
-        var gone = V("gone", Position.RB, 240, 3);          // ADP 3: will not last to pick 8
-        var mid = V("mid", Position.RB, 190, 30);           // ADP 30: will
-        var state = Pool(star, gone, mid);
+        var mid = V("mid", Position.RB, 190, 30);
+        var state = Pool(star, mid);
 
-        var e = Explainer.Explain(state, 0, [Candidate(star, gain: 80, wait: 30)], Reach, new WaitSettings(4))[0];
+        var e = Explainer.Explain(state, 0, [Candidate(star, gain: 80, wait: 30, fallback: mid)], Reach)[0];
 
         Assert.Contains(ReasonLabel.RunningOut, e.Labels);
         var reason = e.Reasons[e.Labels.ToList().IndexOf(ReasonLabel.RunningOut)];
@@ -81,14 +80,16 @@ public class ExplainerTests
     }
 
     [Fact]
-    public void The_alternative_is_a_player_the_recommender_could_take_at_that_pick_not_one_far_past_his_ADP()
+    public void The_sentence_names_the_player_the_recommender_assumed_not_one_far_past_his_ADP()
     {
         var star = V("star", Position.RB, 250, 2);
         var far = V("far", Position.RB, 240, 60);           // certain to last to pick 8, but 16 spreads past it: never recommendable
         var near = V("near", Position.RB, 200, 8);          // about even odds to last, and no reach
         var state = Pool(star, far, near);
+        var reach = new ReachSettings(1000, 4);
 
-        var e = Explainer.Explain(state, 0, [Candidate(star, gain: 80, wait: 30)], new ReachSettings(1000, 4), new WaitSettings(4))[0];
+        var ranked = ValueRecommender.Rank(state, reach, wait: ValueRecommender.DefaultWait);
+        var e = Explainer.Explain(state, 0, [ranked.Single(c => c.Player.Id == "star")], reach)[0];
 
         var reason = e.Reasons[e.Labels.ToList().IndexOf(ReasonLabel.RunningOut)];
         Assert.Contains("near", reason);
@@ -100,11 +101,11 @@ public class ExplainerTests
     public void Waiting_is_not_called_costly_without_a_bonus_or_when_a_similar_player_will_last()
     {
         var star = V("star", Position.RB, 250, 2);
-        var twin = V("twin", Position.RB, 245, 30);
+        var twin = V("twin", Position.RB, 246, 30);
         var state = Pool(star, twin);
 
-        var noBonus = Explainer.Explain(state, 0, [Candidate(star, wait: null)], Reach, new WaitSettings(4))[0];
-        var similar = Explainer.Explain(state, 0, [Candidate(star, wait: 3)], Reach, new WaitSettings(4))[0];
+        var noBonus = Explainer.Explain(state, 0, [Candidate(star, wait: null, fallback: twin)], Reach)[0];
+        var similar = Explainer.Explain(state, 0, [Candidate(star, wait: 3, fallback: twin)], Reach)[0];
 
         Assert.DoesNotContain(ReasonLabel.RunningOut, noBonus.Labels);
         Assert.DoesNotContain(ReasonLabel.RunningOut, similar.Labels);
@@ -117,7 +118,7 @@ public class ExplainerTests
         var mid = V("mid", Position.RB, 190, 30);
         var state = Pool(star, mid);
 
-        var e = Explainer.Explain(state, 0, [Candidate(star, gain: 20, bench: 0, wait: 60)], Reach, new WaitSettings(4))[0];
+        var e = Explainer.Explain(state, 0, [Candidate(star, gain: 20, bench: 0, wait: 60, fallback: mid)], Reach)[0];
 
         Assert.Contains("RBs thin out before your next pick", e.Headline);
     }
@@ -160,7 +161,7 @@ public class ExplainerTests
         var mid = V("mid", Position.RB, 190, 60);
         var state = Pool(star, mid);
 
-        var e = Explainer.Explain(state, 0, [Candidate(star, gain: 80, wait: 30, sigmas: 3)], Reach, new WaitSettings(4))[0];
+        var e = Explainer.Explain(state, 0, [Candidate(star, gain: 80, wait: 30, sigmas: 3, fallback: mid)], Reach)[0];
 
         Assert.Equal(4, e.Reasons.Count);
         Assert.Equal(4, e.Labels.Count);
@@ -235,7 +236,7 @@ public class ExplainerTests
         var b = V("b", Position.WR, 230, 3);
         var state = Pool(a, b);
 
-        var all = Explainer.Explain(state, 0, [Candidate(b), Candidate(a)], Reach, new WaitSettings(4));
+        var all = Explainer.Explain(state, 0, [Candidate(b), Candidate(a)], Reach);
 
         Assert.Equal(["b", "a"], all.Select(e => e.Player.Id));
         Assert.All(all.SelectMany(e => e.Reasons.Append(e.Headline)), text => Assert.DoesNotContain("score", text, StringComparison.OrdinalIgnoreCase));

@@ -18,11 +18,8 @@ public static class Explainer
     /// <summary>Lineup gain, in projected points, below which a player is described as not starting.</summary>
     const double MinGain = 1;
 
-    /// <summary>How far, in projected points, the best likely survivor at his position must fall short of him before waiting counts as costly.</summary>
-    const double NoticeableDropOff = 10;
-
-    /// <summary>Survival chance from which a player counts as "likely still there" at my next pick (he must also be one the recommender could take there).</summary>
-    const double LikelyToLast = 0.5;
+    /// <summary>How far, in projected points, the player the waiting bonus assumes I would take instead must fall short of him before waiting counts as costly.</summary>
+    const double NoticeableDropOff = 5;
 
     const int MaxReasons = 4;
 
@@ -30,19 +27,16 @@ public static class Explainer
     const double RoleCautionAbsenceShare = 0.5;
 
     /// <summary>
-    /// One explanation per candidate, in the order given. <paramref name="wait"/> must be the settings the candidates were ranked with, so that the
-    /// players called likely to last are the ones the waiting bonus assumed.
+    /// One explanation per candidate, in the order given. The player named as the alternative to waiting is the one the recommender's waiting bonus
+    /// assumed (<see cref="ValueCandidate.WaitFallback"/>), so the sentence and the score always agree.
     /// </summary>
-    public static IReadOnlyList<Explanation> Explain(DraftState state, int teamIndex, IReadOnlyList<ValueCandidate> candidates, ReachSettings reach, WaitSettings? wait = null)
+    public static IReadOnlyList<Explanation> Explain(DraftState state, int teamIndex, IReadOnlyList<ValueCandidate> candidates, ReachSettings reach)
     {
-        var next = wait is null ? null : state.NextPick(teamIndex);
-        var simulated = next is { } turn && wait?.Opponents is { } opponents ? SurvivalSampler.Survival(state, turn, opponents, wait!.Samples) : null;
-        double Survival(ValuedPlayer p) => simulated?[p.Id] ?? WaitSettings.Survival(p.Player, next!.Value, reach, wait!.SpreadScale);
-
-        return candidates.Select(c => Describe(c, state, state.Teams[teamIndex], reach, next is null ? null : p => Survival(p), next)).ToList();
+        var next = state.NextPick(teamIndex);
+        return candidates.Select(c => Describe(c, state, state.Teams[teamIndex], reach, next)).ToList();
     }
 
-    static Explanation Describe(ValueCandidate c, DraftState state, Roster roster, ReachSettings reach, Func<ValuedPlayer, double>? survival, int? nextPick)
+    static Explanation Describe(ValueCandidate c, DraftState state, Roster roster, ReachSettings reach, int? nextPick)
     {
         var player = c.Player;
         var reasons = new List<string>();
@@ -56,7 +50,7 @@ public static class Explainer
         var starts = (c.Gain ?? 0) >= MinGain;
         if (c.Gain is not null) Add(starts ? StartReason(c, roster, state.League) : BackupReason(c, roster), starts ? ReasonLabel.Starter : ReasonLabel.Backup);
 
-        var scarcity = survival is null || nextPick is null || c.WaitBonus is not > 0 ? null : ScarcityReason(c, state, reach, survival, nextPick.Value);
+        var scarcity = nextPick is null || c.WaitBonus is not > 0 ? null : ScarcityReason(c, nextPick.Value);
         if (scarcity is not null) Add(scarcity, ReasonLabel.RunningOut);
 
         var roleCaution = RoleCaution(player.Player);
@@ -128,20 +122,15 @@ public static class Explainer
             : $"He would not start for you; he is insurance for {best.Player.PlayerName}, covering injuries and bye weeks.";
     }
 
-    static string? ScarcityReason(ValueCandidate c, DraftState state, ReachSettings reach, Func<ValuedPlayer, double> survival, int nextPick)
+    static string? ScarcityReason(ValueCandidate c, int nextPick)
     {
         var p = c.Player;
-        // the alternative is the one the recommender could actually take then: likely to last, inside the reach cap at that pick, best after the reach cost
-        // (a player far past his ADP is "there" but would never be recommended, however high the model is on him)
-        var likelyLeft = state.Available
-            .Where(a => a.Position == p.Position && a.Id != p.Id && survival(a) >= LikelyToLast && reach.Reach(a.Player, nextPick) <= reach.CapSigmas)
-            .MaxBy(a => a.Player.ProjectedPpr - reach.Lambda * Math.Pow(reach.Reach(a.Player, nextPick), 2));
-        if (likelyLeft is null) return $"Almost no {p.Position}s of note will still be there at your next pick (#{nextPick}).";
+        if (c.WaitFallback is not { } fallback) return $"Almost no {p.Position}s of note will still be there at your next pick (#{nextPick}).";
 
-        var dropOff = p.Player.ProjectedPpr - likelyLeft.Player.ProjectedPpr;
+        var dropOff = p.Player.ProjectedPpr - fallback.Player.Player.ProjectedPpr;
         return dropOff < NoticeableDropOff
             ? null
-            : $"The {p.Position}s thin out before your next pick (#{nextPick}): the best one you could reasonably take then is {likelyLeft.Player.PlayerName}, projected {dropOff:F0} points lower.";
+            : $"The {p.Position}s thin out before your next pick (#{nextPick}): the best one you could reasonably take then is {fallback.Player.Player.PlayerName}, projected {dropOff:F0} points lower.";
     }
 
     static (string Text, ReasonLabel Label)? PriceReason(ValueCandidate c, ReachSettings reach, int pick)
