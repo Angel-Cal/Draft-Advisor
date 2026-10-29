@@ -317,6 +317,8 @@ x option value over the waiver level, with dead picks (3rd QB/TE) ranked last; t
 (it favors WR by unfilled slots). Settled 2026-10-25/27: opponents' random draws are taken in player-id order, not pool order (so comparisons between projection files are valid); the cost-of-waiting bonus (survival to my next pick from the ADP model, same-position
 alternatives, raw weight 4, horizon 1) is the default and its weight is a mixing weight (about 1.4 in standardized units, earned at RB and TE in rounds 1-4); the league-finish metric is the second judge next to starter points.
 
+**App design.** The app mockup is settled (user: "pretty happy"); `.claude/APP_DESIGN.md` records every visual rule and the engine work it implies, `mockup/` holds the source (branch `app-mockup`). Still the mockup phase: do not build the app until the user scopes it.
+
 **After the next task (candidates).** Reasoning strings are done (2026-10-28: `Explainer`, see `LOG.md`; its alternative to waiting is now the bonus's own `WaitFallback`, and `DefaultWait` counts only alternatives inside the reach cap). Next:
 Phase 5 (WPF + BlazorWebView app, Sleeper sync) and the Phase 3 retrain after the 2026 season (half-PPR/standard targets too). Recommender work is at diminishing returns. Tested and rejected, with numbers in `LOG.md` (do not redo): two-step lookahead,
 multi-pick horizon, variance-aware starter value, spread-normalized bonus, RB+TE-only bonus (ties the global one), handcuff logic (the absorber of a lead back's work is not identifiable preseason), prior-season weekly volatility as a risk score or a model feature,

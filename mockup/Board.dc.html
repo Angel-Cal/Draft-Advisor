@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Draft board</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+body{margin:0;background:#12161C;color:#E7ECF2;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:14px;line-height:1.45}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;font-size:inherit;color:inherit}
+.mono{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.panel{background:#1A2028;border:1px solid #2A333F;border-radius:10px}
+.eyebrow{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:#9AA6B4;font-weight:600}
+.muted{color:#9AA6B4}
+.gear{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:8px;color:#9AA6B4;border:1px solid transparent}
+.gear:hover{color:#E7ECF2;background:#222B36}
+.navlink{padding:20px 4px 17px;margin:0 14px;border-bottom:3px solid transparent;color:#9AA6B4;font-weight:500}
+.navlink:hover{color:#E7ECF2}
+.navlink.on{color:#E7ECF2;border-bottom-color:#4DA3FF}
+.pos{display:inline-block;min-width:30px;text-align:center;padding:1px 6px;border-radius:5px;font-size:12px;font-weight:600}
+.pos-QB{color:#F4B3D0;background:#3B2332}
+.pos-RB{color:#7FDBB6;background:#173529}
+.pos-WR{color:#9BC3F7;background:#1C2E49}
+.pos-TE{color:#B79CFF;background:#2A2147}
+.badge{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;border:1px solid transparent}
+.b-plan{color:#C9B3F5;border-color:#51407D}
+.bgrid{display:grid;grid-template-columns:44px repeat(12,minmax(88px,1fr));gap:6px;align-items:stretch}
+.bhead{padding:8px 6px;text-align:center;font-weight:600;font-size:13px;border-radius:6px;background:#222B36}
+.bhead.me{background:#3A4553;color:#E7ECF2}
+.rlabel{display:flex;flex-direction:column;align-items:center;justify-content:center;color:#9AA6B4;font-size:12px}
+.cell{border-radius:6px;padding:6px 8px;min-height:66px;display:flex;flex-direction:column;justify-content:space-between;border:1px solid transparent}
+.cn{font-size:11px;color:#B7C2CF}
+.cname{font-weight:600;font-size:13px;color:#F2F6FA;overflow-wrap:anywhere}
+.cmeta{font-size:11px;color:#B7C2CF}
+.c-QB{background:#3B2332}
+.c-RB{background:#173529}
+.c-WR{background:#1C2E49}
+.c-TE{background:#2A2147}
+.c-empty{background:#171D25;border:1px solid #232C37}
+.c-empty .cn{color:#7D8999}
+.c-now{background:#2A2110;border:2px solid #F2B84B;padding:5px 7px}
+.c-now .cname{color:#F2B84B}
+.c-mine{border-color:#9AA6B4}
+.c-empty.c-mecol{background:#202A36;border-color:#33404F}
+</style>
+</helmet>
+<div style="width:100%;min-width:0">
+
+<header style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 28px;padding:0 28px;border-bottom:1px solid #2A333F;background:#161B22">
+<div style="display:flex;align-items:center;gap:10px;padding:14px 0">
+<svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="7" fill="#F2B84B"/><path d="M8 20 L14 8 L20 20 M10.5 15.5 H17.5" stroke="#1A1303" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<span style="font-weight:600;font-size:18px;letter-spacing:.01em">DraftBot</span>
+</div>
+<nav aria-label="Screens" style="display:flex;flex-wrap:wrap;align-items:center">
+<a class="navlink" href="Main.dc.html">Draft</a>
+<a class="navlink" href="Players.dc.html">Players</a>
+<a class="navlink on" href="Board.dc.html" aria-current="page">Board</a>
+</nav>
+<div style="margin-left:auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px">
+<span class="muted" style="font-size:13px">Saturday league · 12 teams · PPR</span>
+<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:#173529;color:#7FDBB6;font-size:13px;font-weight:500"><span style="width:8px;height:8px;border-radius:50%;background:#7FDBB6"></span>Sleeper live · synced 2 s ago</span>
+<a class="gear" href="Settings.dc.html" aria-label="Settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></a>
+</div>
+</header>
+
+<main style="padding:24px 28px 40px;display:flex;flex-direction:column;gap:20px;max-width:1440px;margin:0 auto">
+
+<div style="display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px">
+<div>
+<h1 style="margin:0;font-size:24px;font-weight:600">Draft board</h1>
+<div class="muted" style="margin-top:2px">Snake draft, 16 rounds. Cells read round.pick; the amber cell is the pick on the clock.</div>
+</div>
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+<span class="pos pos-QB">QB</span><span class="pos pos-RB">RB</span><span class="pos pos-WR">WR</span><span class="pos pos-TE">TE</span>
+<span class="muted" style="font-size:13px;margin-left:6px">Your picks have a light outline</span>
+</div>
+</div>
+
+<section class="panel" style="padding:16px;overflow:hidden" aria-label="Draft board grid">
+<div style="overflow-x:auto">
+<div style="min-width:1200px;display:flex;flex-direction:column;gap:6px">
+<div class="bgrid">
+<div></div>
+<div class="bhead">Team 1</div><div class="bhead">Team 2</div><div class="bhead">Team 3</div><div class="bhead">Team 4</div><div class="bhead me">You</div><div class="bhead">Team 6</div><div class="bhead">Team 7</div><div class="bhead">Team 8</div><div class="bhead">Team 9</div><div class="bhead">Team 10</div><div class="bhead">Team 11</div><div class="bhead">Team 12</div>
+</div>
+<sc-for list="{{rounds}}" as="rd" hint-placeholder-count="16">
+<div class="bgrid">
+<div class="rlabel"><span class="mono" style="font-weight:600;color:#E7ECF2">{{rd.round}}</span><span>{{rd.dir}}</span></div>
+<sc-for list="{{rd.cells}}" as="c" hint-placeholder-count="12">
+<div class="cell {{c.cls}}"><span class="cn mono">{{c.label}}</span><span class="cname">{{c.name}}</span><span class="cmeta">{{c.meta}}</span></div>
+</sc-for>
+</div>
+</sc-for>
+</div>
+</div>
+</section>
+
+<div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+
+<section class="panel" style="flex:1 1 420px;min-width:0;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px"><h2 style="margin:0;font-size:16px;font-weight:600">What the last 10 picks were</h2></div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;gap:10px"><span class="pos pos-WR">WR</span><div style="flex:1;height:10px;border-radius:5px;background:#2A333F"><div style="height:10px;border-radius:5px;background:#9BC3F7;width:60%"></div></div><span class="mono" style="width:24px;text-align:right">6</span></div>
+<div style="display:flex;align-items:center;gap:10px"><span class="pos pos-RB">RB</span><div style="flex:1;height:10px;border-radius:5px;background:#2A333F"><div style="height:10px;border-radius:5px;background:#7FDBB6;width:20%"></div></div><span class="mono" style="width:24px;text-align:right">2</span></div>
+<div style="display:flex;align-items:center;gap:10px"><span class="pos pos-QB">QB</span><div style="flex:1;height:10px;border-radius:5px;background:#2A333F"><div style="height:10px;border-radius:5px;background:#F4B3D0;width:10%"></div></div><span class="mono" style="width:24px;text-align:right">1</span></div>
+<div style="display:flex;align-items:center;gap:10px"><span class="pos pos-TE">TE</span><div style="flex:1;height:10px;border-radius:5px;background:#2A333F"><div style="height:10px;border-radius:5px;background:#B79CFF;width:10%"></div></div><span class="mono" style="width:24px;text-align:right">1</span></div>
+</div>
+<div class="muted" style="font-size:13px">Six receivers in ten picks. Receivers still available at your spot are listed on the Draft screen.</div>
+</section>
+
+<section class="panel" style="flex:1 1 420px;min-width:0;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px"><h2 style="margin:0;font-size:16px;font-weight:600">Drafter tendencies</h2><span class="badge b-plan">Planned</span></div>
+<div class="muted" style="font-size:13px">Learned from the picks the app logs. Positive means a team has taken players earlier than their ADP so far.</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<div style="display:flex;justify-content:space-between;padding:8px 12px;border-radius:8px;background:#222B36"><span>Team 12</span><span class="mono" style="color:#E7ECF2">+1.5 picks</span></div>
+<div style="display:flex;justify-content:space-between;padding:8px 12px;border-radius:8px;background:#222B36"><span>Team 11</span><span class="mono" style="color:#E7ECF2">+1.2 picks</span></div>
+<div style="display:flex;justify-content:space-between;padding:8px 12px;border-radius:8px;background:#222B36"><span>Team 10</span><span class="mono" style="color:#E7ECF2">+1.0 picks</span></div>
+</div>
+<div class="muted" style="font-size:13px">Everyone is within two picks of ADP so far, so nothing stands out yet. This sharpens after each drafter has about four picks.</div>
+</section>
+
+<section class="panel" style="flex:1 1 340px;min-width:0;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px"><h2 style="margin:0;font-size:16px;font-weight:600">Pick log</h2><span class="badge b-plan">Planned</span></div>
+<div class="muted" style="font-size:13px">Every pick is saved on this computer with the time left on the clock, so the app can learn how your league drafts.</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<div style="display:flex;justify-content:space-between;padding:8px 12px;border-radius:8px;background:#222B36"><span class="mono">#43 L.McConkey</span><span class="mono muted">0:41 left</span></div>
+<div style="display:flex;justify-content:space-between;padding:8px 12px;border-radius:8px;background:#222B36"><span class="mono">#42 E.Egbuka</span><span class="mono muted">1:02 left</span></div>
+<div style="display:flex;justify-content:space-between;padding:8px 12px;border-radius:8px;background:#222B36"><span class="mono">#41 T.Higgins</span><span class="mono muted">0:55 left</span></div>
+</div>
+<button class="btn" type="button" style="align-self:flex-start;border:1px solid #33404F;background:#222B36;border-radius:8px;padding:10px 16px;min-height:44px;font-weight:600;cursor:pointer">Export log</button>
+</section>
+</div>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    const picks = [
+      ['J.Gibbs','RB','DET'],['B.Robinson','RB','ATL'],['J.Chase','WR','CIN'],['P.Nacua','WR','LA'],
+      ['C.McCaffrey','RB','SF'],['J.Taylor','RB','IND'],['J.Smith-Njigba','WR','SEA'],['A.St. Brown','WR','DET'],
+      ['J.Cook','RB','BUF'],['C.Lamb','WR','DAL'],['D.Achane','RB','MIA'],['J.Jefferson','WR','MIN'],
+      ['C.Brown','RB','CIN'],['S.Barkley','RB','PHI'],['O.Hampton','RB','LAC'],['D.Henry','RB','BAL'],
+      ['K.Walker','RB','KC'],['A.Brown','WR','NE'],['A.Jeanty','RB','LV'],['D.London','WR','ATL'],
+      ['B.Bowers','TE','LV'],['J.Allen','QB','BUF'],['N.Collins','WR','HOU'],['G.Pickens','WR','DAL'],
+      ['T.McBride','TE','ARI'],['J.Williams','RB','DAL'],['K.Williams','RB','LA'],['M.Nabers','WR','NYG'],
+      ['C.Olave','WR','NO'],['Jeremiyah Love','RB','ARI'],['R.Rice','WR','KC'],['D.Smith','WR','PHI'],
+      ['B.Hall','RB','NYJ'],['T.Etienne','RB','NO'],['Z.Flowers','WR','BAL'],['C.Skattebo','RB','NYG'],
+      ['T.McMillan','WR','CAR'],['L.Jackson','QB','BAL'],['C.Loveland','TE','CHI'],['G.Wilson','WR','NYJ'],
+      ['T.Higgins','WR','CIN'],['E.Egbuka','WR','TB'],['L.McConkey','WR','LAC']
+    ];
+    const now = 44, me = 5;
+    const rounds = [];
+    for (let r = 1; r <= 16; r++) {
+      const cells = [];
+      for (let c = 1; c <= 12; c++) {
+        const n = (r - 1) * 12 + (r % 2 ? c : 13 - c);
+        const label = r + '.' + String(r % 2 ? c : 13 - c).padStart(2, '0');
+        let cell;
+        if (n <= picks.length) {
+          const p = picks[n - 1];
+          cell = { label, name: p[0], meta: p[1] + ' · ' + p[2], cls: 'c-' + p[1] + (c === me ? ' c-mine' : '') };
+        } else if (n === now) {
+          cell = { label, name: 'On the clock', meta: 'You', cls: 'c-now' };
+        } else {
+          cell = { label, name: '', meta: '', cls: 'c-empty' + (c === me ? ' c-mecol' : '') };
+        }
+        cells.push(cell);
+      }
+      rounds.push({ round: r, dir: r % 2 ? 'to right' : 'to left', cells });
+    }
+    return { rounds };
+  }
+}
+</script>
+</body>
+</html>

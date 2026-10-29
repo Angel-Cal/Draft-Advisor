@@ -1,0 +1,76 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-28T22:00:00Z"
+  },
+  "title": "DraftBot App Mockup",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Setup.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 820,
+      "title": "1 · First-run setup (once)",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Main.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 1440,
+      "h": 1300,
+      "title": "2 · Live draft",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Players.dc.html": {
+      "x": 3040,
+      "y": 0,
+      "w": 1440,
+      "h": 1000,
+      "title": "3 · Available players",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Board.dc.html": {
+      "x": 4560,
+      "y": 0,
+      "w": 1440,
+      "h": 1560,
+      "title": "4 · Draft board",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Settings.dc.html": {
+      "x": 6080,
+      "y": 0,
+      "w": 1440,
+      "h": 1700,
+      "title": "5 · Settings (gear icon)",
+      "expand": "fill",
+      "is_interactive": true
+    }
+  },
+  "order": [
+    "Setup.dc.html",
+    "Main.dc.html",
+    "Players.dc.html",
+    "Board.dc.html",
+    "Settings.dc.html"
+  ],
+  "notes": {
+    "title": {
+      "x": 0,
+      "y": -260,
+      "text": "DraftBot desktop app: five screens, sample draft (12 teams, pick 44, you draft from slot 5)",
+      "kind": "title1",
+      "maxW": 7600
+    }
+  },
+  "designSystems": []
+}

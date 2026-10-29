@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Players</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+body{margin:0;background:#12161C;color:#E7ECF2;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:14px;line-height:1.45}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;font-size:inherit;color:inherit}
+.mono{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.panel{background:#1A2028;border:1px solid #2A333F;border-radius:10px}
+.eyebrow{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:#9AA6B4;font-weight:600}
+.muted{color:#9AA6B4}
+.gear{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:8px;color:#9AA6B4;border:1px solid transparent}
+.gear:hover{color:#E7ECF2;background:#222B36}
+.navlink{padding:20px 4px 17px;margin:0 14px;border-bottom:3px solid transparent;color:#9AA6B4;font-weight:500}
+.navlink:hover{color:#E7ECF2}
+.navlink.on{color:#E7ECF2;border-bottom-color:#4DA3FF}
+.pos{display:inline-block;min-width:30px;text-align:center;padding:1px 6px;border-radius:5px;font-size:12px;font-weight:600}
+.pos-QB{color:#F4B3D0;background:#3B2332}
+.pos-RB{color:#7FDBB6;background:#173529}
+.pos-WR{color:#9BC3F7;background:#1C2E49}
+.pos-TE{color:#B79CFF;background:#2A2147}
+.badge{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;border:1px solid transparent}
+.b-starter{color:#7FDBB6;border-color:#2B5C49}
+.b-risk{color:#F3A0A0;border-color:#6A3434}
+.b-reach{color:#F2B84B;border-color:#6A5222}
+.b-caution{color:#C9B3F5;border-color:#51407D}
+.b-est{color:#9AA6B4;border-color:#3A4553}
+.btn{border:0;border-radius:8px;padding:10px 16px;font-weight:600;cursor:pointer;min-height:44px}
+.btn-primary{background:#F2B84B;color:#1A1303}
+.btn-ghost{background:#222B36;color:#E7ECF2;border:1px solid #33404F}
+.chip{border:1px solid #33404F;background:#1A2028;border-radius:999px;padding:6px 14px;cursor:pointer;min-height:44px}
+.chip.on{background:#E7ECF2;color:#12161C;border-color:#E7ECF2}
+.prow{display:grid;grid-template-columns:44px minmax(150px,1.5fr) 56px 56px 68px 130px 64px 52px minmax(130px,1fr);gap:8px;align-items:center;padding:10px 16px;border-top:1px solid #232C37}
+.prow:hover{background:#1F2832}
+.phead{border-top:0;padding-top:12px;padding-bottom:8px}
+.slot{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;background:#222B36}
+.slot.open{background:transparent;border:1px dashed #3A4553;color:#9AA6B4}
+.tile{display:flex;flex-direction:column;gap:12px;text-align:left;padding:16px;border-radius:10px;background:#222B36;border:1px solid #33404F;cursor:pointer;min-height:44px}
+.tile:hover{background:#27323F}
+.tile.take{background:#2A2110;border:2px solid #F2B84B;padding:15px}
+.tile.sel{outline:2px solid #E7ECF2;outline-offset:2px}
+.blk{display:block}
+.cost{font-size:30px;font-weight:500;line-height:1}
+.verdict{font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px;white-space:nowrap;border:1px solid transparent}
+.v-take{background:#F2B84B;color:#1A1303}
+.v-free{color:#7FDBB6;border-color:#2B5C49}
+.altrow{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+</style>
+</helmet>
+<div style="width:100%;min-width:0">
+
+<header style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 28px;padding:0 28px;border-bottom:1px solid #2A333F;background:#161B22">
+<div style="display:flex;align-items:center;gap:10px;padding:14px 0">
+<svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="7" fill="#F2B84B"/><path d="M8 20 L14 8 L20 20 M10.5 15.5 H17.5" stroke="#1A1303" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<span style="font-weight:600;font-size:18px;letter-spacing:.01em">DraftBot</span>
+</div>
+<nav aria-label="Screens" style="display:flex;flex-wrap:wrap;align-items:center">
+<a class="navlink" href="Main.dc.html">Draft</a>
+<a class="navlink on" href="Players.dc.html" aria-current="page">Players</a>
+<a class="navlink" href="Board.dc.html">Board</a>
+</nav>
+<div style="margin-left:auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px">
+<span class="muted" style="font-size:13px">Saturday league · 12 teams · PPR</span>
+<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:#173529;color:#7FDBB6;font-size:13px;font-weight:500"><span style="width:8px;height:8px;border-radius:50%;background:#7FDBB6"></span>Sleeper live · synced 2 s ago</span>
+<a class="gear" href="Settings.dc.html" aria-label="Settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></a>
+</div>
+</header>
+
+
+<main style="padding:24px 28px 40px;display:flex;flex-direction:column;gap:20px;max-width:1440px;margin:0 auto">
+<div>
+<h1 style="margin:0;font-size:24px;font-weight:600">Available players</h1>
+<div class="muted" style="margin-top:2px">Everyone still on the board at pick #44, for when you want to look someone up.</div>
+</div>
+
+<section class="panel" aria-label="Available players" style="overflow:hidden">
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:16px 16px 12px">
+<sc-for list="{{chips}}" as="chip" hint-placeholder-count="5">
+<button class="chip {{chip.cls}}" type="button" onClick="{{chip.pick}}" aria-pressed="{{chip.on}}">{{chip.label}}</button>
+</sc-for>
+<label style="margin-left:auto;display:flex;align-items:center;gap:8px"><span class="muted" style="font-size:13px">Search</span><input type="search" placeholder="Player or team" style="background:#12161C;border:1px solid #33404F;border-radius:8px;color:#E7ECF2;padding:9px 12px;min-height:44px;width:200px;font-family:inherit"></label>
+</div>
+<div style="overflow-x:auto">
+<div style="min-width:940px">
+<div class="prow phead eyebrow"><span>Rec.</span><span>Player</span><span>Pos</span><span>Team</span><span>Proj</span><span>Over replacement</span><span>ADP</span><span>Tier</span><span>Flags</span></div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="12">
+<div class="prow">
+<span class="mono muted">{{r.rank}}</span>
+<span style="font-weight:500">{{r.name}}</span>
+<span><span class="pos pos-{{r.pos}}">{{r.pos}}</span></span>
+<span class="muted">{{r.team}}</span>
+<span class="mono">{{r.proj}}</span>
+<span class="mono" style="color:{{r.vorColor}}">{{r.vor}}</span>
+<span class="mono">{{r.adp}}</span>
+<span class="mono">{{r.tier}}</span>
+<span style="display:flex;flex-wrap:wrap;gap:4px">
+<sc-if value="{{r.inj}}" hint-placeholder-val="{{ true }}"><span class="badge b-risk">Injury</span></sc-if>
+<sc-if value="{{r.cau}}" hint-placeholder-val="{{ false }}"><span class="badge b-caution">Role</span></sc-if>
+<sc-if value="{{r.est}}" hint-placeholder-val="{{ false }}"><span class="badge b-est">Estimate</span></sc-if>
+</span>
+</div>
+</sc-for>
+</div>
+</div>
+<div class="muted" style="padding:12px 16px;border-top:1px solid #232C37;font-size:13px">Sorted by ADP. Rec. is the advisor's rank among its top five; a dash means it is not recommended at this pick. Over replacement is projected points above a replacement-level player at the position (QB 248, RB 139, WR 141, TE 129). Estimate means the projection comes from ADP, not the model.</div>
+</section>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { pos: 'ALL' };
+  }
+  renderVals() {
+    // [advisor rank or '-', name, pos, team, proj, over replacement, ADP, tier, flags: i injury, c role caution, e estimate]
+    const all = [
+      ['1', 'D.Swift', 'RB', 'CHI', 191, 52.2, 43.4, 7, 'i'],
+      ['2', 'Q.Judkins', 'RB', 'CLE', 151, 11.8, 45.0, 9, ''],
+      ['4', 'J.Waddle', 'WR', 'DEN', 165, 24.1, 46.4, 7, 'c'],
+      ['3', 'B.Irving', 'RB', 'TB', 184, 45.1, 46.6, 7, 'i'],
+      ['5', 'D.Moore', 'WR', 'BUF', 133, -7.9, 48.2, 7, ''],
+      ['-', 'D.Montgomery', 'RB', 'HOU', 133, -5.8, 49.4, 9, ''],
+      ['-', 'D.Adams', 'WR', 'LA', 170, 29.2, 50.0, 7, 'i'],
+      ['-', 'T.Warren', 'TE', 'IND', 159, 30.0, 51.4, 4, ''],
+      ['-', 'D.Maye', 'QB', 'NE', 285, 36.6, 52.8, 2, ''],
+      ['-', 'J.Williams', 'WR', 'DET', 186, 45.3, 55.8, 5, 'i'],
+      ['-', 'Jadarian Price', 'RB', 'SEA', 154, 15.5, 55.8, 9, 'e'],
+      ['-', 'T.Henderson', 'RB', 'NE', 182, 43.3, 63.8, 7, '']
+    ];
+    const f = this.state.pos;
+    const rows = all.filter(a => f === 'ALL' || a[2] === f).map(a => ({
+      rank: a[0], name: a[1], pos: a[2], team: a[3], proj: a[4],
+      vor: (a[5] > 0 ? '+' : '') + a[5].toFixed(1), vorColor: a[5] > 0 ? '#7FDBB6' : '#F3A0A0',
+      adp: a[6].toFixed(1), tier: a[7],
+      inj: a[8].indexOf('i') >= 0, cau: a[8].indexOf('c') >= 0, est: a[8].indexOf('e') >= 0
+    }));
+    const chips = ['ALL', 'QB', 'RB', 'WR', 'TE'].map(p => ({
+      label: p === 'ALL' ? 'All' : p, on: f === p, cls: f === p ? 'on' : '',
+      pick: () => this.setState({ pos: p })
+    }));
+    return { rows, chips };
+  }
+}
+</script>
+</body>
+</html>
