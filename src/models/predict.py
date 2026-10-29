@@ -6,6 +6,7 @@ import json
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.models.train import Model
 from src.models.train import split_positions, drop_non_features
+from src.models.short_season import routed_refit
 from src.data.pipeline import save
 from src.data.validate import check_prediction_outputs
 from src.data.run_manifest import check_freshness, update_manifest
@@ -40,11 +41,14 @@ def drop_meta(df):
     return df
 
 def refit_position(model, training_df, prediction_df, params):
-    """Projections from the validated recipe: early-stop on the newest training season, refit on all of them, 5 seeds averaged."""
+    """Projections from the validated recipe: early-stop on the newest training season, refit on all of them, 5 seeds averaged.
+
+    Players with a short prior season are projected from the rate view of the features (short_season.py); everyone else is unchanged.
+    """
     newest = training_df["season"].max()
     older, latest = training_df[training_df["season"] < newest], training_df[training_df["season"] == newest]
-    return model.refit_predict(drop_non_features(older), older["target_ppr"], drop_non_features(latest), latest["target_ppr"],
-                               prediction_df, params)
+    return routed_refit(model, drop_non_features(older), older["target_ppr"], drop_non_features(latest), latest["target_ppr"],
+                        prediction_df, params)
 
 
 if __name__ == "__main__":
