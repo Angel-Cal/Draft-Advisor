@@ -165,9 +165,9 @@ Data files, `archive/` and build output are not listed.
 - **ArmSweep.cs** (67 lines)
   - `static class ArmSweep`: Scores a set of strategy settings ("arms") over the backtests, next to fixed reference strategies, then checks the choice leave-one-season-out: pick the best arm on four seasons, score it on the fi...
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, IReadOnlyList<IDraftStrategy> arms, IReadOnlyList<IDraftStrategy> references, string headline, double noiseScale = 1.0, SweepMetric metric = SweepMetric.Points, int firstSeed = 0)`
-- **DeviationCalibration.cs** (149 lines)
+- **DeviationCalibration.cs** (162 lines)
   - `static class DeviationCalibration`: How well calibrated is the model where the advisor actually acts?
-    - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0, int firstSeed = 0)`
+    - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0, int firstSeed = 0, string advisor = "full")`
   - `record Obs(int Season, int Seed, int Round, bool SamePosition, double DProj, double DAdp, double DActual, Position Taken = default, Position Passed = default, double ActualTaken = 0, double ActualPassed = 0)`
 - **DraftRules.cs** (32 lines)
   - `static class DraftRules`
@@ -226,7 +226,7 @@ Data files, `archive/` and build output are not listed.
     - `ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)`
   - `static class Decomposition`
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds)`
-- **Program.cs** (362 lines): Top-level program; commands: describe, backtest, draft, diagnose, decompose, calibrate-noise, fit-noise, tune-bench, tune-need, tune-wait, tune-spread, tune-standardized, diagnose-scales, tune-scarce, tune-where, tune-horizon, tune-lookahead, tune-reach-wait, tune-reach-survival, tune-reach-picks, stability-reach, case-reach, world-sweep, calibrate-deviations, trace-reach, tune-reach-free, calibrate-survival, tune-rollout, tune-reachable, tune-survival, tune-slot, tune-bye, tune-starter, tune-value, tune-reach, tune-tiers
+- **Program.cs** (363 lines): Top-level program; commands: describe, backtest, draft, diagnose, decompose, calibrate-noise, fit-noise, tune-bench, tune-need, tune-wait, tune-spread, tune-standardized, diagnose-scales, tune-scarce, tune-where, tune-horizon, tune-lookahead, tune-reach-wait, tune-reach-survival, tune-reach-picks, stability-reach, case-reach, world-sweep, calibrate-deviations, trace-reach, tune-reach-free, calibrate-survival, tune-rollout, tune-reachable, tune-survival, tune-slot, tune-bye, tune-starter, tune-value, tune-reach, tune-tiers
 - **ReachTrace.cs** (215 lines)
   - `static class ReachTrace`: Shared-state comparison of reach-cost variants: the adopted advisor drafts, and at each of its turns every variant is asked what it would pick in that same state (so the drafts do not drift apart).
     - `static List<ValueRecommenderStrategy> Variants()`: The adopted advisor against the variants; `adp` is plain ADP and `no reach cost` is the advisor with lambda 0 (the 4-sigma cap stays).
@@ -459,6 +459,15 @@ Data files, `archive/` and build output are not listed.
 - **advanced_features.py** (69 lines): Ablation of the 'process' feature groups (expected points, role, depth chart, team EPA, Next Gen Stats) on every position, each added to that position's current model, with a random-noise control o... (runnable)
   - `group_columns(group, position)`: Candidate columns of a group (or 'a+b' union of groups) for a position: not already in its model.
   - `position_frame(position, train, context)`
+- **availability_prior.py** (132 lines): Does a games-played prior fitted on a long window beat the totals target? (runnable)
+  - `load_history()`: One row per player-season 2000-2025 (QB/RB/WR/TE): games, workload per game and age.
+  - `transitions(hist)`: A player with 4+ games in s-1 who played in s: last season's workload and this season's age -> this season's games as a share of the schedule.
+  - `design(d)`
+  - `prior_games(trans, test, position, season, first)`: Expected games of the `test` rows from the transitions into first..season-1.
+  - `mean_games(trans, position, season)`
+  - `test_frame(df, season, hist)`: The test rows with the inputs the prior needs (the row's per-game columns are last season's; a position frame may lack some).
+  - `run_arm(df, position, arm, seed, trans, hist)`: Walk-forward predictions for one new arm; one row per player-season in 2021-2025.
+  - `summarize(runs, keys)`
 - **benchmark.py** (73 lines): (runnable)
   - `load_season(season)`: Model out-of-sample predictions joined to ADP; unranked players tied at last.
   - `spearman_rows(df, season, scope)`: One row per position.
@@ -508,15 +517,23 @@ Data files, `archive/` and build output are not listed.
   - `load_qb()`
   - `run(qb, features, seed, kind, params, target, games, noise_cols)`: Walk-forward out-of-sample predictions on the total-PPR scale.
   - `score(oos, top_keys)`
+- **rb_availability.py** (103 lines): Are the RB busts in rounds 3-6 injuries or genuine underperformance?
 - **rb_depth_chart.py** (46 lines): Ablation of RB depth-chart features on top of the current RB model (which already has the vacated features). (runnable)
   - `load_rb_with_depth()`
   - `variants()`
+- **rb_premium.py** (96 lines): What does the market's RB premium pay for that season value over replacement misses? (runnable)
+  - `replacement(points)`: First non-starter at each position: dedicated slots first, then the best remaining RB/WR/TE fill the FLEX slots.
+  - `player_seasons()`
+  - `with_adp(ps)`
+  - `gap(d, column)`: RB coefficient in column ~ 1 + adp + RB (same ADP, RB minus WR).
 - **rb_team_context.py** (99 lines): Ablation of RB team-context features: does each feature/group beat seed noise and random columns? (runnable)
   - `load_rb()`
   - `top150_keys(position)`
   - `top150_rb_keys()`
   - `evaluate(rb, features, seed, top_keys, noise_cols, position, all_features)`
   - `variants()`
+- **rb_wr_stability.py** (64 lines): Are RBs or WRs more stable in rounds 3-6?
+  - `table(P, label)`
 - **refit_oos.py** (98 lines): Does the refit recipe (`Model.refit_predict`) recover the validated walk-forward accuracy that the live-style training loses? (runnable)
   - `refit_predictions()`: One row per player-season in 2021-2025 with a prediction column per refit variant.
   - `write_backtest_files(predictions, column, out_dir, note, ratios, seasons)`: Copies of the backtest projection files with projected_ppr replaced by `column` (`backtest --data <out_dir>` then scores them).
