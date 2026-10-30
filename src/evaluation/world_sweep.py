@@ -28,13 +28,13 @@ N_PERTURBED = 4
 NOISE_SD = 8.0
 
 
-def make_perturbed():
-    """Validated files with N(0, NOISE_SD) added to every model projection."""
+def make_perturbed(seasons=SEASONS, shift=0):
+    """Validated files with N(0, NOISE_SD) added to every model projection. `seasons` and `shift` (added to the RNG seed) let earlier seasons be added without changing the existing files."""
     for k in range(N_PERTURBED):
         out = PROCESSED / "perturb" / f"p{k}"
         out.mkdir(parents=True, exist_ok=True)
-        rng = np.random.default_rng(1000 + k)
-        for season in SEASONS:
+        rng = np.random.default_rng(1000 + k + shift)
+        for season in seasons:
             data = json.loads((PROCESSED / f"projections_{season}_v1.json").read_text())
             for p in data["players"]:
                 if not p["market_estimate"]:
@@ -42,13 +42,13 @@ def make_perturbed():
             (out / f"projections_{season}_v1.json").write_text(json.dumps(data))
 
 
-def make_shuffled():
-    """Validated files with the outcomes (actual_ppr and weekly_ppr) permuted inside groups of GROUP same-position players with neighbouring ADP."""
+def make_shuffled(seasons=SEASONS, shift=0):
+    """Validated files with the outcomes (actual_ppr and weekly_ppr) permuted inside groups of GROUP same-position players with neighbouring ADP (`seasons`, `shift`: as in make_perturbed)."""
     for k in range(N_SHUFFLED):
         out = PROCESSED / "shuffled" / f"s{k}"
         out.mkdir(parents=True, exist_ok=True)
-        rng = np.random.default_rng(2000 + k)
-        for season in SEASONS:
+        rng = np.random.default_rng(2000 + k + shift)
+        for season in seasons:
             data = json.loads((PROCESSED / f"projections_{season}_v1.json").read_text())
             players = data["players"]
             for position in {p["position"] for p in players}:
@@ -92,6 +92,10 @@ def summarize(results):
 
 
 if __name__ == "__main__":
+    if "--make-ext" in sys.argv:      # the 2019-2020 files of the perturbed and shuffled worlds, new seeds, existing files untouched
+        make_perturbed((2019, 2020), 5000)
+        make_shuffled((2019, 2020), 5000)
+        sys.exit()
     if "--make-only" in sys.argv or "--make" in sys.argv:
         make_perturbed()
         make_shuffled()

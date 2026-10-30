@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.evaluation.benchmark import load_season
 from src.evaluation.live_style_oos import rmse
 from src.evaluation.oos_predictions import load_params
-from src.evaluation.refit_oos import POSITIONS, write_backtest_files
+from src.evaluation.refit_oos import POSITIONS, SEASONS, write_backtest_files
 from src.models.short_season import SHORT_SEASON_GAMES, rate_refit, route
 from src.models.train import Model, split_positions
 
@@ -28,14 +28,16 @@ PROCESSED_DIR = ROOT / "data" / "processed"
 ELITE_ADP = 80
 
 
-def routed_predictions():
-    """One row per player-season in 2021-2025: the current refit projection, the rate-view projection and the routed one."""
+def routed_predictions(first_test=2021, only=None):
+    """One row per player-season in 2021-2025 (from `first_test`, restricted to the seasons in `only`): the current refit projection, the rate-view projection and the routed one."""
     df = pd.read_parquet(PROCESSED_DIR / "training_data.parquet")
     model = Model()
     rows = []
     for position, pos_df in zip(POSITIONS, split_positions(df)):
         params = load_params(position)
-        for x_train, x_val, x_test, y_train, y_val, y_test in model.rolling_splits(pos_df):
+        for x_train, x_val, x_test, y_train, y_val, y_test in model.rolling_splits(pos_df, min_train_seasons=first_test - 2015):
+            if only is not None and int(pos_df.loc[x_test.index, "season"].iloc[0]) not in only:
+                continue
             out = pos_df.loc[x_test.index, ["player_id", "player_name", "position", "season", "games"]].copy()
             out["actual_ppr"] = y_test
             out["base_pred_ppr"] = model.refit_predict(x_train, y_train, x_val, y_val, x_test, params)
@@ -84,9 +86,13 @@ def report(d):
 
 
 if __name__ == "__main__":
-    d = routed_predictions()
-    d.to_parquet(PROCESSED_DIR / "routed_oos.parquet")
-    report(d)
+    # `--first-test 2019 --only 2019,2020` computes just those earlier seasons (less training data) and adds their files next to the existing ones
+    first_test = int(sys.argv[sys.argv.index("--first-test") + 1]) if "--first-test" in sys.argv else 2021
+    only = [int(x) for x in sys.argv[sys.argv.index("--only") + 1].split(",")] if "--only" in sys.argv else None
+    d = routed_predictions(first_test, only)
+    d.to_parquet(PROCESSED_DIR / ("routed_oos.parquet" if only is None else "routed_oos_ext.parquet"))
+    if only is None:
+        report(d)
     for arm, column in [("current", "base_pred_ppr"), ("routed", "routed_pred_ppr")]:
-        write_backtest_files(d, column, PROCESSED_DIR / "routed" / arm, f"{arm} refit (routed_oos.py)")
+        write_backtest_files(d, column, PROCESSED_DIR / "routed" / arm, f"{arm} refit (routed_oos.py)", seasons=only or SEASONS)
     print(f"\nwrote backtest files under {PROCESSED_DIR / 'routed'}")

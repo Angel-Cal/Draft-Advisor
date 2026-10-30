@@ -165,6 +165,10 @@ Data files, `archive/` and build output are not listed.
 - **ArmSweep.cs** (67 lines)
   - `static class ArmSweep`: Scores a set of strategy settings ("arms") over the backtests, next to fixed reference strategies, then checks the choice leave-one-season-out: pick the best arm on four seasons, score it on the fi...
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, IReadOnlyList<IDraftStrategy> arms, IReadOnlyList<IDraftStrategy> references, string headline, double noiseScale = 1.0, SweepMetric metric = SweepMetric.Points, int firstSeed = 0)`
+- **DeviationCalibration.cs** (137 lines)
+  - `static class DeviationCalibration`: How well calibrated is the model where the advisor actually acts?
+    - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0, int firstSeed = 0)`
+  - `record Obs(int Season, int Seed, int Round, bool SamePosition, double DProj, double DAdp, double DActual, Position Taken = default, Position Passed = default)`
 - **DraftRules.cs** (32 lines)
   - `static class DraftRules`
     - `static IReadOnlyList<ValuedPlayer> LegalPicks(DraftState state, int team, SimSettings settings)`: Players the team may take now: positions under their cap, and after the cutoff round only positions with an open starter slot.
@@ -172,7 +176,7 @@ Data files, `archive/` and build output are not listed.
   - `record DraftResult(int Slot, double Points, int Finish, IReadOnlyList<double> TeamPoints, IReadOnlyList<PickRegret> Regrets, IReadOnlyList<ValuedPlayer> MyPicks, SeasonOdds? Odds = null)`
   - `static class DraftSimulator`
     - `static DraftResult Run(IReadOnlyList<ValuedPlayer> pool, SimSettings settings, int slot, IDraftStrategy strategy, int seed, RegretCalculator? regret = null)`: One full draft.
-- **Experiment.cs** (231 lines)
+- **Experiment.cs** (242 lines)
   - `record RunRow(int Season, double NoiseScale, int Seed, int Slot, string Strategy, double Points, int Finish, double WinPct = double.NaN, double Playoff = double.NaN, double Title = double.NaN)`
   - `record RegretRow(int Season, double NoiseScale, int Seed, int Slot, string Strategy, PickRegret Pick)`
   - `record ExperimentResult(List<RunRow> Rows, List<RegretRow> Regrets)`
@@ -185,7 +189,7 @@ Data files, `archive/` and build output are not listed.
     - `static string SummarizeBySlot(IReadOnlyList<RunRow> rows, string strategy, string baseline = "adp")`: The strategy's edge over the baseline by draft slot (1 = first pick), one table per noise level: paired starter-points difference and, when the file has weekly points, the paired title-odds differe...
     - `static string SummarizeSlotArms(IReadOnlyList<RunRow> rows, IReadOnlyList<string> arms, string baseline)`: Several arms against one baseline arm by draft slot, for one noise level: paired starter-points difference per slot (and title odds in percentage points when the file has weekly points), +/- 1 SE.
     - `static string SlotChoiceCheck(IReadOnlyList<RunRow> rows, IReadOnlyList<string> arms, string baseline)`: Leave-one-season-out check of a slot-dependent setting: for each held-out season and each slot, take the arm (the baseline included) with the best mean on the other seasons, and score it on the hel...
-    - `static (double Mean, double StdError) PairedDifference(IReadOnlyList<RunRow> rows, string strategy, string baseline, Func<RunRow, double>? metric = null)`
+    - `static (double Mean, double StdError) PairedDifference(IReadOnlyList<RunRow> rows, string strategy, string baseline, Func<RunRow, double>? metric = null)`: The mean paired difference and its standard error, clustered by (season, seed): the drafts of one seed share the opponents' biases whatever the slot, so they are not independent, and treating them...
 - **LeagueSeason.cs** (115 lines)
   - `record SeasonFormat(int RegularSeasonWeeks = 13, int PlayoffTeams = 6)`: Season shape: a regular season of head-to-head weeks, then a single-elimination playoff the next weeks.
   - `record SeasonOdds(double WinPct, double PlayoffProbability, double TitleProbability)`: A team's chances over many random schedules: share of games won, making the playoffs, winning the title.
@@ -215,14 +219,14 @@ Data files, `archive/` and build output are not listed.
     - `static OpponentBot Create(IReadOnlyList<ValuedPlayer> pool, SimSettings settings, int seed, int team)`: Pick key per player: ADP (unranked players count as one past the last ADP) plus this team's bias.
     - `ValuedPlayer Pick(IReadOnlyList<ValuedPlayer> legal)`
     - `static double UnrankedAdp(IReadOnlyList<ValuedPlayer> pool)`
-- **PickDiagnostics.cs** (130 lines)
+- **PickDiagnostics.cs** (131 lines)
   - `static class PickDiagnostics`: Where one strategy's points go versus another's in a single season: which players each drafts how often, and what those players scored.
     - `static string Report(ProjectionFile file, SimSettings settings, string nameA, string nameB, int seeds)`
   - `class HybridStrategy(string name, bool recommenderChoosesPosition, ReachSettings reach)`: Splits the recommender into its two decisions to see which one drives a result.
     - `ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)`
   - `static class Decomposition`
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds)`
-- **Program.cs** (351 lines): Top-level program; commands: describe, backtest, draft, diagnose, decompose, calibrate-noise, fit-noise, tune-bench, tune-need, tune-wait, tune-spread, tune-standardized, diagnose-scales, tune-scarce, tune-where, tune-horizon, tune-lookahead, tune-reach-wait, tune-reach-survival, tune-reach-picks, stability-reach, case-reach, world-sweep, trace-reach, tune-reach-free, calibrate-survival, tune-rollout, tune-reachable, tune-survival, tune-slot, tune-bye, tune-starter, tune-value, tune-reach, tune-tiers
+- **Program.cs** (362 lines): Top-level program; commands: describe, backtest, draft, diagnose, decompose, calibrate-noise, fit-noise, tune-bench, tune-need, tune-wait, tune-spread, tune-standardized, diagnose-scales, tune-scarce, tune-where, tune-horizon, tune-lookahead, tune-reach-wait, tune-reach-survival, tune-reach-picks, stability-reach, case-reach, world-sweep, calibrate-deviations, trace-reach, tune-reach-free, calibrate-survival, tune-rollout, tune-reachable, tune-survival, tune-slot, tune-bye, tune-starter, tune-value, tune-reach, tune-tiers
 - **ReachTrace.cs** (215 lines)
   - `static class ReachTrace`: Shared-state comparison of reach-cost variants: the adopted advisor drafts, and at each of its turns every variant is asked what it would pick in that same state (so the drafts do not drift apart).
     - `static List<ValueRecommenderStrategy> Variants()`: The adopted advisor against the variants; `adp` is plain ADP and `no reach cost` is the advisor with lambda 0 (the 4-sigma cap stays).
@@ -346,7 +350,7 @@ Data files, `archive/` and build output are not listed.
 - **ReachTests.cs** (131 lines): 9 tests
 - **RecommenderTests.cs** (157 lines): 10 tests
 - **RolloutTests.cs** (96 lines): 5 tests
-- **SimulatorTests.cs** (223 lines): 15 tests
+- **SimulatorTests.cs** (238 lines): 16 tests
 - **StarterOptionTests.cs** (82 lines): 5 tests
 - **SurvivalSamplerTests.cs** (70 lines): 4 tests
 - **TestData.cs** (58 lines): shared fixtures
@@ -357,15 +361,16 @@ Data files, `archive/` and build output are not listed.
 
 ## src/data/
 
-- **adp_scraper.py** (143 lines): Historical preseason ADP: FantasyPros PPR consensus ADP from Wayback Machine snapshots, closest to the day before each season's opener, mapped to gsis player_id. (runnable)
+- **adp_scraper.py** (160 lines): Historical preseason ADP: FantasyPros PPR consensus ADP from Wayback Machine snapshots, closest to the day before each season's opener, mapped to gsis player_id. (runnable)
   - `wayback_get(url, params, retries)`: Wayback throttles by refusing connections or returning 503, so back off and retry.
   - `closest_snapshot(season)`
   - `fetch_html(season, timestamp)`
+  - `source_dates(html)`: The dates the page prints for its sources (FantasyPros lists e.g. 'ESPN 9/07'); empty if the page does not.
   - `parse_adp(html, season, timestamp)`
   - `parse_adp_csv(path, season, snapshot)`: FantasyPros' own CSV export of the ADP page (columns Rank, "Player (Bye)", POS, ESPN, Sleeper, CBS, RTSports, Fantrax, AVG, Real-Time): same frame as parse_adp.
   - `attach_player_ids(adp, ids)`
   - `fill_from_roster(adp, roster)`: Fill missing player_ids by (name, position) from a season roster (ids.parquet predates that year's draft, so its rookies are absent).
-- **export_projections.py** (185 lines): Export projections_<season>_v1.json for the C# side (contract: .claude/projection_schema_v1.md). (runnable)
+- **export_projections.py** (191 lines): Export projections_<season>_v1.json for the C# side (contract: .claude/projection_schema_v1.md). (runnable)
   - `attach_role_context(df, context, season)`: Add the optional role-context fields (src/features/role_context.py) for this season; null for everyone but WRs and for players with no history.
   - `durability_flag(seasonal, before_season)`: player_id -> True if they averaged under 15 games over their qualifying seasons before `before_season`.
   - `build_live(table, roster, adp_table)`: table: predictions_table.parquet; roster: roster_2026; adp_table: adp_table.csv (FantasyPros ADP + player_id).
@@ -414,7 +419,7 @@ Data files, `archive/` and build output are not listed.
     - `get_current_pick()`
     - `draft_player(player_id)`
 - **market_fallback.py** (60 lines): ADP-derived projections for players the model cannot score (rookies, players with no prior NFL season).
-  - `load_history()`: One row per player-season with a position-rank by ADP and the actual season PPR (>= 4 games).
+  - `load_history(seasons)`: One row per player-season in `seasons` with a position-rank by ADP and the actual season PPR (>= 4 games).
   - `fit_position_curves(history)`: {position: monotone-decreasing map from position rank to expected PPR}.
   - `market_projections(adp_table, model_player_ids, curves)`: Fallback rows for every skill player in the ADP table the model has no projection for.
 - **recommender.py** (119 lines)
@@ -442,6 +447,13 @@ Data files, `archive/` and build output are not listed.
 
 ## src/evaluation/
 
+- **adp_residual.py** (123 lines): Train the model on what ADP misses? (runnable)
+  - `adp_table()`: player_id, season, adp, ADP position and position rank, for the seasons with an ADP file.
+  - `curve_values(rows, history, fit_seasons)`: The ADP-curve value of each row, from a curve fitted on `fit_seasons` of the history.
+  - `with_curve(rows, history, fit_for_season)`: rows plus a `curve` column; `fit_for_season(season)` gives the seasons the curve of that season's rows is fitted on.
+  - `features(rows, model_name)`
+  - `predictions(tests, model_names)`
+  - `report(d, model_names)`
 - **advanced_features.py** (69 lines): Ablation of the 'process' feature groups (expected points, role, depth chart, team EPA, Next Gen Stats) on every position, each added to that position's current model, with a random-noise control o... (runnable)
   - `group_columns(group, position)`: Candidate columns of a group (or 'a+b' union of groups) for a position: not already in its model.
   - `position_frame(position, train, context)`
@@ -469,9 +481,9 @@ Data files, `archive/` and build output are not listed.
 - **live_style_oos.py** (87 lines): What if the validated backtests had been trained the way the live 2026 file is? (runnable)
   - `live_style_predictions()`: One row per player-season in 2021-2025: predicted the live way (all earlier seasons, params as saved, no early stopping, one seed).
   - `rmse(a, b)`
-- **oos_predictions.py** (53 lines): (runnable)
+- **oos_predictions.py** (65 lines): (runnable)
   - `load_params(position)`
-  - `position_oos(df, position, model, params)`: Walk-forward predictions for one position; one row per player-season in 2021-2025.
+  - `position_oos(df, position, model, params, first_test)`: Walk-forward predictions for one position; one row per player-season from `first_test` (2021) to 2025.
 - **preseason_eval.py** (152 lines): Freeze a season's projections and score them later with rules written down in advance (.claude/PREREGISTRATION_2026.md). (runnable)
   - `sha256(path)`
   - `snapshot(season, source, output)`: The projection file as a flat CSV, with the ADP-curve expectation (curves fit on earlier seasons only) and the role-caution flag.
@@ -499,14 +511,14 @@ Data files, `archive/` and build output are not listed.
   - `variants()`
 - **refit_oos.py** (98 lines): Does the refit recipe (`Model.refit_predict`) recover the validated walk-forward accuracy that the live-style training loses? (runnable)
   - `refit_predictions()`: One row per player-season in 2021-2025 with a prediction column per refit variant.
-  - `write_backtest_files(predictions, column, out_dir, note, ratios)`: Copies of the backtest projection files with projected_ppr replaced by `column` (`backtest --data <out_dir>` then scores them).
+  - `write_backtest_files(predictions, column, out_dir, note, ratios, seasons)`: Copies of the backtest projection files with projected_ppr replaced by `column` (`backtest --data <out_dir>` then scores them).
 - **risk_predictability.py** (85 lines): Is player-level risk predictable? (runnable)
   - `weekly_features(weekly, season, suffix)`: Per-player weekly PPR summary for one regular season (games played only).
   - `load_season(season, weekly)`: Draftable veterans for one season with prior-season features and the realised misses.
   - `residualize(values, controls)`: Residuals of an ordinary least squares fit of rank(values) on the controls.
   - `partial_spearman(df, feature, target)`: Correlation of feature and target after removing the projection level and prior games (rank-based).
-- **routed_oos.py** (92 lines): Does the routed projection (short_season.py) hold up under the live recipe, and what does it do to the simulator? (runnable)
-  - `routed_predictions()`: One row per player-season in 2021-2025: the current refit projection, the rate-view projection and the routed one.
+- **routed_oos.py** (98 lines): Does the routed projection (short_season.py) hold up under the live recipe, and what does it do to the simulator? (runnable)
+  - `routed_predictions(first_test, only)`: One row per player-season in 2021-2025 (from `first_test`, restricted to the seasons in `only`): the current refit projection, the rate-view projection and the routed one.
   - `report(d)`
 - **seed_spread.py** (51 lines): How much of the simulator edge is the projection file's luck? (runnable)
   - `seed_set_predictions(frames, seeds)`: Per-row mean prediction of both recipes over `seeds`, one row per player-season in 2021-2025.
@@ -547,9 +559,12 @@ Data files, `archive/` and build output are not listed.
   - `add_role_change(d, quality, season_col)`: Last season's depth (aDOT), air-yards share and expected points per target minus the same over the two seasons before it.
   - `role_report(d, rng, cuts)`: Top-third flag on each role-change measure against the rest; returns the cut points so the 2026 pool can reuse them.
   - `live_2026_role(weekly, roster, quality, cuts)`: 2026 WRs whose 2025 depth, air-yards share and expected points per target jumped by more than the historical cut points.
-- **world_sweep.py** (132 lines): Does a recommender setting chosen on the validated files keep its sign in other worlds? (runnable)
-  - `make_perturbed()`: Validated files with N(0, NOISE_SD) added to every model projection.
-  - `make_shuffled()`: Validated files with the outcomes (actual_ppr and weekly_ppr) permuted inside groups of GROUP same-position players with neighbouring ADP.
+- **thin_training_check.py** (64 lines): How does the length and recency of the training window change the advisor's edge? (runnable)
+  - `windows(season, fixed, window)`: (train seasons, validation season) for a test season: the fixed span, or the `window` seasons ending two before it.
+  - `window_predictions(tests, fixed, window, seed_offset)`: One row per player-season in `tests` with the early-stopped, 5-seed projection from the chosen training window.
+- **world_sweep.py** (136 lines): Does a recommender setting chosen on the validated files keep its sign in other worlds? (runnable)
+  - `make_perturbed(seasons, shift)`: Validated files with N(0, NOISE_SD) added to every model projection.
+  - `make_shuffled(seasons, shift)`: Validated files with the outcomes (actual_ppr and weekly_ppr) permuted inside groups of GROUP same-position players with neighbouring ADP (`seasons`, `shift`: as in make_perturbed).
   - `worlds()`
   - `run_world(path, seeds, arms, tier_gap)`
   - `summarize(results)`
@@ -644,6 +659,7 @@ Data files, `archive/` and build output are not listed.
 ## tests/
 
 - **conftest.py** (34 lines): shared fixtures
+- **test_adp_scraper.py** (21 lines): 2 tests
 - **test_advanced_features.py** (120 lines): 9 tests
 - **test_data_integrity.py** (192 lines): 16 tests
 - **test_draft_state.py** (79 lines): 10 tests

@@ -21,6 +21,7 @@ using DraftBot.Sim;
 // dotnet run --project csharp/src/DraftBot.Sim -- stability-reach [--seeds 20] [--first-seed 0] [--jitter 0.5] [--noise 1]   (share of advisor decisions whose pick changes when every ADP moves by about --jitter picks)
 // dotnet run --project csharp/src/DraftBot.Sim -- case-reach --file projections_2026_v1.json --drafted "J.Gibbs,B.Robinson,J.Chase,P.Nacua" [--team 5]   (each reach variant's ranking in one state)
 // dotnet run --project csharp/src/DraftBot.Sim -- world-sweep --data DIR [--arms reach|need|tiers] [--tier-gap 0.1] [--seeds 40] [--first-seed 100] [--noise 1]   (waiting weight x lambda, reach cap and free pick, or the roster-need terms, against the adopted advisor; RESULT lines for run_worlds.py)
+// dotnet run --project csharp/src/DraftBot.Sim -- calibrate-deviations [--seeds 30] [--first-seed 0] [--noise 1] [--seasons 2021-2025]   (is the model calibrated on the decisions where the advisor departs from ADP? slope of actual on projected value difference, with a control pair)
 // dotnet run --project csharp/src/DraftBot.Sim -- trace-reach [--seeds 30] [--first-seed 0] [--noise 1]   (reach-cost variants asked in the adopted advisor's own states: how often they differ, what the differing picks were worth)
 // dotnet run --project csharp/src/DraftBot.Sim -- tune-reach-free [--seeds 30] [--first-seed 0] [--unrestricted true] [--noise 1] [--metric points|wins|playoffs|title]
 // dotnet run --project csharp/src/DraftBot.Sim -- calibrate-survival [--seeds 30] [--noise 1] [--scales 0.4,0.55,0.7,0.85,1,1.25]
@@ -34,12 +35,16 @@ using DraftBot.Sim;
 // dotnet run --project csharp/src/DraftBot.Sim -- tune-reach [--seeds 30] [--seasons 2021-2025]
 // dotnet run --project csharp/src/DraftBot.Sim -- tune-tiers [--data DIR] [--seasons 2021-2025]
 // dotnet run --project csharp/src/DraftBot.Sim -- draft [--season 2024] [--slot 6] [--seed 0] [--reveal true] [--recommender position|value|need|need-only|bench|option]   (need = roster need + cost of waiting, the default advisor; need-only drops the waiting bonus) [--window true|L,CAP[,nogap]] [--data DIR]
+// Every command takes the league: [--teams 12] [--qb 1] [--rb 2] [--wr 3] [--te 1] [--flex 1] [--bench 8] (the default is the user's 1QB/2RB/3WR/1TE/1FLEX league; --wr 2 is the standard one).
 // dotnet run --project csharp/src/DraftBot.Sim -- describe [--file projections_2026_v1.json] [--data DIR] [--tier-gap 0.1]
 
 var command = args.FirstOrDefault() ?? "backtest";
 var options = ParseOptions(args.Skip(1).ToArray());
 var dataDir = options.GetValueOrDefault("data") ?? FindDataDirectory();
-var settings = new SimSettings(new LeagueSettings());
+int LeagueOption(string name, int fallback) => int.Parse(options.GetValueOrDefault(name) ?? fallback.ToString());
+var defaults = new LeagueSettings();
+var settings = new SimSettings(new LeagueSettings(Teams: LeagueOption("teams", defaults.Teams), Qb: LeagueOption("qb", defaults.Qb), Rb: LeagueOption("rb", defaults.Rb), Wr: LeagueOption("wr", defaults.Wr),
+    Te: LeagueOption("te", defaults.Te), Flex: LeagueOption("flex", defaults.Flex), Bench: LeagueOption("bench", defaults.Bench)));      // every command: --wr 2 gives the standard 1QB/2RB/2WR/1TE/1FLEX league
 if (options.TryGetValue("season-totals", out var seasonTotals) && bool.Parse(seasonTotals)) settings = settings with { WeeklyLineups = false };
 if (options.TryGetValue("tier-gap", out var tierGap)) settings = settings with { TierGapRmse = double.Parse(tierGap) };
 
@@ -171,6 +176,12 @@ switch (command)
             ParseSeasons(options.GetValueOrDefault("seasons") ?? "2021-2025").ToDictionary(y => y, y => ProjectionFile.Load(Path.Combine(dataDir, $"projections_{y}_v1.json"))),
             settings with { StrategyFollowsRules = !bool.Parse(options.GetValueOrDefault("unrestricted") ?? "false") },
             int.Parse(options.GetValueOrDefault("seeds") ?? "40"), double.Parse(options.GetValueOrDefault("noise") ?? "1"), int.Parse(options.GetValueOrDefault("first-seed") ?? "100"), options.GetValueOrDefault("arms") ?? "reach"));
+        break;
+    case "calibrate-deviations":
+        Console.WriteLine(DeviationCalibration.Report(
+            ParseSeasons(options.GetValueOrDefault("seasons") ?? "2021-2025").ToDictionary(y => y, y => ProjectionFile.Load(Path.Combine(dataDir, $"projections_{y}_v1.json"))),
+            settings with { StrategyFollowsRules = !bool.Parse(options.GetValueOrDefault("unrestricted") ?? "false") },
+            int.Parse(options.GetValueOrDefault("seeds") ?? "30"), double.Parse(options.GetValueOrDefault("noise") ?? "1"), int.Parse(options.GetValueOrDefault("first-seed") ?? "0")));
         break;
     case "trace-reach":
         Console.WriteLine(ReachTrace.Report(

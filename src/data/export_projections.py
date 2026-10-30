@@ -151,28 +151,33 @@ def write(doc):
 
 
 if __name__ == "__main__":
+    # `--seasons 2019,2020` exports only those backtest files (no live file, no manifest update), so earlier seasons can be added without rewriting the rest
+    only = [int(x) for x in sys.argv[sys.argv.index("--seasons") + 1].split(",")] if "--seasons" in sys.argv else None
     prediction = pd.read_parquet(PROCESSED / "prediction_data.parquet")
     live_season = int(prediction["season"].max()) + 1
 
     position_files = [PROCESSED / f"{p.lower()}_predictions.parquet" for p in POSITIONS]
-    check_freshness(position_files, [PROCESSED / "predictions_table.parquet"], label="export (advisor table)")
+    if only is None:
+        check_freshness(position_files, [PROCESSED / "predictions_table.parquet"], label="export (advisor table)")
     weekly = pd.read_parquet(ROOT / "data" / "raw" / "weekly_20_25.parquet",
                              columns=["player_id", "season", "week", "season_type", "fantasy_points_ppr", "team", "position", "targets"])
     roster_columns = ["gsis_id", "season", "week", "team", "position", "years_exp", "draft_number"]
     roster = pd.concat([pd.read_parquet(ROOT / "data" / "raw" / "seasonal_roster_20_25.parquet", columns=roster_columns),
                         pd.read_parquet(ROOT / "data" / "raw" / "roster_2026.parquet", columns=roster_columns)], ignore_index=True)
     context = build_role_context(weekly, roster)
-    live = build_live(pd.read_parquet(PROCESSED / "predictions_table.parquet"),
-                      pd.read_parquet(ROOT / "data" / "raw" / "roster_2026.parquet"),
-                      pd.read_csv(PROCESSED / "adp_table.csv"))
-    live = attach_role_context(live, context, live_season)
-    written = [write(to_document(live, live_season, "live", "fantasypros"))]
+    written = []
+    if only is None:
+        live = build_live(pd.read_parquet(PROCESSED / "predictions_table.parquet"),
+                          pd.read_parquet(ROOT / "data" / "raw" / "roster_2026.parquet"),
+                          pd.read_csv(PROCESSED / "adp_table.csv"))
+        live = attach_role_context(live, context, live_season)
+        written.append(write(to_document(live, live_season, "live", "fantasypros")))
 
     training = pd.read_parquet(PROCESSED / "training_data.parquet")
     seasonal = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_20_25.parquet")
     seasonal = seasonal[seasonal["player_id"].notna()]
     history = load_history()
-    for season in BACKTEST_SEASONS:
+    for season in only or BACKTEST_SEASONS:
         oos_path = PROCESSED / f"season_{season}.parquet"
         check_freshness([PROCESSED / "training_data.parquet"], [oos_path], label=f"export (season {season})")
         curves = fit_position_curves(history[history["season"] != season])
@@ -182,4 +187,5 @@ if __name__ == "__main__":
         backtest = attach_role_context(backtest, context, season)
         written.append(write(to_document(backtest, season, "backtest", "fantasypros")))
 
-    update_manifest("export", {"files": [p.name for p in written], "validation": "passed"})
+    if only is None:
+        update_manifest("export", {"files": [p.name for p in written], "validation": "passed"})

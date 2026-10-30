@@ -218,14 +218,25 @@ public static class Experiment
         return string.Join(Environment.NewLine, lines);
     }
 
+    /// <summary>
+    /// The mean paired difference and its standard error, clustered by (season, seed): the drafts of one seed share the opponents' biases whatever the slot, so they are
+    /// not independent, and treating them as independent understated the error about threefold (blocks of 100 seeds differed by about 15 points against a reported 3-4).
+    /// With one cluster (or drafts that are all in different clusters) this is the plain standard error over drafts.
+    /// </summary>
     /// <param name="metric">What to compare; the run's starter points by default.</param>
     public static (double Mean, double StdError) PairedDifference(IReadOnlyList<RunRow> rows, string strategy, string baseline, Func<RunRow, double>? metric = null)
     {
         metric ??= r => r.Points;
         var reference = rows.Where(r => r.Strategy == baseline).ToDictionary(r => (r.Season, r.Seed, r.Slot), metric);
-        var diffs = rows.Where(r => r.Strategy == strategy).Select(r => metric(r) - reference[(r.Season, r.Seed, r.Slot)]).ToList();
-        var mean = diffs.Average();
-        var variance = diffs.Sum(d => (d - mean) * (d - mean)) / Math.Max(1, diffs.Count - 1);
-        return (mean, Math.Sqrt(variance / diffs.Count));
+        var diffs = rows.Where(r => r.Strategy == strategy).Select(r => (Cluster: (r.Season, r.Seed), Diff: metric(r) - reference[(r.Season, r.Seed, r.Slot)])).ToList();
+        var mean = diffs.Average(d => d.Diff);
+        var clusters = diffs.GroupBy(d => d.Cluster).Select(g => (Size: g.Count(), Excess: g.Sum(d => d.Diff - mean))).ToList();
+        if (clusters.Count < 2)
+        {
+            var variance = diffs.Sum(d => (d.Diff - mean) * (d.Diff - mean)) / Math.Max(1, diffs.Count - 1);
+            return (mean, Math.Sqrt(variance / diffs.Count));
+        }
+        var k = clusters.Count;
+        return (mean, Math.Sqrt(k / (k - 1.0) * clusters.Sum(c => c.Excess * c.Excess)) / diffs.Count);
     }
 }

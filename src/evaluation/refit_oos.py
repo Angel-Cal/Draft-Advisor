@@ -46,13 +46,13 @@ def refit_predictions():
     return pd.concat(rows, ignore_index=True)
 
 
-def write_backtest_files(predictions, column, out_dir, note, ratios=None):
+def write_backtest_files(predictions, column, out_dir, note, ratios=None, seasons=SEASONS):
     """Copies of the backtest projection files with projected_ppr replaced by `column` (`backtest --data <out_dir>` then scores them).
 
     ratios optionally scales each position's RMSE in the file header; market-estimate rows keep their projection.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    for season in SEASONS:
+    for season in seasons:
         path = PROCESSED_DIR / f"projections_{season}_v1.json"
         data = json.loads(path.read_text())
         pred = predictions[predictions["season"] == season].set_index("player_id")[column]

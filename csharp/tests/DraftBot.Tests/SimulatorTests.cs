@@ -207,6 +207,21 @@ public class SimulatorTests
     }
 
     [Fact]
+    public void The_paired_standard_error_treats_the_drafts_of_one_seed_as_one_cluster()
+    {
+        RunRow Row(int seed, int slot, string strategy, double points) => new(2024, 1.0, seed, slot, strategy, points, 1, double.NaN, double.NaN, double.NaN);
+        // seed 0: both slots +10 over adp, seed 1: both slots -10, so the mean is 0 and the two clusters pull in opposite directions
+        var rows = new List<RunRow>();
+        foreach (var (seed, edge) in new[] { (0, 10.0), (1, -10.0) })
+            for (var slot = 0; slot < 2; slot++) { rows.Add(Row(seed, slot, "adp", 100)); rows.Add(Row(seed, slot, "x", 100 + edge)); }
+
+        var (mean, se) = Experiment.PairedDifference(rows, "x", "adp");
+
+        Assert.Equal(0, mean, 9);
+        Assert.Equal(10.0, se, 9);          // 2 clusters; treating the four drafts as independent would give 11.5
+    }
+
+    [Fact]
     public void The_slot_choice_check_scores_each_slots_best_arm_on_the_held_out_season()
     {
         var files = new Dictionary<int, ProjectionFile> { [2023] = BacktestFile(2023), [2024] = BacktestFile(2024), [2025] = BacktestFile(2025) };
