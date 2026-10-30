@@ -214,11 +214,14 @@ Data files, `archive/` and build output are not listed.
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, string ffcDirectory, SimSettings settings, int drafts, IReadOnlyList<double> scales)`
     - `static string Fit(IReadOnlyDictionary<int, ProjectionFile> files, string ffcDirectory, SimSettings settings, int drafts, IReadOnlyList<double> bases, IReadOnlyList<double> slopes)`: Grid search over the bias SD formula (base + per-ADP slope, scale 1) for the one whose simulated pick spread is closest to the real one, by root-mean-square log ratio over the same ADP buckets.
   - `record PlayerSpread(double MeanPick, double Sd)`
-- **OpponentBot.cs** (41 lines)
+- **OpponentBot.cs** (64 lines)
   - `class OpponentBot`: An opponent who drafts by ADP plus a personal, fixed bias per player (some teams simply like a player more than the consensus does).
     - `static OpponentBot Create(IReadOnlyList<ValuedPlayer> pool, SimSettings settings, int seed, int team)`: Pick key per player: ADP (unranked players count as one past the last ADP) plus this team's bias.
-    - `ValuedPlayer Pick(IReadOnlyList<ValuedPlayer> legal)`
+    - `ValuedPlayer Pick(IReadOnlyList<ValuedPlayer> legal, DraftState? state = null)`: The legal player with the lowest key.
     - `static double UnrankedAdp(IReadOnlyList<ValuedPlayer> pool)`
+- **OpponentStyle.cs** (28 lines)
+  - `record OpponentStyle(double QbEarlier = 0, double RbEarlier = 0, double WrEarlier = 0, double TeEarlier = 0, double RunPull = 0, int RunWindow = 6, double NeedPull = 0)`: Ways the simulated opponents can differ from "ADP plus a personal bias" without the advisor being told: a position drafted earlier or later than ADP says, a rush on a position after several recent...
+    - `double Earlier(Position position)`
 - **PickDiagnostics.cs** (131 lines)
   - `static class PickDiagnostics`: Where one strategy's points go versus another's in a single season: which players each drafts how often, and what those players scored.
     - `static string Report(ProjectionFile file, SimSettings settings, string nameA, string nameB, int seeds)`
@@ -226,7 +229,7 @@ Data files, `archive/` and build output are not listed.
     - `ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)`
   - `static class Decomposition`
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds)`
-- **Program.cs** (363 lines): Top-level program; commands: describe, backtest, draft, diagnose, decompose, calibrate-noise, fit-noise, tune-bench, tune-need, tune-wait, tune-spread, tune-standardized, diagnose-scales, tune-scarce, tune-where, tune-horizon, tune-lookahead, tune-reach-wait, tune-reach-survival, tune-reach-picks, stability-reach, case-reach, world-sweep, calibrate-deviations, trace-reach, tune-reach-free, calibrate-survival, tune-rollout, tune-reachable, tune-survival, tune-slot, tune-bye, tune-starter, tune-value, tune-reach, tune-tiers
+- **Program.cs** (368 lines): Top-level program; commands: describe, backtest, draft, diagnose, decompose, calibrate-noise, fit-noise, tune-bench, tune-need, tune-wait, tune-spread, tune-standardized, diagnose-scales, tune-scarce, tune-where, tune-horizon, tune-lookahead, tune-reach-wait, tune-reach-survival, tune-reach-picks, stability-reach, case-reach, world-sweep, calibrate-deviations, trace-reach, tune-reach-free, calibrate-survival, tune-rollout, tune-reachable, tune-survival, tune-slot, tune-bye, tune-starter, tune-value, tune-reach, tune-tiers
 - **ReachTrace.cs** (215 lines)
   - `static class ReachTrace`: Shared-state comparison of reach-cost variants: the adopted advisor drafts, and at each of its turns every variant is asked what it would pick in that same state (so the drafts do not drift apart).
     - `static List<ValueRecommenderStrategy> Variants()`: The adopted advisor against the variants; `adp` is plain ADP and `no reach cost` is the advisor with lambda 0 (the 4-sigma cap stays).
@@ -288,8 +291,8 @@ Data files, `archive/` and build output are not listed.
   - `record Row(int Round, double SdValue, double SdShortfall, double Correlation, double TopValueGap, double TopShortfallGap)`
   - `class Recorder(IDraftStrategy inner, ReachSettings reach, int pool)`
     - `ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)`
-- **SimSettings.cs** (34 lines)
-  - `record SimSettings(LeagueSettings League, double NoiseBase = 1.0, double NoisePerAdp = 0.12, double NoiseScale = 1.0, int MaxQb = 2, int MaxTe = 2, int ForceStartersAfterRound = 10, double TierGapRmse = 0.1, bool StrategyFollowsRules = true, bool WeeklyLineups = true, SeasonFormat? Season = null, int ScheduleSamples = 200)`: Simulator knobs.
+- **SimSettings.cs** (36 lines)
+  - `record SimSettings(LeagueSettings League, double NoiseBase = 1.0, double NoisePerAdp = 0.12, double NoiseScale = 1.0, int MaxQb = 2, int MaxTe = 2, int ForceStartersAfterRound = 10, double TierGapRmse = 0.1, bool StrategyFollowsRules = true, bool WeeklyLineups = true, SeasonFormat? Season = null, int ScheduleSamples = 200, OpponentStyle? Style = null)`: Simulator knobs.
     - `double NoiseSd(double adp)`
 - **Strategies.cs** (91 lines)
   - `interface IDraftStrategy`: How the drafter being evaluated chooses.
@@ -326,7 +329,7 @@ Data files, `archive/` and build output are not listed.
     - `static TierScore Score(ProjectionFile file, double gapRmse)`: Season score: adjusted R-squared per position, weighted by players per position.
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, double current)`: Leave-one-season-out on the advantage over equal-size tiers: pick the grid value with the best mean advantage on the other seasons, score it on the held-out season, and compare with the current thr...
   - `record TierScore(double AdjustedR2, double QuantileR2, int Tiers, double LargestTierShare)`
-- **WorldSweep.cs** (74 lines)
+- **WorldSweep.cs** (86 lines)
   - `static class WorldSweep`: One arm set on one projection world (a `--data` folder), reported both ways at once (mean starter points and title odds, each against the adopted advisor, paired) in tab-separated RESULT lines that...
     - `static List<ValueRecommenderStrategy> Arms(string set = "reach")`: The arm sets: "reach" = the waiting-bonus weight (0 = plain `need`) at lambda 300 / 1000 / 3000, the reach cap and the first free pick; "need" = the roster-need terms (bench weights, the option val...
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale, int firstSeed, string set = "reach")`
@@ -345,7 +348,7 @@ Data files, `archive/` and build output are not listed.
 - **MockDraftTests.cs** (131 lines): 12 tests
 - **NeedTests.cs** (156 lines): 11 tests
 - **NoiseCalibrationTests.cs** (90 lines): 4 tests
-- **OpponentBotTests.cs** (30 lines): 1 tests
+- **OpponentBotTests.cs** (60 lines): 3 tests
 - **ProjectionFileTests.cs** (69 lines): 5 tests
 - **ReachTests.cs** (131 lines): 9 tests
 - **RecommenderTests.cs** (157 lines): 10 tests
