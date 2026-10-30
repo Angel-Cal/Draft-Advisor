@@ -165,10 +165,10 @@ Data files, `archive/` and build output are not listed.
 - **ArmSweep.cs** (67 lines)
   - `static class ArmSweep`: Scores a set of strategy settings ("arms") over the backtests, next to fixed reference strategies, then checks the choice leave-one-season-out: pick the best arm on four seasons, score it on the fi...
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, IReadOnlyList<IDraftStrategy> arms, IReadOnlyList<IDraftStrategy> references, string headline, double noiseScale = 1.0, SweepMetric metric = SweepMetric.Points, int firstSeed = 0)`
-- **DeviationCalibration.cs** (137 lines)
+- **DeviationCalibration.cs** (149 lines)
   - `static class DeviationCalibration`: How well calibrated is the model where the advisor actually acts?
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0, int firstSeed = 0)`
-  - `record Obs(int Season, int Seed, int Round, bool SamePosition, double DProj, double DAdp, double DActual, Position Taken = default, Position Passed = default)`
+  - `record Obs(int Season, int Seed, int Round, bool SamePosition, double DProj, double DAdp, double DActual, Position Taken = default, Position Passed = default, double ActualTaken = 0, double ActualPassed = 0)`
 - **DraftRules.cs** (32 lines)
   - `static class DraftRules`
     - `static IReadOnlyList<ValuedPlayer> LegalPicks(DraftState state, int team, SimSettings settings)`: Players the team may take now: positions under their cap, and after the cutoff round only positions with an open starter slot.
@@ -447,6 +447,8 @@ Data files, `archive/` and build output are not listed.
 
 ## src/evaluation/
 
+- **adp_curve_world.py** (43 lines): Does the advisor's WR-over-RB lean come from what the model learned, or from the lineup structure? (runnable)
+  - `option(name, default)`
 - **adp_residual.py** (123 lines): Train the model on what ADP misses? (runnable)
   - `adp_table()`: player_id, season, adp, ADP position and position rank, for the seasons with an ADP file.
   - `curve_values(rows, history, fit_seasons)`: The ADP-curve value of each row, from a curve fitted on `fit_seasons` of the history.
@@ -464,6 +466,9 @@ Data files, `archive/` and build output are not listed.
   - `curve_points(season, history)`: player_id -> expected PPR from the ADP curve fit on seasons before `season`.
   - `blended(model, curve, weight)`: Weighted average where the curve exists, the model alone elsewhere.
   - `rmse(a, b)`
+- **frozen_file_outcomes.py** (60 lines): Attach a season's outcomes to a frozen projections file, so the simulator can score the advisor on it (.claude/PREREGISTRATION_2026.md, "Advisor edge"). (runnable)
+  - `with_outcomes(doc, seasonal, weekly, season)`: A copy of the projections document as a backtest file with the season's actual_ppr and weekly_ppr on every player.
+  - `option(name, default)`
 - **gap_reliability.py** (140 lines): Is the model's disagreement with the ADP curve equally trustworthy for every kind of player? (runnable)
   - `load_rows()`: Ranked player-seasons 2022-2025 with the model, the ADP curve, the outcome and the player-type columns.
   - `slope(g)`: Least squares through the origin: how much of the model's gap shows up in the outcome.
@@ -484,6 +489,9 @@ Data files, `archive/` and build output are not listed.
 - **oos_predictions.py** (65 lines): (runnable)
   - `load_params(position)`
   - `position_oos(df, position, model, params, first_test)`: Walk-forward predictions for one position; one row per player-season from `first_test` (2021) to 2025.
+- **position_neutral.py** (63 lines): How much of the advisor's edge is luck in how the positions did against their ADP pricing? (runnable)
+  - `position_factors(players, curves)`: position -> factor that rescales its outcomes, from the draftable rows of one season's file.
+  - `neutralize(data, factors)`
 - **preseason_eval.py** (152 lines): Freeze a season's projections and score them later with rules written down in advance (.claude/PREREGISTRATION_2026.md). (runnable)
   - `sha256(path)`
   - `snapshot(season, source, output)`: The projection file as a flat CSV, with the ADP-curve expectation (curves fit on earlier seasons only) and the role-caution flag.
@@ -664,6 +672,7 @@ Data files, `archive/` and build output are not listed.
 - **test_data_integrity.py** (192 lines): 16 tests
 - **test_draft_state.py** (79 lines): 10 tests
 - **test_export_projections.py** (170 lines): 13 tests
+- **test_frozen_file_outcomes.py** (41 lines): 2 tests
 - **test_market_fallback.py** (66 lines): 5 tests
 - **test_ol_features.py** (40 lines): 2 tests
 - **test_ol_quality.py** (31 lines): 2 tests

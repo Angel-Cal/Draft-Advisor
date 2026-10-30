@@ -12,7 +12,7 @@ namespace DraftBot.Sim;
 /// </summary>
 public static class DeviationCalibration
 {
-    sealed record Obs(int Season, int Seed, int Round, bool SamePosition, double DProj, double DAdp, double DActual, Position Taken = default, Position Passed = default);
+    sealed record Obs(int Season, int Seed, int Round, bool SamePosition, double DProj, double DAdp, double DActual, Position Taken = default, Position Passed = default, double ActualTaken = 0, double ActualPassed = 0);
 
     const int Bootstraps = 300;
     const int MinN = 40;
@@ -48,7 +48,7 @@ public static class DeviationCalibration
                     var unranked = OpponentBot.UnrankedAdp(state.Available);
                     var adpKey = (ValuedPlayer p) => p.Player.Adp ?? unranked;
                     var adpPick = adp.Pick(state, team, legal);
-                    Obs Make(ValuedPlayer a, ValuedPlayer b) => new(season, seed, state.Round, a.Position == b.Position, a.Vor - b.Vor, adpKey(a) - adpKey(b), over(a) - over(b), a.Position, b.Position);
+                    Obs Make(ValuedPlayer a, ValuedPlayer b) => new(season, seed, state.Round, a.Position == b.Position, a.Vor - b.Vor, adpKey(a) - adpKey(b), over(a) - over(b), a.Position, b.Position, over(a), over(b));
                     if (pick.Id != adpPick.Id) deviating.Add(Make(pick, adpPick));
                     var runnerUp = legal.Where(p => p.Id != adpPick.Id).MinBy(adpKey);
                     if (runnerUp is not null) control.Add(Make(runnerUp, adpPick));
@@ -79,12 +79,24 @@ public static class DeviationCalibration
 
         var seasons = files.Keys.Order().ToList();
         lines.Add("");
-        lines.Add("Rounds 3-6, advisor takes one position over the ADP pick's position: d actual per decision (points over replacement), n, and its mean in each season (blank under 15 decisions)");
-        lines.Add($"{"takes over ADP pick",-22}{"n",7}{"d proj",8}{"d actual",10}{"points/draft",14}   " + string.Join(" ", seasons.Select(s => $"{s,6}")));
+        lines.Add("Rounds 3-6, advisor takes one position over the ADP pick's position: d actual per decision (points over replacement), n, and its mean in each season (blank under 15 decisions); in brackets the decisions per draft that season");
+        lines.Add($"{"takes over ADP pick",-22}{"n",7}{"d proj",8}{"d actual",10}{"points/draft",14}   " + string.Join(" ", seasons.Select(s => $"{s,10}")));
         foreach (var group in dev.Where(o => !o.SamePosition && o.Round is >= 3 and <= 6).GroupBy(o => (o.Taken, o.Passed)).Where(g => g.Count() >= 100).OrderByDescending(g => g.Sum(o => o.DActual)))
         {
-            var perSeason = seasons.Select(season => group.Where(o => o.Season == season).ToList()).Select(rows => rows.Count >= 15 ? $"{rows.Average(o => o.DActual),6:F1}" : $"{"",6}");
+            var perSeason = seasons.Select(season => group.Where(o => o.Season == season).ToList()).Select(rows => rows.Count >= 15 ? $"{rows.Average(o => o.DActual),6:F0}({rows.Count / (double)seeds / settings.League.Teams:F1})" : $"{"",6}");
             lines.Add($"{group.Key.Taken + " over " + group.Key.Passed,-22}{group.Count(),7}{group.Average(o => o.DProj),8:F1}{group.Average(o => o.DActual),10:F1}{group.Sum(o => o.DActual) / jobs.Count,14:F1}   " + string.Join(" ", perSeason));
+        }
+        lines.Add("");
+        lines.Add("Inside the swaps (rounds 3-6): actual points over replacement of the player the advisor took and of the ADP pick it passed, mean per decision and by season");
+        foreach (var (taken, passed) in new[] { (Position.WR, Position.RB), (Position.RB, Position.WR) })
+        {
+            var swaps = dev.Where(o => o.Taken == taken && o.Passed == passed && o.Round is >= 3 and <= 6).ToList();
+            lines.Add($"{taken} taken over {passed} passed (n {swaps.Count}); each cell: {taken} taken / {passed} passed");
+            lines.Add($"  {"all seasons",-12}{swaps.Average(o => o.ActualTaken),7:F0} /{swaps.Average(o => o.ActualPassed),4:F0}   " + string.Join("  ", seasons.Select(season =>
+            {
+                var rows = swaps.Where(o => o.Season == season).ToList();
+                return rows.Count >= 15 ? $"{season}: {rows.Average(o => o.ActualTaken):F0}/{rows.Average(o => o.ActualPassed):F0}" : $"{season}: -";
+            })));
         }
         return string.Join(Environment.NewLine, lines);
     }
@@ -102,8 +114,8 @@ public static class DeviationCalibration
             var s = Slope(resampled);
             if (!double.IsNaN(s)) draws.Add(s);
         }
-        var mean = draws.Average();
-        var se = Math.Sqrt(draws.Sum(d => (d - mean) * (d - mean)) / Math.Max(1, draws.Count - 1));
+        var mean = draws.Count > 0 ? draws.Average() : double.NaN;      // no draws when the projection is a function of ADP (the slope is not identified)
+        var se = draws.Count > 0 ? Math.Sqrt(draws.Sum(d => (d - mean) * (d - mean)) / Math.Max(1, draws.Count - 1)) : double.NaN;
         return $"{label,-34}{rows.Count,7}{rows.Average(o => o.DProj),9:F1}{rows.Average(o => o.DAdp),8:F1}{rows.Average(o => o.DActual),10:F1}{slope,9:F2} +/- {se:F2}";
     }
 
