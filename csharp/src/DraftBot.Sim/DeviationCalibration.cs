@@ -17,9 +17,22 @@ public static class DeviationCalibration
     const int Bootstraps = 300;
     const int MinN = 40;
 
-    public static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0, int firstSeed = 0)
+    /// <summary>
+    /// The advisor whose decisions are examined: "full" is the adopted one; "nowait" drops the waiting bonus, "structural" also drops the option value (bench weights only),
+    /// "vor" is plain value over replacement with the reach cost (no roster need at all). For attributing the WR-over-RB lean to the terms that produce it.
+    /// </summary>
+    static ValueRecommenderStrategy Advisor(string name) => name switch
     {
-        var adopted = new ValueRecommenderStrategy("adopted", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait);
+        "full" => new("adopted", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait),
+        "nowait" => new("nowait", ValueRecommender.DefaultReach, NeedSettings.Default),
+        "structural" => new("structural", ValueRecommender.DefaultReach, NeedSettings.Structural),
+        "vor" => new("vor", ValueRecommender.DefaultReach),
+        _ => throw new ArgumentException($"unknown advisor '{name}' (full, nowait, structural, vor)", nameof(name)),
+    };
+
+    public static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0, int firstSeed = 0, string advisor = "full")
+    {
+        var adopted = Advisor(advisor);
         var adp = new AdpStrategy();
         var scaled = settings with { NoiseScale = noiseScale };
         var pools = files.ToDictionary(f => f.Key, f => Valuator.Value(f.Value.Players, f.Value.PositionRmse, settings.League, new ValuationSettings(settings.TierGapRmse)));
