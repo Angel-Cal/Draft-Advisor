@@ -269,14 +269,14 @@ All tested with the standing protocol: 10-seed ablation + random-noise control, 
 
 ## Hand-off (read this first in a new session)
 
-### Session handoff, 2026-10-28 evening (newest): the app is being built; the next task is a reach-cost experiment
+### Session handoff, 2026-10-28 evening (updated 2026-10-29): the app is being built; the reach-cost experiment and the short-season fix are done (DONE lines below)
 
-**Repo state.** Branch `app-build` (pushed to `origin`), created from `main` after the mockup was merged and pushed. Tests: 226 xUnit, 157 pytest, all passing (2026-10-29). `.claude/settings.local.json` is the user's own and is never committed by Claude.
+**Repo state.** Branch `app-build` (pushed to `origin`), created from `main` after the mockup was merged and pushed. Tests: 229 xUnit, 158 pytest, all passing (2026-10-29). `.claude/settings.local.json` is the user's own and is never committed by Claude.
 Read `APP_SCOPE.md` (what version 1 is, milestones, how to run), `APP_DESIGN.md` (every visual rule and what it obliges the engine to do) and the LOG entries dated 2026-10-28 headed "App".
 
 **Built this session.** Milestone 1: `DraftAdvisor.Advise` (Core) returns everything the draft screen shows. Milestone 2: `DraftBot.App` (Razor class library) and `DraftBot.Desktop` (WPF + BlazorWebView) play a practice draft from slot 5 of 12
 against the simulator's bots; run it with `dotnet run --project csharp/src/DraftBot.Desktop` (it needs `data/processed/projections_2026_v1.json` or `DRAFTBOT_PROJECTIONS`). Close the app before rebuilding or the build fails on locked files.
-After the user tried it: Pause/Resume beside the clock; reaches (1 sigma or more past ADP) are kept out of the recommendations and listed under "Past the wall"; the headline says "Close call" when the top two picks at different positions score within 5%;
+After the user tried it: Pause/Resume beside the clock; reaches (reach cost of 25 points or more, `Explainer.IsReach`; the first pick of reach is free since 2026-10-29) are kept out of the recommendations and listed under "Past the wall"; the headline says "Close call" when the top two picks at different positions score within 5%;
 amber and the "Recommended" tag only go to what the advice backs; the top pick is always tagged "Recommended"; the bargain tag is solid white; card stats are a 2 x 2 grid. Still to build: milestone 3 (Players, Board, Settings gear, first-run), then Sleeper (milestone 4).
 
 **DONE 2026-10-29: the survival-aware reach cost was tested and NOT adopted** (S-scaled lambda 1000: +12 points / +2.7 pp title odds over the adopted advisor in-sample, but the held-out points check is -9 +/- 30 and 2025 loses; numbers in the LOG entry of that date; `ReachSettings.SurvivalPower`, `tune-reach-survival`; default 0 = unchanged). Follow-up 2026-10-29: a free-zone reach cost and a fresh-seed retest of the survival-scaled cost were also not adopted (LOG entry of that date; pick 5 can flip RB/WR on a 0.4-pick ADP gap, by design of the wall). Still open: the UI line for "early pick" (1 sigma on cards vs 0.25 in the sentence), and the user's request to list each player's bye week in the app (needs a 2026 bye source; live files have none).

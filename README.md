@@ -55,6 +55,7 @@ An earlier version of this table reported higher R² from a leaked feature (see 
 - Hyperparameters tuned with Optuna (100 trials, Bayesian optimization)
   using walk-forward RMSE as the objective
 - Final models trained on all historical data (2015-2025) for 2026 projections
+- Players coming off a short season (9 or fewer games) are projected from a rate view of the features (`short_season.py`), so an injury year is not read as lower talent
 
 ### 4. Draft Recommender (`csharp/`)
 
@@ -62,7 +63,8 @@ An earlier version of this table reported higher R² from a leaked feature (see 
   the gain to your best lineup so redundant players are worth nothing
 - Position-specific bench value: the k-th backup at a position is worth the chance enough starters are out the same week, times his upside
   over a free agent; a third QB or TE is never recommended
-- ADP-reach cost that grows with the draft position (ADP is less predictive later); ADP: FantasyPros (live and backtests)
+- ADP-reach cost that grows with the draft position (ADP is less predictive later), with the first pick of reach free so sub-pick ADP gaps cannot decide an early card; ADP: FantasyPros (live and backtests)
+- Advice reports how firmly the top pick stands (share of 30 ADP-nudged re-rankings that keep it first)
 - Ceiling/floor bands from position-level walk-forward RMSE; per-position tiers by value dropoff
 - A simulator drafts against ADP-plus-noise opponents calibrated to real mock drafts and scores rosters by weekly lineups with actual results
 - Not yet built: position safety, run detection (roadmap Phase 4). Plain-language reasoning is built (`Explainer`; shown by `draft --recommender need`)
