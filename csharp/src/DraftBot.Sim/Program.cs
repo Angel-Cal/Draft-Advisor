@@ -35,6 +35,7 @@ using DraftBot.Sim;
 // dotnet run --project csharp/src/DraftBot.Sim -- tune-reach [--seeds 30] [--seasons 2021-2025]
 // dotnet run --project csharp/src/DraftBot.Sim -- tune-tiers [--data DIR] [--seasons 2021-2025]
 // dotnet run --project csharp/src/DraftBot.Sim -- draft [--season 2024] [--slot 6] [--seed 0] [--reveal true] [--recommender position|value|need|need-only|bench|option]   (need = roster need + cost of waiting, the default advisor; need-only drops the waiting bonus) [--window true|L,CAP[,nogap]] [--data DIR]
+// Every command takes the opponent style (default: none): [--rb-earlier P] [--wr-earlier P] [--qb-earlier P] [--te-earlier P] [--run-pull P --run-window 6] [--need-pull P] (picks earlier than ADP; world-sweep and calibrate-deviations use the run and need parts).
 // Every command takes the league: [--teams 12] [--qb 1] [--rb 2] [--wr 3] [--te 1] [--flex 1] [--bench 8] (the default is the user's 1QB/2RB/3WR/1TE/1FLEX league; --wr 2 is the standard one).
 // dotnet run --project csharp/src/DraftBot.Sim -- describe [--file projections_2026_v1.json] [--data DIR] [--tier-gap 0.1]
 
@@ -47,6 +48,10 @@ var settings = new SimSettings(new LeagueSettings(Teams: LeagueOption("teams", d
     Te: LeagueOption("te", defaults.Te), Flex: LeagueOption("flex", defaults.Flex), Bench: LeagueOption("bench", defaults.Bench)));      // every command: --wr 2 gives the standard 1QB/2RB/2WR/1TE/1FLEX league
 if (options.TryGetValue("season-totals", out var seasonTotals) && bool.Parse(seasonTotals)) settings = settings with { WeeklyLineups = false };
 if (options.TryGetValue("tier-gap", out var tierGap)) settings = settings with { TierGapRmse = double.Parse(tierGap) };
+double StyleOption(string name) => double.Parse(options.GetValueOrDefault(name) ?? "0", System.Globalization.CultureInfo.InvariantCulture);
+var style = new OpponentStyle(StyleOption("qb-earlier"), StyleOption("rb-earlier"), StyleOption("wr-earlier"), StyleOption("te-earlier"), StyleOption("run-pull"),
+    options.TryGetValue("run-window", out var runWindow) ? int.Parse(runWindow) : 6, StyleOption("need-pull"));      // opponents that are not "ADP plus noise": picks earlier than ADP by position, after a run, or for an open starter slot
+if (!style.IsDefault) settings = settings with { Style = style };
 
 switch (command)
 {

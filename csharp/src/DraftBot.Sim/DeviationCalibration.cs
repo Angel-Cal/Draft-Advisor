@@ -54,7 +54,7 @@ public static class DeviationCalibration
             {
                 var team = state.CurrentTeam;
                 var legal = team == slot && !scaled.StrategyFollowsRules ? state.Available : DraftRules.LegalPicks(state, team, scaled);
-                var pick = bots[team]?.Pick(legal);
+                var pick = bots[team]?.Pick(legal, state);
                 if (pick is null)
                 {
                     pick = adopted.Pick(state, team, legal);
