@@ -101,9 +101,9 @@ else
     </div>
     <div class="stats">
     <div><div class="eyebrow">Proj</div><div class="mono v">@Points(pick.Candidate)</div></div>
-    <div><div class="eyebrow" style="display:flex;align-items:center">Over replacement<Tip Class="fromleft" Label="What over replacement means"><b>Over replacement</b> is how many more points this player is projected to score than a replacement-level player at his position: someone you could still get in the later rounds. The bigger the number, the bigger the upgrade.</Tip></div><div class="mono v" style="color:@OverColor(pick.Candidate.Vor)">@Over(pick.Candidate.Vor)</div></div>
+    <div><div class="eyebrow" style="display:flex;align-items:center">Adds to lineup<Tip Class="fromleft" Label="What adds to lineup means"><b>Adds to lineup</b> is how many more points your starting lineup is projected to score with this player than with a replacement-level player at his position: someone you could still get in the later rounds. It counts the players you already have, so a position you have filled adds less.</Tip></div><div class="mono v" style="color:@OverColor(pick.Candidate.Gain ?? pick.Candidate.Vor)">@Over(pick.Candidate.Gain ?? pick.Candidate.Vor)</div></div>
     <div><div class="eyebrow">ADP</div><div class="mono v">@Adp(pick.Candidate)</div></div>
-    <div><div class="eyebrow">Tier</div><div class="mono v">@pick.Candidate.Player.Tier</div></div>
+    <div><div class="eyebrow" style="display:flex;align-items:center">Price<Tip Class="wide" Label="What price means"><b>Price</b> compares where drafters usually take him (his ADP, @Adp(pick.Candidate)) with where you pick (#@advice.Pick). <b>Fair</b> means about the usual spot. <b>Bargain</b> means you are getting him well after drafters usually would. <b>Early</b> means you would be taking him before drafters usually do: you would be paying more than you need to, and reaching like that lost points in our simulations.</Tip></div><div class="mono v" style="color:@PriceColor(pick.Candidate, advice.Pick)">@PriceText(pick.Candidate, advice.Pick)</div></div>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:8px">
     @foreach (var tag in pick.Tags)
@@ -111,6 +111,10 @@ else
         <Tag Value="tag" Large="true" />
     }
     </div>
+    @if (pick.TopShare is { } share)
+    {
+        <div class="muted" style="font-size:12px;display:flex;align-items:center">@ConfidenceText(share)<Tip Class="wide" Label="What the top-pick share means"><b>Top-pick share</b>: we re-rank the board 30 times with every player's ADP nudged by about a pick, the most precision an ADP can claim, and count how often this player comes out first. A high share means the pick holds up. When two or three players share the top spot, they are interchangeable here: take the one you prefer.</Tip></div>
+    }
     <div style="margin-top:auto"><button class="@(pick.Rank == 1 ? "btn btn-primary draft-btn" : "btn btn-ghost draft-btn")" type="button" disabled="@Session.IsPaused" @onclick="() => Session.Draft(pick.Candidate.Player.Id)">Draft</button></div>
     </article>
 }
@@ -171,7 +175,7 @@ else
     <div style="display:flex;flex-direction:column;gap:8px">
     @foreach (var wall in advice.PastTheWall)
     {
-        <div style="padding:10px 12px;border-radius:8px;background:#222B36"><div style="display:flex;align-items:center;gap:8px"><span class="pos pos-@wall.Player.Position">@wall.Player.Position</span><b style="font-weight:600">@wall.Player.Player.PlayerName</b><span class="muted" style="font-size:12px">@wall.Player.Player.Team</span>@if (wall.Player.Player.InjuryFlag) { <span class="badge b-risk" style="margin-left:auto">Injury</span> }</div><div class="muted" style="font-size:13px;margin-top:4px"><span class="mono">@Over(wall.Player.Vor)</span> over replacement · ADP @Format1(wall.Player.Player.Adp), <span class="mono">@Math.Round(wall.PicksEarly)</span> picks early</div></div>
+        <div style="padding:10px 12px;border-radius:8px;background:#222B36"><div style="display:flex;align-items:center;gap:8px"><span class="pos pos-@wall.Player.Position">@wall.Player.Position</span><b style="font-weight:600">@wall.Player.Player.PlayerName</b><span class="muted" style="font-size:12px">@wall.Player.Player.Team</span>@if (wall.Player.Player.InjuryFlag) { <span class="badge b-risk" style="margin-left:auto">Injury</span> }</div><div class="muted" style="font-size:13px;margin-top:4px">projected <span class="mono">@Math.Round(wall.Player.Player.ProjectedPpr)</span> · ADP @Format1(wall.Player.Player.Adp), <span class="mono">@Math.Round(wall.PicksEarly)</span> picks early</div></div>
     }
     </div>
     @if (WaitingIsCheap(advice) is { } cheap)
@@ -235,9 +239,24 @@ else
 
     static string Adp(ValueCandidate c) => Format1(c.Player.Player.Adp);
 
+    // how firmly a pick stands when every ADP is nudged by about a pick; a pick that is almost never first is not shown as a weak first choice
+    static string ConfidenceText(double share) =>
+        share >= 0.95 ? "First in every re-ranking" : share >= 0.05 ? $"First in {Math.Round(share * 100)}% of re-rankings" : "Rarely first when ADPs shift";
+
     static string Points(ValueCandidate c) => Math.Round(c.Player.Player.ProjectedPpr).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     static string Over(double value) => (value >= 0 ? "+" : "-") + Math.Abs(Math.Round(value)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    // price = where drafters usually take him against where I pick: early (a reach) when the advisor charges for it (Explainer.IsReach), a bargain a full sigma after his ADP, otherwise fair
+    static string PriceText(ValueCandidate c, int pick)
+    {
+        if (c.Player.Player.Adp is not { } adp) return "-";
+        if (Explainer.IsReach(c)) return $"Early by {Math.Max(1, Math.Round(adp - pick)):0}";
+        return (pick - adp) / ValueRecommender.DefaultReach.Sigma(pick) >= Explainer.EarlyPickSigmas ? "Bargain" : "Fair";
+    }
+
+    static string PriceColor(ValueCandidate c, int pick) =>
+        PriceText(c, pick) switch { var t when t.StartsWith("Early") => "#F3A0A0", "Bargain" => "#7FDBB6", _ => "#E7ECF2" };
 
     static string OverColor(double value) => value >= 0 ? "#7FDBB6" : "#F3A0A0";
 
@@ -258,7 +277,9 @@ else
     // amber only on a position the advice backs; a position that is merely costly to wait on is marked in neutral
     static string TileClass(PositionAdvice tile) => tile.IsRecommended ? "tile take" : "tile";
 
-    static string VerdictText(PositionAdvice tile) => tile.IsRecommended ? (tile.TakeNow ? "Take now" : "Best pick") : (tile.TakeNow ? "Costly to wait" : "Can wait");
+    // a costly position whose best player would be a reach says so: the advice is not to take him, however much waiting costs
+    static string VerdictText(PositionAdvice tile) =>
+        tile.IsRecommended ? (tile.TakeNow ? "Take now" : "Best pick") : tile.TakeNow ? (tile.TopIsReach ? "Don't reach" : "Costly to wait") : "Can wait";
 
     static string VerdictClass(PositionAdvice tile) => tile.IsRecommended ? "verdict v-take" : tile.TakeNow ? "verdict v-costly" : "verdict v-free";
 
@@ -283,7 +304,7 @@ else
     static IEnumerable<string> WhyNotThese(IReadOnlyList<PositionAdvice> costly, Position topPosition, int pick)
     {
         static int After(PositionAdvice tile, int pick) => tile.Top.Player.Player.Adp is { } adp ? (int)Math.Round(adp - pick) : 0;
-        bool Reach(PositionAdvice tile) => tile.Top.ReachSigmas >= 0.25 && After(tile, pick) >= 1;
+        bool Reach(PositionAdvice tile) => tile.TopIsReach && After(tile, pick) >= 1;
 
         var reach = costly.Where(Reach).ToList();
         if (reach.Count > 0)
@@ -294,6 +315,8 @@ else
             var to = reach.Max(t => After(t, pick));
             var gap = from == to ? $"{from} pick{(from == 1 ? "" : "s")}" : $"{from} to {to} picks";
             yield return $"Waiting on {JoinWithAnd(reach.Select(t => t.Position.ToString()).ToList())} would cost about {costs} points, but taking {names} now would be a reach: {(reach.Count == 1 ? "he usually goes" : "they usually go")} {gap} after this one.";
+            var fallbacks = reach.Select(t => t.LikelyThere.FirstOrDefault()).Where(a => a is not null).Select(a => $"{a!.Candidate.Player.Player.PlayerName} ({Math.Round(a.Survival * 100)}% likely to last)").ToList();
+            if (fallbacks.Count > 0) yield return $"Instead, plan on {string.Join(" or ", fallbacks)}.";
         }
 
         var better = costly.Where(t => !Reach(t)).ToList();

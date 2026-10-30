@@ -33,7 +33,7 @@ Agreed with the user 2026-10-28, on branch `app-build`. The target is `mockup/` 
    Added at the user's request after trying it: a Pause/Resume button in the header (practice drafts only, for testing). Pausing freezes the pick clock, shows a grey "Paused" tag and disables the Draft buttons.
    Not done in this step: Players and Board are greyed-out tabs, there is no gear/Settings, the practice slot is fixed, the window size and display scaling were not tuned, and nothing was clicked by hand in the
    running app (the Draft button is covered by the tests, not by a manual run).
-3. **Players, Board, Settings, first-run** (Sleeper stubbed). Check: each screen against its render.
+3. **Players, Board, Settings, first-run** (Board built 2026-10-29: `BoardScreen`, a 12 x 16 snake grid from the pick log with the user's column marked, an amber on-the-clock cell, a per-team position count row and hover details with ADP; the Draft/Board tabs switch in `Root`. The planned tendencies and pick-log panels are not built.) (Sleeper stubbed). Check: each screen against its render.
 4. **Sleeper client.** Check: replay one of the user's finished drafts pick by pick through the client, then a live poll.
 5. **Bundling the projections file**, then Phase 6 packaging later.
 

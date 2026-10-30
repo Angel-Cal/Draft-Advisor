@@ -114,6 +114,56 @@ public class AdvisorTests
     }
 
     [Fact]
+    public void A_reach_the_advisor_charges_for_is_not_a_card_and_marks_its_position()
+    {
+        // a quarterback 3.2 picks early who would probably last to the next pick (1.5 sigma): the cost is well past the reach line, so no card, and his position says its best player is a reach
+        var advice = DraftAdvisor.Advise(new DraftState([
+            V("star", Position.RB, 250, 1), V("w1", Position.WR, 150, 1), V("t1", Position.TE, 180, 1),
+            V("slight", Position.QB, 300, 4.2), V("q2", Position.QB, 150, 12)], Four), 0);
+
+        Assert.DoesNotContain(advice.Recommended, r => r.Candidate.Player.Id == "slight");
+        Assert.Contains("slight", advice.PastTheWall.Select(w => w.Player.Id));
+        Assert.True(advice.Positions.Single(p => p.Position == Position.QB).TopIsReach);
+        Assert.False(advice.Positions.Single(p => p.Position == Position.RB).TopIsReach);
+    }
+
+    [Fact]
+    public void A_pick_that_is_early_by_less_than_the_free_pick_is_a_card_and_not_a_reach()
+    {
+        // 0.9 picks early: inside the first free pick of the reach cost, so the screen and the score agree that it is not a reach (it used to be one at 0.25 sigma)
+        var advice = DraftAdvisor.Advise(new DraftState([
+            V("star", Position.RB, 250, 1), V("w1", Position.WR, 150, 1), V("t1", Position.TE, 180, 1),
+            V("slight", Position.QB, 300, 1.9), V("q2", Position.QB, 150, 12)], Four), 0);
+
+        Assert.Contains(advice.Recommended, r => r.Candidate.Player.Id == "slight");
+        Assert.Equal(0, advice.Recommended.Single(r => r.Candidate.Player.Id == "slight").Candidate.ReachPenalty);
+        Assert.False(advice.Positions.Single(p => p.Position == Position.QB).TopIsReach);
+    }
+
+    [Fact]
+    public void The_top_pick_share_says_how_firmly_a_pick_stands()
+    {
+        // a clear best pick is first in every nudged re-ranking; two near-identical players at different positions split the top spot and make the call close
+        var clear = DraftAdvisor.Advise(new DraftState([V("star", Position.RB, 300, 1), V("w1", Position.WR, 150, 8), V("t1", Position.TE, 120, 9)], Four), 0);
+        Assert.Equal(1.0, clear.Recommended[0].TopShare);
+        Assert.Null(clear.Rival);
+
+        var tied = DraftAdvisor.Advise(new DraftState([V("rb", Position.RB, 250, 5.8), V("wr", Position.WR, 250, 6.2), V("t1", Position.TE, 120, 30)], Four), 0);
+        Assert.InRange(tied.Recommended[0].TopShare!.Value, 0.3, 0.8);
+        Assert.NotNull(tied.Rival);
+        Assert.Equal(tied.Recommended.Take(2).Sum(r => r.TopShare!.Value), tied.Recommended.Sum(r => r.TopShare!.Value), 9);   // the shares of a tie add up (nobody else is first)
+    }
+
+    [Fact]
+    public void The_top_pick_shares_are_the_same_every_time_and_can_be_skipped()
+    {
+        var state = new DraftState([V("rb", Position.RB, 250, 5.8), V("wr", Position.WR, 250, 6.2), V("t1", Position.TE, 120, 30)], Four);
+
+        Assert.Equal(DraftAdvisor.Advise(state, 0).Recommended.Select(r => r.TopShare), DraftAdvisor.Advise(state, 0).Recommended.Select(r => r.TopShare));
+        Assert.All(DraftAdvisor.Advise(state, 0, confidenceSamples: 0).Recommended, r => Assert.Null(r.TopShare));
+    }
+
+    [Fact]
     public void When_only_early_picks_are_left_they_are_still_recommended()
     {
         var advice = DraftAdvisor.Advise(new DraftState([

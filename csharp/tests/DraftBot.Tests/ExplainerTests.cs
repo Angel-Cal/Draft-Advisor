@@ -64,6 +64,19 @@ public class ExplainerTests
     }
 
     [Fact]
+    public void A_player_projected_below_replacement_is_described_like_any_other_non_starter()
+    {
+        // adp 1 but projected 60 against a replacement of 100: the model disagrees with drafters, and the tag is the plain "Not a starter"
+        var low = V("low", Position.QB, 60, 1);
+
+        var e = Explainer.Explain(Pool(low), 0, [Candidate(low, gain: 0)], Reach)[0];
+
+        Assert.Equal(ReasonLabel.Backup, e.Labels[0]);
+        Assert.Equal("Not a starter", e.Labels[0].DisplayName());
+        Assert.Contains("insurance", e.Headline);
+    }
+
+    [Fact]
     public void The_waiting_reason_names_the_fallback_the_waiting_bonus_assumed_and_how_much_worse_he_is()
     {
         var star = V("star", Position.RB, 250, 2);

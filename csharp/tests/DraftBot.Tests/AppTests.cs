@@ -120,10 +120,39 @@ public class AppTests
         return await renderer.Dispatcher.InvokeAsync(async () => (await renderer.RenderComponentAsync<Root>(ParameterView.Empty)).ToHtmlString());
     }
 
+    static async Task<string> RenderBoard(PracticeDraft draft)
+    {
+        var services = new ServiceCollection().AddLogging().AddSingleton(draft).BuildServiceProvider();
+        await using var renderer = new HtmlRenderer(services, services.GetRequiredService<ILoggerFactory>());
+        return await renderer.Dispatcher.InvokeAsync(async () => (await renderer.RenderComponentAsync<BoardScreen>(ParameterView.Empty)).ToHtmlString());
+    }
+
+    [Fact]
+    public async Task The_board_shows_every_pick_so_far_in_its_snake_cell_and_the_users_pick_on_the_clock()
+    {
+        var draft = Start();                // pick 5 of 12: four picks are in
+        var html = await RenderBoard(draft);
+
+        Assert.Contains("Draft board", html);
+        Assert.Equal(League.Teams * League.RosterSize, html.Split("class=\"bcell").Length - 1);          // 12 x 16 cells
+        Assert.Equal(draft.State.History.Count, html.Split("class=\"bname\"").Length - 1);
+        foreach (var pick in draft.State.History) Assert.Contains(pick.Player.Player.PlayerName, html);
+        Assert.Contains(">You</div>", html);
+        Assert.Contains("bcell empty mine clock me", html);           // the user's turn is amber
+
+        DraftTheTopRecommendation(draft);
+        var later = await RenderBoard(draft);
+
+        Assert.Equal(draft.State.History.Count, later.Split("class=\"bname\"").Length - 1);
+        Assert.Contains("#20", later);          // round 2 runs backwards: slot 5 picks 20th
+        Assert.Contains("bcell empty mine clock me", later);
+    }
+
     [Fact]
     public async Task The_draft_screen_shows_the_clock_the_band_the_cards_and_the_roster()
     {
-        var html = await Render(Start());
+        var draft = Start();
+        var html = await Render(draft);
 
         Assert.Contains("You are on the clock", html);
         Assert.Contains("Recommended for pick #5", html);
@@ -131,7 +160,11 @@ public class AppTests
         Assert.Contains("Cost of waiting", html);
         Assert.Contains("Your roster", html);
         Assert.Contains("Practice draft", html);
-        Assert.Equal(3, html.Split(">Draft</button>").Length - 1);          // one Draft button per card
+        Assert.Contains("Adds to lineup", html);
+        Assert.Contains("Price", html);
+        var cards = Math.Min(3, draft.Advice!.Recommended.Count);
+        Assert.InRange(cards, 1, 3);
+        Assert.Equal(cards, html.Split(">Draft</button>").Length - 1);          // one Draft button per card
         Assert.Contains("He fills an open starting", html);
     }
 
@@ -148,7 +181,7 @@ public class AppTests
         Assert.Contains(">Pause</button>", running);
         Assert.Contains("Paused", paused);
         Assert.Contains(">Resume</button>", paused);
-        Assert.Equal(3, paused.Split("disabled").Length - 1);          // all three Draft buttons
+        Assert.Equal(Math.Min(3, draft.Advice!.Recommended.Count), paused.Split("disabled").Length - 1);          // every Draft button
     }
 
     [Fact]

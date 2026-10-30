@@ -72,3 +72,17 @@ details summary::-webkit-details-marker{display:none}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .b-bargain{background:#F2F6FA;color:#12161C;border-color:#F2F6FA}
 .v-costly{color:#E7ECF2;border-color:#4A5667}
+.board{display:grid;gap:6px;min-width:1260px}
+.bhead{text-align:center;padding:8px 4px;border-radius:8px;background:#222B36;font-weight:600;font-size:13px}
+.bhead.mine{background:#3A4553}
+.brow{display:flex;align-items:center;justify-content:center;color:#9AA6B4;font-size:12px}
+.bcell{min-height:60px;border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:1px;border:1px solid transparent;overflow:hidden;min-width:0}
+.bcell.mine{border-color:#C8D0DA}
+.bcell.empty{background:#161B22;border:1px dashed #2A333F;color:#5F6B7A}
+.bcell.empty.mine{background:#1D242D;border-color:#3A4553}
+.bcell.clock{border:2px solid #4A5667;border-style:solid;color:#E7ECF2}
+.bcell.clock.me{border-color:#F2B84B;background:#231D0E}
+.bnum{font-size:11px;opacity:.8}
+.bname{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bsub{font-size:11px;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bcount{display:grid;grid-template-columns:1fr 1fr;justify-items:center;gap:2px 6px;font-size:11px;font-weight:600;padding-top:4px}

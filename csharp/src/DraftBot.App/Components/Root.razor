@@ -1,9 +1,20 @@
-<AppShell LeagueText="@LeagueText">
-    <DraftScreen />
+<AppShell LeagueText="@LeagueText" Current="screen" OnNavigate="Show">
+    @if (screen == Screen.Board)
+    {
+        <BoardScreen />
+    }
+    else
+    {
+        <DraftScreen />
+    }
 </AppShell>
 
 @code {
     [Inject] PracticeDraft Session { get; set; } = default!;
 
+    Screen screen = Screen.Draft;
+
     string LeagueText => $"Practice league · {Session.League.Teams} teams · PPR";
+
+    void Show(Screen next) => screen = next;
 }

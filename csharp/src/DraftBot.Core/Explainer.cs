@@ -9,8 +9,7 @@ public static class ReasonLabels
     public static string DisplayName(this ReasonLabel label) => label switch
     {
         ReasonLabel.Starter => "Starter",
-        ReasonLabel.Backup => "Not a starter",
-        ReasonLabel.RunningOut => "Recommended",
+        ReasonLabel.Backup => "Not a starter",        ReasonLabel.RunningOut => "Recommended",
         ReasonLabel.Discount => "Bargain",
         ReasonLabel.Reach => "Early pick",
         ReasonLabel.InjuryHistory => "Injury history",
@@ -41,8 +40,19 @@ public static class Explainer
     /// </summary>
     public const double NoticeableCost = 5;
 
-    /// <summary>How many standard deviations past (or ahead of) the pick a player's ADP must be before he is called an early pick (or a bargain). The advice also keeps early picks out of its recommendations.</summary>
+    /// <summary>How many standard deviations past (or ahead of) the pick a player's ADP must be before the "Early pick" (or "Bargain") tag is shown; the advice itself already keeps every reach (<see cref="IsReach"/>) out of its cards.</summary>
     public const double EarlyPickSigmas = 1;
+
+    /// <summary>
+    /// Reach cost, in points, from which taking a player now counts as a reach: the advisor charges him this much for being picked before drafters usually take him (after the free pick and the chance
+    /// that he lasts to my next pick). One line for everything the screen says about reaching: the advice backs no reach as a card (see <see cref="DraftAdvisor"/>), a position whose best player is a
+    /// reach is marked so, and "not reaching for him" in <see cref="BestPickReason"/> is below it. A display choice, not a tested one; defined by the cost, not by a number of picks, so the screen
+    /// and the score cannot disagree.
+    /// </summary>
+    public const double ReachCostPoints = 25;
+
+    /// <summary>True when the advisor charges at least <see cref="ReachCostPoints"/> for taking the player at this pick.</summary>
+    public static bool IsReach(ValueCandidate c) => c.ReachPenalty >= ReachCostPoints;
 
     const int MaxReasons = 4;
 
@@ -111,7 +121,7 @@ public static class Explainer
     {
         var text = "The best overall pick at this spot, weighing what he adds to your lineup, what waiting would cost, and how early you would be taking him.";
         if (c.Player.Player.Adp is { } adp)
-            text += c.ReachSigmas < 0.25
+            text += !IsReach(c)
                 ? $" Drafters usually take him around #{adp:F0}, so you are not reaching for him."
                 : $" Drafters usually take him around #{adp:F0}, a little after this pick.";
         if (c.WaitShortfall is { } cost)

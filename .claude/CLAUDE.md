@@ -28,3 +28,4 @@ Contract between the two: `.claude/projection_schema_v1.md`.
 
 - Document public C# members with `/// <summary>` and Python functions with docstrings; the first sentence feeds the code map.
 - Log decisions that rejected an alternative or changed results in `.claude/LOG.md`; update STATUS.md's hand-off when the state changes.
+- Excercist Abstract thought

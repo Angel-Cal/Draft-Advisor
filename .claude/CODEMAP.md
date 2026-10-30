@@ -30,13 +30,14 @@ Data files, `archive/` and build output are not listed.
 
 ## csharp/src/DraftBot.Core/
 
-- **BaselineRecommender.cs** (178 lines)
+- **BaselineRecommender.cs** (193 lines)
   - `record Candidate(ValuedPlayer Player, double WeightedValue, double RankTerm = 0, double GapTerm = 0, double Penalty = 0, double ReachPenalty = 0, double ReachSigmas = 0)`
   - `record Recommendation(Position Position, IReadOnlyList<Candidate> Candidates)`
   - `record PositionScarcity(Position Position, int Demand, int Supply, double Value, bool Considered, bool InjuryBoost)`
   - `record PositionChoice(Position Position, IReadOnlyList<Slot> Needs, IReadOnlyList<PositionScarcity> Scarcity)`
-  - `record ReachSettings(double Lambda, double CapSigmas, bool UseGapTerm = true, double SigmaBase = 2.0, double SigmaPerPick = 0.16, double SurvivalPower = 0)`: Optional ADP-reach control for the recommender.
+  - `record ReachSettings(double Lambda, double CapSigmas, bool UseGapTerm = true, double SigmaBase = 2.0, double SigmaPerPick = 0.16, double SurvivalPower = 0, double FreeSigmas = 0, double FreePicks = 0)`: Optional ADP-reach control for the recommender.
     - `double Sigma(int pick)`
+    - `double Charged(Player player, int pick)`: The reach the cost is charged on: Reach less the free zone (FreeSigmas sigmas plus FreePicks picks), never below 0.
     - `double Reach(Player player, int pick)`: Reach in standard deviations; 0 for a player at or before the pick, infinity if he has no ADP.
   - `static class BaselineRecommender`: The Phase 1 recommender ported as-is, so later versions are measured against it: pick the position with the most unmet league demand per player left in its best tier, then rank that position's play...
     - `static Recommendation Recommend(DraftState state, int teamIndex, ReachSettings? reach = null)`: Without reach this is the ported Phase 1 recommender.
@@ -51,15 +52,15 @@ Data files, `archive/` and build output are not listed.
     - `ByeSchedule(IReadOnlyDictionary<string, int> weeks)`
     - `int? WeekOf(string team)`: The team's bye week, or null when it is unknown.
     - `static ByeSchedule Infer(IEnumerable<Player> players)`: Infers each team's bye from weekly points: the one week in the bye window (weeks 4-14) with the fewest scorers on the team, if it is unique and has at most one scorer in six players (a player trade...
-- **DraftAdvisor.cs** (120 lines)
+- **DraftAdvisor.cs** (164 lines)
   - `record AdviceTag(ReasonLabel Label, string Name, string Text)`: One reason tag on a recommendation: which reason it is, its name on screen, and the sentence shown when the user hovers it.
-  - `record RankedPick(int Rank, ValueCandidate Candidate, string Headline, IReadOnlyList<AdviceTag> Tags)`: A ranked recommendation (1 is best) with its plain-language headline and reason tags.
+  - `record RankedPick(int Rank, ValueCandidate Candidate, string Headline, IReadOnlyList<AdviceTag> Tags, double? TopShare = null)`: A ranked recommendation (1 is best) with its plain-language headline and reason tags.
   - `record PositionAdvice(Position Position, ValueCandidate Top, double CostOfWaiting, bool TakeNow, IReadOnlyList<WaitAlternative> LikelyThere, bool IsRecommended, bool TopIsReach = false)`: What waiting means at one position: the advisor's top player there now, the projected points expected to be lost by waiting for someone else, whether that loss is large enough to say "take now" (Ex...
   - `record PastTheWallPlayer(ValuedPlayer Player, double PicksEarly)`: A player the model likes who is further above his ADP than the advisor will recommend; PicksEarly is how many picks before his ADP this pick falls.
   - `record Advice(int Pick, int? NextPick, IReadOnlyList<RankedPick> Recommended, IReadOnlyList<PositionAdvice> Positions, IReadOnlyList<PastTheWallPlayer> PastTheWall, IReadOnlyDictionary<Position, double> Replacement, Position? Rival = null)`: Everything the draft screen shows for one team's pick (see DraftAdvisor).
   - `static class DraftAdvisor`: The one call the app makes at each pick: ranks the pool with the adopted settings (single score with roster need, the waiting bonus and the reach limit) and packages the result for the screen, so t...
     - `static Position? RivalPosition(IReadOnlyList<ValueCandidate> bestFirst)`: The position of the best candidate at a different position than the first one, if his score is within CloseCallShare of the top score (CloseCallMinPoints at least); null when the top pick is clearl...
-    - `static Advice Advise(DraftState state, int teamIndex, ReachSettings? reach = null, NeedSettings? need = null, WaitSettings? wait = null)`: The advice for teamIndex at the current pick; settings default to the adopted ones.
+    - `static Advice Advise(DraftState state, int teamIndex, ReachSettings? reach = null, NeedSettings? need = null, WaitSettings? wait = null, int confidenceSamples = ConfidenceSamples)`: The advice for teamIndex at the current pick; settings default to the adopted ones.
 - **DraftState.cs** (82 lines)
   - `record Pick(int Round, int PickInRound, int Team, ValuedPlayer Player)`
   - `class DraftState`: Snake draft: team order reverses every round.
@@ -68,12 +69,13 @@ Data files, `archive/` and build output are not listed.
     - `int? NextPick(int team)`: The 1-based overall number of the team's next pick after the one on the clock; null if it has none left.
     - `IReadOnlyList<int> UpcomingPicks(int team, int count)`: The 1-based overall numbers of the team's next count picks after the one on the clock (fewer if the draft ends first).
     - `bool Draft(string playerId)`: Drafts the player for the team on the clock.
-- **Explainer.cs** (220 lines)
+- **Explainer.cs** (196 lines)
   - `enum ReasonLabel`: What a recommendation's reasons are about, for badges next to the text.
   - `static class ReasonLabels`: What a tag is called on screen.
     - `static string DisplayName(this ReasonLabel label)`
   - `record Explanation(ValuedPlayer Player, string Headline, IReadOnlyList<string> Reasons, IReadOnlyList<ReasonLabel> Labels)`: A recommendation in plain language: one headline sentence and a few supporting reasons.
   - `static class Explainer`: Turns the recommender's candidates into explanations for beginners.
+    - `static bool IsReach(ValueCandidate c)`: True when the advisor charges at least ReachCostPoints for taking the player at this pick.
     - `static IReadOnlyList<Explanation> Explain(DraftState state, int teamIndex, IReadOnlyList<ValueCandidate> candidates, ReachSettings reach)`: One explanation per candidate, in the order given.
     - `static string BestPickReason(ValueCandidate c, int pick)`: Why a pick the advice backs is recommended when waiting on him is cheap (so there is no waiting-cost reason to show): it is the best overall once everything is weighed, and whether he would be a re...
     - `static bool HasRoleCaution(Player player)`: True for a receiver whose last season is the kind that was often over-projected: at least half of his targets came while the team's top receiver was out, AND he has changed teams or a first-round r...
@@ -128,7 +130,7 @@ Data files, `archive/` and build output are not listed.
     - `static List<ValuedPlayer> Value(IReadOnlyList<Player> players, IReadOnlyDictionary<Position, double> rmse, LeagueSettings league, ValuationSettings? settings = null)`: Values the whole pool.
     - `static (double Ceiling, double Floor, bool Availability) CeilingFloor(Player player, double rmse)`: Ceiling is projection + RMSE.
     - `static Dictionary<string, int> Tiers(IReadOnlyList<Player> players, IReadOnlyDictionary<Position, double> rmse, double gapRmse)`: Per-position tiers, 1 = best: a new tier starts wherever the next player drops by more than k x RMSE.
-- **ValueRecommender.cs** (448 lines)
+- **ValueRecommender.cs** (454 lines)
   - `record NeedSettings(double BenchFraction, double? MissProbability = null, bool OptionValue = false, double StarterOption = 0, bool Byes = false)`: Roster need.
     - `static double OptionPremium(double projection, double sd, double waiver)`: E[max(X, waiver)] - max(projection, waiver) for X ~ Normal(projection, sd): what the right to cut a bust is worth.
     - `static double ExpectedExcess(double mean, double sd, double waiver)`: E[max(0, X - waiver)] for X ~ Normal(mean, sd).
@@ -162,7 +164,7 @@ Data files, `archive/` and build output are not listed.
 
 - **ArmSweep.cs** (67 lines)
   - `static class ArmSweep`: Scores a set of strategy settings ("arms") over the backtests, next to fixed reference strategies, then checks the choice leave-one-season-out: pick the best arm on four seasons, score it on the fi...
-    - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, IReadOnlyList<IDraftStrategy> arms, IReadOnlyList<IDraftStrategy> references, string headline, double noiseScale = 1.0, SweepMetric metric = SweepMetric.Points)`
+    - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, IReadOnlyList<IDraftStrategy> arms, IReadOnlyList<IDraftStrategy> references, string headline, double noiseScale = 1.0, SweepMetric metric = SweepMetric.Points, int firstSeed = 0)`
 - **DraftRules.cs** (32 lines)
   - `static class DraftRules`
     - `static IReadOnlyList<ValuedPlayer> LegalPicks(DraftState state, int team, SimSettings settings)`: Players the team may take now: positions under their cap, and after the cutoff round only positions with an open starter slot.
@@ -175,7 +177,7 @@ Data files, `archive/` and build output are not listed.
   - `record RegretRow(int Season, double NoiseScale, int Seed, int Slot, string Strategy, PickRegret Pick)`
   - `record ExperimentResult(List<RunRow> Rows, List<RegretRow> Regrets)`
   - `static class Experiment`
-    - `static ExperimentResult Run(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, IReadOnlyList<IDraftStrategy> strategies, IReadOnlyList<double> noiseScales, int seeds)`: Every strategy drafts from every slot against the same opponents (same seed, same biases), for each season and noise scale.
+    - `static ExperimentResult Run(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, IReadOnlyList<IDraftStrategy> strategies, IReadOnlyList<double> noiseScales, int seeds, int firstSeed = 0)`: Every strategy drafts from every slot against the same opponents (same seed, same biases), for each season and noise scale.
     - `static void WriteCsv(string path, IEnumerable<RunRow> rows)`
     - `static void WriteRegretCsv(string path, IEnumerable<RegretRow> regrets)`: Regret averaged over drafts, one row per season, noise level, strategy and round.
     - `static string SummarizeRegret(IReadOnlyList<RegretRow> regrets, double noiseScale = 1.0)`: Mean regret per strategy and round (rows are the strategy's own picks), for one opponent noise level.
@@ -220,8 +222,15 @@ Data files, `archive/` and build output are not listed.
     - `ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)`
   - `static class Decomposition`
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds)`
-- **Program.cs** (308 lines): Top-level program; commands: describe, backtest, draft, diagnose, decompose, calibrate-noise, fit-noise, tune-bench, tune-need, tune-wait, tune-spread, tune-standardized, diagnose-scales, tune-scarce, tune-where, tune-horizon, tune-lookahead, tune-reach-wait, tune-reach-survival, calibrate-survival, tune-rollout, tune-reachable, tune-survival, tune-slot, tune-bye, tune-starter, tune-value, tune-reach, tune-tiers
-- **ReachTuning.cs** (329 lines)
+- **Program.cs** (351 lines): Top-level program; commands: describe, backtest, draft, diagnose, decompose, calibrate-noise, fit-noise, tune-bench, tune-need, tune-wait, tune-spread, tune-standardized, diagnose-scales, tune-scarce, tune-where, tune-horizon, tune-lookahead, tune-reach-wait, tune-reach-survival, tune-reach-picks, stability-reach, case-reach, world-sweep, trace-reach, tune-reach-free, calibrate-survival, tune-rollout, tune-reachable, tune-survival, tune-slot, tune-bye, tune-starter, tune-value, tune-reach, tune-tiers
+- **ReachTrace.cs** (215 lines)
+  - `static class ReachTrace`: Shared-state comparison of reach-cost variants: the adopted advisor drafts, and at each of its turns every variant is asked what it would pick in that same state (so the drafts do not drift apart).
+    - `static List<ValueRecommenderStrategy> Variants()`: The adopted advisor against the variants; `adp` is plain ADP and `no reach cost` is the advisor with lambda 0 (the 4-sigma cap stays).
+    - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0, int firstSeed = 0)`
+    - `static string StabilityReport(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double jitterPicks = 0.5, double noiseScale = 1.0, int firstSeed = 0)`: How much each variant's pick depends on the exact ADP numbers: the same draft is replayed in a twin state whose ADPs are all moved by a fixed random offset (SD jitterPicks, drawn once per draft), a...
+    - `static string CaseReport(ProjectionFile file, SimSettings settings, IReadOnlyList<string> drafted, int teamIndex, int top = 6)`: One concrete state: the named players are drafted in order from pick 1, and each variant ranks the pool for team teamIndex (0-based).
+  - `record Decision(int Season, int Round, int Pick, string Variant, bool Differs, double HindsightGain, double AdpGapSigmas, int AdoptedRound, string AdoptedName, string OtherName)`
+- **ReachTuning.cs** (362 lines)
   - `static class ReachTuning`: Sweeps the settings of the two recommenders that use ReachSettings: the position-first recommender (lambda in score units, plus the gap-term switch) and the single-score value recommender (lambda i...
     - `static List<WindowedRecommenderStrategy> Arms()`
     - `static List<ValueRecommenderStrategy> ValueArms()`
@@ -243,6 +252,10 @@ Data files, `archive/` and build output are not listed.
     - `static string ReportReachWait(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0, SweepMetric metric = SweepMetric.Points)`
     - `static List<ValueRecommenderStrategy> ReachSurvivalArms()`: Survival-aware reach cost arms, all with the adopted waiting bonus: the cost scaled by S (chance he lasts to my next pick) or S squared, at lambda 1000 and 3000.
     - `static string ReportReachSurvival(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0, SweepMetric metric = SweepMetric.Points)`
+    - `static List<ValueRecommenderStrategy> ReachFreeArms()`: Free-zone reach cost arms (2026-10-29, after the pick-5 flip where a 0.4-pick ADP difference decided McCaffrey over Smith-Njigba): reaches up to the free width cost nothing and the quadratic charge...
+    - `static string ReportReachFree(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0, SweepMetric metric = SweepMetric.Points, int firstSeed = 0)`
+    - `static List<ValueRecommenderStrategy> ReachPicksArms()`: Reach-cost components against the adopted default (free 1 pick since 2026-10-29): the old wall, the survival-scaled cost alone and with the free pick, and a wider free zone.
+    - `static string ReportReachPicks(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0, SweepMetric metric = SweepMetric.Points, int firstSeed = 0)`
     - `static List<ValueRecommenderStrategy> SpreadArms()`: Survival-spread arms: the pick spread behind the waiting bonus (1 = the reach spread, about 1.8x the real draft-to-draft spread) against the bonus weight.
     - `static string ReportSpread(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0, SweepMetric metric = SweepMetric.Points)`
     - `static List<ValueRecommenderStrategy> ByeArms()`: Bye-week arms, all with the adopted waiting bonus: the cover term on the default structural weights, the cover term with weights built from missed games only, and that weight change alone (the cont...
@@ -309,16 +322,20 @@ Data files, `archive/` and build output are not listed.
     - `static TierScore Score(ProjectionFile file, double gapRmse)`: Season score: adjusted R-squared per position, weighted by players per position.
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, double current)`: Leave-one-season-out on the advantage over equal-size tiers: pick the grid value with the best mean advantage on the other seasons, score it on the held-out season, and compare with the current thr...
   - `record TierScore(double AdjustedR2, double QuantileR2, int Tiers, double LargestTierShare)`
+- **WorldSweep.cs** (74 lines)
+  - `static class WorldSweep`: One arm set on one projection world (a `--data` folder), reported both ways at once (mean starter points and title odds, each against the adopted advisor, paired) in tab-separated RESULT lines that...
+    - `static List<ValueRecommenderStrategy> Arms(string set = "reach")`: The arm sets: "reach" = the waiting-bonus weight (0 = plain `need`) at lambda 300 / 1000 / 3000, the reach cap and the first free pick; "need" = the roster-need terms (bench weights, the option val...
+    - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale, int firstSeed, string set = "reach")`
 
 ## csharp/tests/DraftBot.Tests/
 
-- **AdvisorTests.cs** (169 lines): 12 tests
+- **AdvisorTests.cs** (205 lines): 15 tests
 - **AppTests.cs** (198 lines): 10 tests
 - **BenchTests.cs** (239 lines): 16 tests
 - **ByeTests.cs** (110 lines): 5 tests
 - **DiagnosticsTests.cs** (68 lines): 5 tests
 - **DraftStateTests.cs** (125 lines): 8 tests
-- **ExplainerTests.cs** (284 lines): 18 tests
+- **ExplainerTests.cs** (257 lines): 16 tests
 - **LeagueSeasonTests.cs** (112 lines): 8 tests
 - **LookaheadTests.cs** (96 lines): 6 tests
 - **MockDraftTests.cs** (131 lines): 12 tests
@@ -336,7 +353,7 @@ Data files, `archive/` and build output are not listed.
 - **TuningAndRegretTests.cs** (110 lines): 7 tests
 - **ValuationTests.cs** (141 lines): 9 tests
 - **ValueRecommenderTests.cs** (121 lines): 9 tests
-- **WaitTests.cs** (372 lines): 25 tests
+- **WaitTests.cs** (402 lines): 27 tests
 
 ## src/data/
 
@@ -530,6 +547,12 @@ Data files, `archive/` and build output are not listed.
   - `add_role_change(d, quality, season_col)`: Last season's depth (aDOT), air-yards share and expected points per target minus the same over the two seasons before it.
   - `role_report(d, rng, cuts)`: Top-third flag on each role-change measure against the rest; returns the cut points so the 2026 pool can reuse them.
   - `live_2026_role(weekly, roster, quality, cuts)`: 2026 WRs whose 2025 depth, air-yards share and expected points per target jumped by more than the historical cut points.
+- **world_sweep.py** (132 lines): Does a recommender setting chosen on the validated files keep its sign in other worlds? (runnable)
+  - `make_perturbed()`: Validated files with N(0, NOISE_SD) added to every model projection.
+  - `make_shuffled()`: Validated files with the outcomes (actual_ppr and weekly_ppr) permuted inside groups of GROUP same-position players with neighbouring ADP.
+  - `worlds()`
+  - `run_world(path, seeds, arms, tier_gap)`
+  - `summarize(results)`
 - **wr_case_studies.py** (141 lines): Single-player and list tools behind the WR case studies (K.Allen 2024, W.Robinson 2025-2026; LOG.md, 2026-10-28). (runnable)
   - `player_id(name)`: The WR with this abbreviated name (the one with the most targets if several share it).
   - `quality(names)`: Per season: targets and what they were worth.

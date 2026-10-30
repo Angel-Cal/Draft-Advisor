@@ -1,0 +1,99 @@
+@implements IDisposable
+@inject PracticeDraft Session
+
+@{
+    var teams = Session.League.Teams;
+    var rounds = Session.League.RosterSize;
+    var picks = Session.State.History.ToDictionary(p => (p.Round, p.Team));
+}
+
+<main style="padding:24px 28px 40px;display:flex;flex-direction:column;gap:16px;max-width:1440px;margin:0 auto">
+
+<div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 18px">
+<h1 style="margin:0;font-size:20px;font-weight:600">Draft board</h1>
+<span class="muted" style="font-size:13px">@StatusText()</span>
+</div>
+
+<section class="panel" style="padding:14px 16px;overflow-x:auto" aria-label="Draft board">
+<div class="board" style="grid-template-columns:34px repeat(@teams,minmax(98px,1fr))">
+<div></div>
+@for (var team = 0; team < teams; team++)
+{
+    <div class="@(team == Session.Slot ? "bhead mine" : "bhead")">@Session.TeamName(team)</div>
+}
+@for (var round = 1; round <= rounds; round++)
+{
+    <div class="brow">@round</div>
+    @for (var team = 0; team < teams; team++)
+    {
+        var pickInRound = round % 2 == 1 ? team : teams - 1 - team;
+        var overall = (round - 1) * teams + pickInRound + 1;
+        var mine = team == Session.Slot;
+        if (picks.TryGetValue((round, team), out var pick))
+        {
+            var player = pick.Player;
+            <div class="@(mine ? $"bcell pos-{player.Position} mine" : $"bcell pos-{player.Position}")" title="@PickTitle(pick, overall)">
+                <span class="bnum mono">#@overall</span>
+                <span class="bname">@player.Player.PlayerName</span>
+                <span class="bsub">@player.Position · @player.Player.Team</span>
+            </div>
+        }
+        else
+        {
+            var onClock = !Session.State.IsComplete && round == Session.State.Round && pickInRound == Session.State.PickInRound;
+            <div class="@EmptyClass(mine, onClock)" title="@(onClock ? $"On the clock: {Session.TeamName(team)}" : $"Pick #{overall}, {Session.TeamName(team)}")">
+                <span class="bnum mono">#@overall</span>
+                @if (onClock) { <span class="bsub">On the clock</span> }
+            </div>
+        }
+    }
+}
+<div class="eyebrow" style="align-self:center">Has</div>
+@for (var team = 0; team < teams; team++)
+{
+    <div class="bcount">
+    @foreach (var position in Positions.All)
+    {
+        <span class="@($"pos-{position}")" style="background:none">@position @Session.State.Teams[team].At(position).Count</span>
+    }
+    </div>
+}
+</div>
+</section>
+
+<div class="muted" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;font-size:13px">
+@foreach (var position in Positions.All)
+{
+    <span><span class="@($"pos pos-{position}")">@position</span></span>
+}
+<span>Your column has a lighter header and a light outline on your picks.</span>
+<span>Hover a pick for his ADP and how far from it he was taken.</span>
+</div>
+
+</main>
+
+@code {
+    protected override void OnInitialized() => Session.Changed += OnChanged;
+
+    void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Session.Changed -= OnChanged;
+
+    string StatusText() =>
+        Session.State.IsComplete ? "Every roster is full."
+        : $"Round {Session.State.Round} of {Session.League.RosterSize} · pick {Session.State.OverallPick + 1} · {(Session.State.CurrentTeam == Session.Slot ? "you are on the clock" : Session.TeamName(Session.State.CurrentTeam) + " is on the clock")}";
+
+    // amber on the clock only when it is the user's turn; another team's turn gets the plain grey outline
+    static string EmptyClass(bool mine, bool onClock) =>
+        "bcell empty" + (mine ? " mine" : "") + (onClock ? (mine ? " clock me" : " clock") : "");
+
+    static string PickTitle(Pick pick, int overall)
+    {
+        var p = pick.Player.Player;
+        var title = $"#{overall} · {pick.Player.Position} {p.PlayerName} ({p.Team}) · projected {Math.Round(p.ProjectedPpr)}";
+        if (p.Adp is not { } adp) return title + " · no ADP";
+        var gap = overall - adp;
+        var when = Math.Abs(gap) < 1 ? "at his ADP" : gap > 0 ? $"{Math.Round(gap)} picks after his ADP" : $"{Math.Round(-gap)} picks before his ADP";
+        return $"{title} · ADP {adp:0.0}, taken {when}";
+    }
+}

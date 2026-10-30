@@ -267,8 +267,13 @@ public static class ValueRecommender
     /// </summary>
     public static WaitSettings DefaultWait { get; } = new(Weight: 4, Reachable: AlternativeReach.WithinCap);
 
-    /// <summary>Provisional default from the sweep in `tune-value` (peak of a plateau at lambda 400-1000); lambda is in points per sigma squared.</summary>
-    public static ReachSettings DefaultReach { get; } = new(Lambda: 1000, CapSigmas: 4);
+    /// <summary>
+    /// Lambda 1000 (the peak of a plateau at 400-1000 in `tune-value`; points per sigma squared) with the first pick of reach free (<see cref="ReachSettings.FreePicks"/> 1: ADP cannot claim a finer
+    /// resolution, and a 0.4-pick gap was a 102-point swing). Non-inferior to the plain wall in both projection worlds and at every noise level (LOG.md, 2026-10-29). The survival-scaled cost
+    /// (<see cref="ReachSettings.SurvivalPower"/> 1) is NOT part of the default: it was the best arm on the validated files but 28 points worse than the wall on the files the live recipe produces
+    /// (2025 collapses in both), so it is left as an option.
+    /// </summary>
+    public static ReachSettings DefaultReach { get; } = new(Lambda: 1000, CapSigmas: 4, FreePicks: 1);
 
     /// <summary>
     /// Every recommendable player, best first. Ties keep pool order (VOR, best first). With <paramref name="need"/> the value is
@@ -279,6 +284,7 @@ public static class ValueRecommender
     {
         if (wait is not null && lookahead is not null) throw new ArgumentException("the lookahead replaces the waiting bonus; use one", nameof(lookahead));
         var pick = state.OverallPick + 1;
+        var costPick = reach.SurvivalPower > 0 ? state.NextPick(teamIndex) : null;
         var roster = state.Teams[teamIndex].Picks;
         var replacement = need is null ? null : LineupValue.Replacement(state);
         var baseline = replacement is null ? 0 : LineupValue.Best(roster, state.League, replacement);
@@ -297,7 +303,10 @@ public static class ValueRecommender
         ValueCandidate ScoreWith(ValuedPlayer p, IReadOnlyList<ValuedPlayer> rosterNow, double baselineNow)
         {
             var sigmas = reach.Reach(p.Player, pick);
-            var penalty = reach.Lambda == 0 ? 0 : reach.Lambda * sigmas * sigmas;
+            var beyondFree = reach.Charged(p.Player, pick);
+            var penalty = reach.Lambda == 0 ? 0 : reach.Lambda * beyondFree * beyondFree;
+            if (penalty > 0 && reach.SurvivalPower > 0 && costPick is { } later)
+                penalty *= Math.Pow(WaitSettings.Survival(p.Player, later, reach), reach.SurvivalPower);
             double? gain = null, weight = null, bench = null, starter = null, cover = null;
             var value = p.Vor;
             if (need is not null)

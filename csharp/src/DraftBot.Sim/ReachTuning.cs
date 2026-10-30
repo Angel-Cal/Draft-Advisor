@@ -182,6 +182,54 @@ public static class ReachTuning
             [new AdpStrategy(), new ValueRecommenderStrategy("need", ValueRecommender.DefaultReach, NeedSettings.Default)],
             headline: "need", noiseScale, metric);
 
+    /// <summary>Survival-aware reach cost arms, all with the adopted waiting bonus: the cost scaled by S (chance he lasts to my next pick) or S squared, at lambda 1000 and 3000.</summary>
+    public static List<ValueRecommenderStrategy> ReachSurvivalArms() =>
+    [
+        new("S lambda=1000", new ReachSettings(1000, 4, SurvivalPower: 1), NeedSettings.Default, ValueRecommender.DefaultWait),
+        new("S lambda=3000", new ReachSettings(3000, 4, SurvivalPower: 1), NeedSettings.Default, ValueRecommender.DefaultWait),
+        new("S^2 lambda=1000", new ReachSettings(1000, 4, SurvivalPower: 2), NeedSettings.Default, ValueRecommender.DefaultWait),
+        new("S^2 lambda=3000", new ReachSettings(3000, 4, SurvivalPower: 2), NeedSettings.Default, ValueRecommender.DefaultWait),
+    ];
+
+    public static string ReportReachSurvival(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0,
+        SweepMetric metric = SweepMetric.Points) =>
+        ArmSweep.Report(files, settings, seeds, ReachSurvivalArms().Cast<IDraftStrategy>().ToList(),
+            [new AdpStrategy(), new ValueRecommenderStrategy("need+wait (adopted)", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait)],
+            headline: "need+wait (adopted)", noiseScale, metric);
+
+    /// <summary>
+    /// Free-zone reach cost arms (2026-10-29, after the pick-5 flip where a 0.4-pick ADP difference decided McCaffrey over Smith-Njigba): reaches up to the free width cost nothing and the
+    /// quadratic charge starts beyond it; plus the survival-scaled cost again on its own and combined with the free zone. All with the adopted waiting bonus.
+    /// </summary>
+    public static List<ValueRecommenderStrategy> ReachFreeArms() =>
+    [
+        new("free 0.5 sigma", new ReachSettings(1000, 4, FreeSigmas: 0.5), NeedSettings.Default, ValueRecommender.DefaultWait),
+        new("free 1.0 sigma", new ReachSettings(1000, 4, FreeSigmas: 1.0), NeedSettings.Default, ValueRecommender.DefaultWait),
+        new("S lambda=1000", new ReachSettings(1000, 4, SurvivalPower: 1), NeedSettings.Default, ValueRecommender.DefaultWait),
+        new("free 0.5 + S", new ReachSettings(1000, 4, SurvivalPower: 1, FreeSigmas: 0.5), NeedSettings.Default, ValueRecommender.DefaultWait),
+    ];
+
+    public static string ReportReachFree(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0,
+        SweepMetric metric = SweepMetric.Points, int firstSeed = 0) =>
+        ArmSweep.Report(files, settings, seeds, ReachFreeArms().Cast<IDraftStrategy>().ToList(),
+            [new AdpStrategy(), new ValueRecommenderStrategy("need+wait (adopted)", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait)],
+            headline: "need+wait (adopted)", noiseScale, metric, firstSeed);
+
+    /// <summary>Reach-cost components against the adopted default (free 1 pick since 2026-10-29): the old wall, the survival-scaled cost alone and with the free pick, and a wider free zone. Free zone in picks (2026-10-29): reaches up to 1 or 2 picks cost nothing; the sigma-based free zone was 1.4 picks at pick 5 but 9 at pick 100, which may be why it lost.</summary>
+    public static List<ValueRecommenderStrategy> ReachPicksArms() =>
+    [
+        new("old wall (no S, no free)", new ReachSettings(1000, 4), NeedSettings.Default, ValueRecommender.DefaultWait),
+        new("S only", new ReachSettings(1000, 4, SurvivalPower: 1), NeedSettings.Default, ValueRecommender.DefaultWait),
+        new("S + free 1 pick", new ReachSettings(1000, 4, SurvivalPower: 1, FreePicks: 1), NeedSettings.Default, ValueRecommender.DefaultWait),
+        new("free 2 picks only", new ReachSettings(1000, 4, FreePicks: 2), NeedSettings.Default, ValueRecommender.DefaultWait),
+    ];
+
+    public static string ReportReachPicks(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale = 1.0,
+        SweepMetric metric = SweepMetric.Points, int firstSeed = 0) =>
+        ArmSweep.Report(files, settings, seeds, ReachPicksArms().Cast<IDraftStrategy>().ToList(),
+            [new AdpStrategy(), new ValueRecommenderStrategy("need+wait (adopted)", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait)],
+            headline: "need+wait (adopted)", noiseScale, metric, firstSeed);
+
     public static readonly double[] SpreadScales = [0.5, 0.7, 1.0];
     public static readonly double[] SpreadWeights = [1.0, 2.0, 4.0];
 

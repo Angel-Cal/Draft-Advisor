@@ -78,6 +78,54 @@ public class WaitTests
     }
 
     [Fact]
+    public void The_survival_scaled_reach_cost_is_the_plain_cost_times_the_chance_he_lasts()
+    {
+        // pick 1 of 2 teams, next pick 4: wrA (adp 2) is a reach that will probably be gone by then, wrB (adp 8) is one that will last
+        var state = new DraftState([V("wrA", Position.WR, 150, 2), V("wrB", Position.WR, 148, 8)], Small);
+        double Penalty(string id, double power) =>
+            ValueRecommender.Rank(state, new ReachSettings(1000, 4, SurvivalPower: power)).Single(c => c.Player.Id == id).ReachPenalty;
+
+        foreach (var id in new[] { "wrA", "wrB" })
+        {
+            var survival = WaitSettings.Survival(state.Available.Single(p => p.Id == id).Player, 4, ValueRecommender.DefaultReach);
+            Assert.Equal(Penalty(id, 0) * survival, Penalty(id, 1), 6);
+            Assert.Equal(Penalty(id, 0) * survival * survival, Penalty(id, 2), 6);
+        }
+        Assert.True(Penalty("wrA", 1) < 0.5 * Penalty("wrA", 0));
+        Assert.True(Penalty("wrB", 1) > 0.9 * Penalty("wrB", 0));
+    }
+
+    [Fact]
+    public void A_free_zone_makes_small_reaches_free_and_charges_only_what_lies_beyond_it()
+    {
+        // pick 1: wrA (adp 2) is 0.46 sigma early, wrB (adp 3.5) 1.16 sigma
+        var state = new DraftState([V("wrA", Position.WR, 150, 2), V("wrB", Position.WR, 148, 3.5)], Small);
+        double Penalty(string id, double free) =>
+            ValueRecommender.Rank(state, new ReachSettings(1000, 4, FreeSigmas: free)).Single(c => c.Player.Id == id).ReachPenalty;
+
+        Assert.Equal(0, Penalty("wrA", 0.5), 9);                                       // inside the free zone
+        var z = new ReachSettings(1000, 4).Reach(state.Available.Single(p => p.Id == "wrB").Player, 1);
+        Assert.Equal(1000 * (z - 0.5) * (z - 0.5), Penalty("wrB", 0.5), 6);           // only the part beyond 0.5 sigma
+        Assert.Equal(1000 * z * z, Penalty("wrB", 0), 6);                              // the default is the plain cost
+    }
+
+    [Fact]
+    public void A_free_zone_in_picks_is_the_same_number_of_picks_at_every_point_in_the_draft()
+    {
+        // pick 1: wrB (adp 3.5) is 2.5 picks early, so a 1-pick free zone leaves 1.5 picks charged, in sigmas of that pick
+        var state = new DraftState([V("wrA", Position.WR, 150, 2), V("wrB", Position.WR, 148, 3.5)], Small);
+        double Penalty(string id, double picks) =>
+            ValueRecommender.Rank(state, new ReachSettings(1000, 4, FreePicks: picks)).Single(c => c.Player.Id == id).ReachPenalty;
+        var sigma = new ReachSettings(1000, 4).Sigma(1);
+
+        Assert.Equal(0, Penalty("wrA", 1), 9);                                                    // 1 pick early: free
+        Assert.Equal(1000 * Math.Pow(1.5 / sigma, 2), Penalty("wrB", 1), 6);                      // 2.5 - 1 picks beyond the free zone
+        var late = new ReachSettings(1000, 4);
+        Assert.Equal(1.0 / late.Sigma(1), late.Reach(V("x", Position.WR, 1, 2).Player, 1), 9);   // the plain reach of a player 1 pick early
+        Assert.Equal(0, new ReachSettings(1000, 4, FreePicks: 1).Charged(V("x", Position.WR, 1, 101).Player, 100), 9);   // the same 1 pick is free at pick 100 too
+    }
+
+    [Fact]
     public void Alternatives_outside_the_recommendable_window_still_count()
     {
         // te2 (adp 30) is beyond the 4-sigma reach cap at pick 1, so it cannot be recommended now, but it will be there at pick 4

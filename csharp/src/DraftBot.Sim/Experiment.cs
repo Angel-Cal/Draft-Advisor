@@ -18,12 +18,12 @@ public static class Experiment
     /// noise scale. Rows come back in a fixed order regardless of how the work was scheduled.
     /// </summary>
     public static ExperimentResult Run(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings,
-        IReadOnlyList<IDraftStrategy> strategies, IReadOnlyList<double> noiseScales, int seeds)
+        IReadOnlyList<IDraftStrategy> strategies, IReadOnlyList<double> noiseScales, int seeds, int firstSeed = 0)
     {
         var jobs = new List<(int Season, double Scale, int Seed, int Slot)>();
         foreach (var season in files.Keys.Order())
             foreach (var scale in noiseScales)
-                for (var seed = 0; seed < seeds; seed++)
+                for (var seed = firstSeed; seed < firstSeed + seeds; seed++)
                     for (var slot = 0; slot < settings.League.Teams; slot++)
                         jobs.Add((season, scale, seed, slot));
 
