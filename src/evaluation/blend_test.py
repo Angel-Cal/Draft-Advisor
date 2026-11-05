@@ -1,7 +1,7 @@
 """Does averaging the model with the ADP-to-points curve beat the model alone? Walk-forward: the curve for season s is fit on seasons before s only.
 
 Reports point accuracy (RMSE, bias on the 'risers' the model under-projects) and top-150 Spearman for 2022-2025, then writes blended copies of the
-backtest projection files to data/processed/blend/ so the simulator can judge the blend: `backtest --data data/processed/blend --seasons 2022-2025`.
+backtest projection files to data/processed/experiments/worlds/blend/ so the simulator can judge the blend: `backtest --data data/processed/experiments/worlds/blend --seasons 2022-2025`.
 Position RMSE in each blended file's header is scaled by the blend's RMSE ratio over the same players.
 """
 import json
@@ -13,13 +13,13 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import LIVE, WORLDS
 from src.draft.market_fallback import fit_position_curves, load_history
 from src.evaluation.benchmark import load_season
 
 ROOT = Path(__file__).parent.parent.parent
-PROCESSED_DIR = ROOT / "data" / "processed"
 EXTERNAL_DIR = ROOT / "data" / "external"
-BLEND_DIR = PROCESSED_DIR / "blend"
+BLEND_DIR = WORLDS / "blend"
 SEASONS = range(2022, 2026)        # 2021 has no earlier season to fit a curve on
 WEIGHT = 0.5                       # share of the model in the blend
 
@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
     BLEND_DIR.mkdir(exist_ok=True)
     for season in SEASONS:
-        path = PROCESSED_DIR / f"projections_{season}_v1.json"
+        path = LIVE / f"projections_{season}_v1.json"
         data = json.loads(path.read_text())
         curve = curve_points(season, history)
         for player in data["players"]:

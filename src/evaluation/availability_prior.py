@@ -11,7 +11,7 @@ Arms:
   pg x prior 2015+   the same prior fitted on the model's own window (transitions into 2015..s-1): isolates what the long window adds
   pg x position mean the same rate model x each position's mean games fraction (2000..s-1): isolates what conditioning on age and workload adds
   per-game x E[games]  the arm already rejected (expected games from last season's games), for reference
-Scored: top-150 Spearman (mean over seasons), RMSE, mean residual of all / short-season / healthy rows. A change counts only if it beats the noise arm's spread. Writes data/processed/availability_prior.csv.
+Scored: top-150 Spearman (mean over seasons), RMSE, mean residual of all / short-season / healthy rows. A change counts only if it beats the noise arm's spread. Writes data/processed/experiments/ablations/availability_prior.csv.
 Run: python src/evaluation/availability_prior.py
 """
 import sys
@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import ABLATIONS
 from src.evaluation.benchmark import SEASONS, load_season
 from src.evaluation.oos_predictions import load_params
 from src.models.short_season import EPA_TOTALS
@@ -123,7 +124,7 @@ if __name__ == "__main__":
                 results.append(dict(position=position, arm=arm, seed=seed, **summarize(runs, pos_keys)))
         print(f"{position}: done", flush=True)
     results = pd.DataFrame(results)
-    results.to_csv(ROOT / "data" / "processed" / "availability_prior.csv", index=False)
+    results.to_csv(ABLATIONS / "availability_prior.csv", index=False)
     summary = results.groupby(["position", "arm"], sort=False)[["rho", "rmse", "resid_all", "resid_short", "resid_rest"]].agg(["mean", "std"])
     for position in POSITIONS:
         s = summary.loc[position].copy()

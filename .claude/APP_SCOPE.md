@@ -39,7 +39,7 @@ Agreed with the user 2026-10-28, on branch `app-build`. The target is `mockup/` 
 
 ## How to run
 
-`dotnet run --project csharp/src/DraftBot.Desktop` from the repo root. It needs `data/processed/projections_2026_v1.json` (found by walking up from the program's folder) or the path in the environment
+`dotnet run --project csharp/src/DraftBot.Desktop` from the repo root. It needs `data/processed/live/projections_2026_v1.json` (found by walking up from the program's folder) or the path in the environment
 variable `DRAFTBOT_PROJECTIONS`. `DraftBot.App` references `DraftBot.Sim` for the opponent bots and draft rules; if that coupling gets in the way, move `OpponentBot` and `DraftRules` into Core.
 
 ## Next session

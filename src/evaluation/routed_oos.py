@@ -3,8 +3,8 @@
 The same walk-forward as refit_oos.py (per test season 2021-2025: early-stop on the previous season, refit on every earlier season, 5 seeds averaged),
 run once for the current model and once for the rate view of the features, then routed by prior games. Prints, on the draftable rows (top 150 by ADP),
 top-150 Spearman (mean over seasons), RMSE and the residual (actual - projection) of the short-season rows and of the first 80 picks among them,
-for the current and the routed projections. Writes data/processed/routed_oos.parquet and backtest files for both under data/processed/routed/
-(`backtest --data data/processed/routed/<arm> --seasons 2022-2025 --seeds 100`).
+for the current and the routed projections. Writes data/processed/experiments/oos/routed_oos.parquet and backtest files for both under data/processed/experiments/worlds/routed/
+(`backtest --data data/processed/experiments/worlds/routed/<arm> --seasons 2022-2025 --seeds 100`).
 
 Run: python src/evaluation/routed_oos.py
 """
@@ -16,6 +16,7 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import EXPERIMENT_OOS, PIPELINE, WORLDS
 from src.evaluation.benchmark import load_season
 from src.evaluation.live_style_oos import rmse
 from src.evaluation.oos_predictions import load_params
@@ -24,13 +25,12 @@ from src.models.short_season import SHORT_SEASON_GAMES, rate_refit, route
 from src.models.train import Model, split_positions
 
 ROOT = Path(__file__).parent.parent.parent
-PROCESSED_DIR = ROOT / "data" / "processed"
 ELITE_ADP = 80
 
 
 def routed_predictions(first_test=2021, only=None):
     """One row per player-season in 2021-2025 (from `first_test`, restricted to the seasons in `only`): the current refit projection, the rate-view projection and the routed one."""
-    df = pd.read_parquet(PROCESSED_DIR / "training_data.parquet")
+    df = pd.read_parquet(PIPELINE / "training_data.parquet")
     model = Model()
     rows = []
     for position, pos_df in zip(POSITIONS, split_positions(df)):
@@ -90,9 +90,9 @@ if __name__ == "__main__":
     first_test = int(sys.argv[sys.argv.index("--first-test") + 1]) if "--first-test" in sys.argv else 2021
     only = [int(x) for x in sys.argv[sys.argv.index("--only") + 1].split(",")] if "--only" in sys.argv else None
     d = routed_predictions(first_test, only)
-    d.to_parquet(PROCESSED_DIR / ("routed_oos.parquet" if only is None else "routed_oos_ext.parquet"))
+    d.to_parquet(EXPERIMENT_OOS / ("routed_oos.parquet" if only is None else "routed_oos_ext.parquet"))
     if only is None:
         report(d)
     for arm, column in [("current", "base_pred_ppr"), ("routed", "routed_pred_ppr")]:
-        write_backtest_files(d, column, PROCESSED_DIR / "routed" / arm, f"{arm} refit (routed_oos.py)", seasons=only or SEASONS)
-    print(f"\nwrote backtest files under {PROCESSED_DIR / 'routed'}")
+        write_backtest_files(d, column, WORLDS / "routed" / arm, f"{arm} refit (routed_oos.py)", seasons=only or SEASONS)
+    print(f"\nwrote backtest files under {WORLDS / 'routed'}")

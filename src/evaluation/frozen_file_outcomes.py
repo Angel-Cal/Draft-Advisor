@@ -5,10 +5,10 @@ player carries `actual_ppr` (the regular-season PPR total, 0.0 for a player with
 export_projections.build_backtest does. Projections, ADP, flags and every other field are copied untouched.
 
 Run (after the season, with the raw stats refreshed through it):
-  python src/evaluation/frozen_file_outcomes.py --season 2026 --source data/processed/projections_2026_v1.json --out data/processed/score2026 \\
+  python src/evaluation/frozen_file_outcomes.py --season 2026 --source data/processed/live/projections_2026_v1.json --out data/processed/experiments/scoring/score2026 \\
       --expect-sha256 ebe202bea8cb69798c28f9aa30b0d697422859de06dee02a7c495dd7a1f9518c [--seasonal data/raw/seasonal_20_25.parquet] [--weekly data/raw/weekly_20_25.parquet]
-  dotnet run -c Release --project csharp/src/DraftBot.Sim -- backtest --data data/processed/score2026 --seasons 2026 --seeds 200 [--wr 2]
-Dry run on a season whose outcomes are known: `--season 2025 --source data/processed/projections_2025_v1.json --out <dir> --check-against data/processed/projections_2025_v1.json` must report no difference.
+  dotnet run -c Release --project csharp/src/DraftBot.Sim -- backtest --data data/processed/experiments/scoring/score2026 --seasons 2026 --seeds 200 [--wr 2]
+Dry run on a season whose outcomes are known: `--season 2025 --source data/processed/live/projections_2025_v1.json --out <dir> --check-against data/processed/live/projections_2025_v1.json` must report no difference.
 """
 import hashlib
 import json
@@ -18,6 +18,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import LIVE, SCORING
 from src.data.export_projections import WEEKS, weekly_lists
 from src.data.validate import check_projection_file
 
@@ -39,8 +40,8 @@ def option(name, default=None):
 
 if __name__ == "__main__":
     season = int(option("--season", "2026"))
-    source = Path(option("--source", str(ROOT / "data" / "processed" / f"projections_{season}_v1.json")))
-    out_dir = Path(option("--out", str(ROOT / "data" / "processed" / f"score{season}")))
+    source = Path(option("--source", str(LIVE / f"projections_{season}_v1.json")))
+    out_dir = Path(option("--out", str(SCORING / f"score{season}")))
     expected = option("--expect-sha256")
     if expected and hashlib.sha256(source.read_bytes()).hexdigest() != expected:
         sys.exit(f"{source} does not match the frozen SHA-256 {expected}; refusing to score it")

@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import LIVE, OOS, PIPELINE
 from src.data.run_manifest import _git, check_freshness, update_manifest
 from src.data.validate import NO_TEAM, check_projection_file
 from src.draft.market_fallback import fit_position_curves, load_history, market_projections
@@ -23,7 +24,6 @@ from src.features.role_context import build_role_context
 from src.features.team_context import TEAM_MAP
 
 ROOT = Path(__file__).parent.parent.parent
-PROCESSED = ROOT / "data" / "processed"
 POSITIONS = ["QB", "RB", "WR", "TE"]
 BACKTEST_SEASONS = range(2021, 2026)
 WEEKS = 18
@@ -179,7 +179,7 @@ def to_document(df, season, kind, adp_source):
 
 def write(doc):
     check_projection_file(doc)  # validate before writing, so a bad run can't leave a half-valid file behind
-    path = PROCESSED / f"projections_{doc['season']}_v1.json"
+    path = LIVE / f"projections_{doc['season']}_v1.json"
     path.write_text(json.dumps(doc, indent=1, allow_nan=False))
     print(f"wrote {path.name}: {len(doc['players'])} players ({doc['kind']}, adp={doc['adp_source']})")
     return path
@@ -188,12 +188,12 @@ def write(doc):
 if __name__ == "__main__":
     # `--seasons 2019,2020` exports only those backtest files (no live file, no manifest update), so earlier seasons can be added without rewriting the rest
     only = [int(x) for x in sys.argv[sys.argv.index("--seasons") + 1].split(",")] if "--seasons" in sys.argv else None
-    prediction = pd.read_parquet(PROCESSED / "prediction_data.parquet")
+    prediction = pd.read_parquet(PIPELINE / "prediction_data.parquet")
     live_season = int(prediction["season"].max()) + 1
 
-    position_files = [PROCESSED / f"{p.lower()}_predictions.parquet" for p in POSITIONS]
+    position_files = [PIPELINE / f"{p.lower()}_predictions.parquet" for p in POSITIONS]
     if only is None:
-        check_freshness(position_files, [PROCESSED / "predictions_table.parquet"], label="export (advisor table)")
+        check_freshness(position_files, [PIPELINE / "predictions_table.parquet"], label="export (advisor table)")
     weekly = pd.read_parquet(ROOT / "data" / "raw" / "weekly_20_25.parquet",
                              columns=["player_id", "season", "week", "season_type", "fantasy_points_ppr", "team", "position", "targets"])
     roster_columns = ["gsis_id", "season", "week", "team", "position", "years_exp", "draft_number"]
@@ -205,18 +205,18 @@ if __name__ == "__main__":
     major = load_major_injuries()
     written = []
     if only is None:
-        live = build_live(pd.read_parquet(PROCESSED / "predictions_table.parquet"),
+        live = build_live(pd.read_parquet(PIPELINE / "predictions_table.parquet"),
                           pd.read_parquet(ROOT / "data" / "raw" / "roster_2026.parquet"),
-                          pd.read_csv(PROCESSED / "adp_table.csv"))
+                          pd.read_csv(PIPELINE / "adp_table.csv"))
         live = attach_role_context(live, context, live_season)
         live = attach_injury_history(live, seasonal, live_season, major)
         written.append(write(to_document(live, live_season, "live", "fantasypros")))
 
-    training = pd.read_parquet(PROCESSED / "training_data.parquet")
+    training = pd.read_parquet(PIPELINE / "training_data.parquet")
     history = load_history()
     for season in only or BACKTEST_SEASONS:
-        oos_path = PROCESSED / f"season_{season}.parquet"
-        check_freshness([PROCESSED / "training_data.parquet"], [oos_path], label=f"export (season {season})")
+        oos_path = OOS / f"season_{season}.parquet"
+        check_freshness([PIPELINE / "training_data.parquet"], [oos_path], label=f"export (season {season})")
         curves = fit_position_curves(history[history["season"] != season])
         backtest = build_backtest(season, pd.read_parquet(oos_path),
                                   pd.read_csv(ROOT / "data" / "external" / f"adp_{season}.csv"),

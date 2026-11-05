@@ -3,10 +3,10 @@ import json
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import OOS, PIPELINE
 from src.models.train import Model, split_positions
 
 ROOT = Path(__file__).parent.parent.parent
-PROCESSED_DIR = ROOT / "data" / "processed"
 MODELS_DIR = ROOT / "models"
 FIRST_TEST_SEASON = 2021
 FIRST_TRAIN_SEASON = 2015      # Model.rolling_splits trains on every season from here to two before the test season
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     # seasons outside --only are recomputed and compared with their file (max drift printed) but not written.
     first_test = int(sys.argv[sys.argv.index("--first-test") + 1]) if "--first-test" in sys.argv else FIRST_TEST_SEASON
     only = {int(x) for x in sys.argv[sys.argv.index("--only") + 1].split(",")} if "--only" in sys.argv else None
-    df = pd.read_parquet(PROCESSED_DIR / "training_data.parquet")
+    df = pd.read_parquet(PIPELINE / "training_data.parquet")
     if "player_id" not in df.columns:
         sys.exit("training_data.parquet has no player_id; re-run src/data/pipeline.py")
 
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     oos["position"] = oos["position"].astype(str)
 
     for season, season_df in oos.groupby("season"):
-        path = PROCESSED_DIR / f"season_{season}.parquet"
+        path = OOS / f"season_{season}.parquet"
         if only is not None and season not in only:
             if path.exists():
                 old = pd.read_parquet(path).set_index(["player_id", "position"])["oos_pred_ppr"]

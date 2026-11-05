@@ -6,6 +6,7 @@ import pandas as pd
 import nflreadpy as nflread
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import ABLATIONS, PIPELINE
 from src.models.train import split_positions
 from src.features.team_context import build_team_context, WR_FEATURES, QB_FEATURES
 from src.features.build_features import add_draft_capital_features, DRAFT_FEATURES
@@ -16,7 +17,7 @@ FEATURE_SETS = {"competition": WR_FEATURES, "qb": QB_FEATURES, "draft": DRAFT_FE
 
 
 def load_wr(features):
-    train = pd.read_parquet(ROOT / "data" / "processed" / "training_data.parquet")
+    train = pd.read_parquet(PIPELINE / "training_data.parquet")
     seasonal = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_20_25.parquet")
     roster = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_roster_20_25.parquet")
     context = build_team_context(seasonal, roster)
@@ -60,5 +61,5 @@ if __name__ == "__main__":
                         "seeds_improved": int((delta > 0).sum()), "all_rho": group["all_spearman"].mean(),
                         "rmse": group["rmse"].mean()})
     summary = pd.DataFrame(summary)
-    summary.to_csv(ROOT / "data" / "processed" / f"wr_{set_name}_ablation.csv", index=False)
+    summary.to_csv(ABLATIONS / f"wr_{set_name}_ablation.csv", index=False)
     print(summary.round(4).to_string(index=False))

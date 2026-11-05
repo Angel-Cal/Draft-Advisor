@@ -9,7 +9,7 @@ Same walk-forward as oos_predictions (train <= s-2, early-stop on s-1, test s, s
   per-game x E[games]  the target is PPR per game, multiplied by expected games (a line on last season's games fit on earlier seasons)
   shift (reference)    base plus the mean base residual of games <= 9 rows in the other seasons, per position (leave one season out; not a model)
 Scored on the draftable rows (top 150 by ADP): top-150 Spearman per position (mean over seasons), RMSE, and the mean residual (actual - projection) of
-the prior-games <= 9 rows and of everyone else. `--rates` runs the second round (every season-total input replaced by rates). A change counts only if it beats the noise arm's spread. Writes data/processed/short_season_fixes.csv;
+the prior-games <= 9 rows and of everyone else. `--rates` runs the second round (every season-total input replaced by rates). A change counts only if it beats the noise arm's spread. Writes data/processed/experiments/short_season/short_season_fixes.csv;
 run: python src/evaluation/short_season_fixes.py
 """
 import sys
@@ -21,6 +21,7 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import PIPELINE, SHORT_SEASON
 from src.evaluation.benchmark import SEASONS, load_season
 from src.evaluation.oos_predictions import load_params
 from src.models.short_season import EPA_TOTALS, SHORT_SEASON_GAMES, VOLUME_TOTALS
@@ -43,7 +44,7 @@ ABLATIONS = {"QB": ["qb_att_share_prev", "implied_total"],
 
 def load_positions():
     """Per-position training frames plus the extra columns: last season's rate, the season before it, and this season's actual games."""
-    train = pd.read_parquet(ROOT / "data" / "processed" / "training_data.parquet")
+    train = pd.read_parquet(PIPELINE / "training_data.parquet")
     seasonal = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_20_25.parquet")[["player_id", "season", "games", "fantasy_points_ppr"]]
     prev2 = seasonal.assign(season=seasonal["season"] + 2).rename(columns={"games": "games_prev2", "fantasy_points_ppr": "ppr_prev2"})
     now = seasonal.rename(columns={"games": "games_actual"})[["player_id", "season", "games_actual"]]
@@ -177,9 +178,9 @@ if __name__ == "__main__":
         print(f"{position}: done", flush=True)
     if routed:  # seed-averaged predictions, for write_backtest_files (the simulator judges them)
         routed = pd.concat(routed).groupby(["player_id", "season"], as_index=False)[["pred", "base_pred"]].mean()
-        routed.rename(columns={"pred": "routed_pred_ppr"}).to_parquet(ROOT / "data" / "processed" / "short_season_routed.parquet")
+        routed.rename(columns={"pred": "routed_pred_ppr"}).to_parquet(SHORT_SEASON / "short_season_routed.parquet")
     results = pd.DataFrame(results)
-    results.to_csv(ROOT / "data" / "processed" / ("short_season_route.csv" if "--route" in sys.argv else "short_season_structural.csv" if "--structural" in sys.argv else "short_season_ablate.csv" if "--ablate" in sys.argv else "short_season_rates.csv" if rates_only else "short_season_fixes.csv"), index=False)
+    results.to_csv(SHORT_SEASON / ("short_season_route.csv" if "--route" in sys.argv else "short_season_structural.csv" if "--structural" in sys.argv else "short_season_ablate.csv" if "--ablate" in sys.argv else "short_season_rates.csv" if rates_only else "short_season_fixes.csv"), index=False)
     summary = results.groupby(["position", "arm"], sort=False)[["rho", "rmse", "resid_short", "resid_elite", "resid_rest"]].agg(["mean", "std"])
     for position in POSITIONS:
         s = summary.loc[position].loc[arms_for(position)]

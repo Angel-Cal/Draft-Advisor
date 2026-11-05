@@ -8,6 +8,7 @@ import nflreadpy as nflread
 from pathlib import Path
 from scipy.stats import spearmanr
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import ABLATIONS, PIPELINE
 from src.models.train import Model, split_positions
 from src.features.team_context import build_team_context, FEATURE_GROUPS
 from src.evaluation.oos_predictions import position_oos, load_params
@@ -19,7 +20,7 @@ ALL_FEATURES = [c for group in FEATURE_GROUPS.values() for c in group]
 
 
 def load_rb():
-    train = pd.read_parquet(ROOT / "data" / "processed" / "training_data.parquet")
+    train = pd.read_parquet(PIPELINE / "training_data.parquet")
     seasonal = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_20_25.parquet")
     roster = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_roster_20_25.parquet")
     schedules = nflread.load_schedules(list(range(2014, 2026))).to_pandas()
@@ -80,7 +81,7 @@ if __name__ == "__main__":
                          "all_rb_spearman": all_rho, "rmse": rmse})
         print(f"{name}: {time.time() - start:.0f}s", flush=True)
     runs = pd.DataFrame(rows)
-    runs.to_csv(ROOT / "data" / "processed" / "rb_team_context_runs.csv", index=False)
+    runs.to_csv(ABLATIONS / "rb_team_context_runs.csv", index=False)
 
     base = runs[runs["variant"] == "baseline"].set_index("seed")
     summary = []
@@ -95,5 +96,5 @@ if __name__ == "__main__":
                         "all_rb_rho": group["all_rb_spearman"].mean(),
                         "rmse": group["rmse"].mean()})
     summary = pd.DataFrame(summary)
-    summary.to_csv(ROOT / "data" / "processed" / "rb_team_context_ablation.csv", index=False)
+    summary.to_csv(ABLATIONS / "rb_team_context_ablation.csv", index=False)
     print(summary.round(4).to_string(index=False))

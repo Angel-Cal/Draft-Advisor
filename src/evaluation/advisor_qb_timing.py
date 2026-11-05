@@ -4,8 +4,8 @@ Reads the Sim's `pick-log` output (every own-team pick of plain ADP and `need+wa
 QB rank in that season's ADP, in the tiers set by `qb_cliff.py` (QB1-2, QB3-7, QB8-12, QB13+), with his realized start VOR from
 `qb_opportunity_cost.rows` (3-WR league). Reports, per strategy: the tier and round of the team's first QB, its realized value, how often a
 second QB is taken and when, and the split by season and slot. Writes nothing; run after
-`dotnet run -c Release --project csharp/src/DraftBot.Sim -- pick-log --data data/processed/routed/routed --out data/processed/pick_log_live.csv`:
-python src/evaluation/advisor_qb_timing.py [--log data/processed/pick_log_live.csv]
+`dotnet run -c Release --project csharp/src/DraftBot.Sim -- pick-log --data data/processed/experiments/worlds/routed/routed --out data/processed/experiments/sims/pick_log_live.csv`:
+python src/evaluation/advisor_qb_timing.py [--log data/processed/experiments/sims/pick_log_live.csv]
 """
 import sys
 from pathlib import Path
@@ -14,10 +14,11 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import SIMS
 from src.evaluation.qb_opportunity_cost import rows as value_rows
 
 ROOT = Path(__file__).parent.parent.parent
-LOG = Path(sys.argv[sys.argv.index("--log") + 1]) if "--log" in sys.argv else ROOT / "data" / "processed" / "pick_log_live.csv"
+LOG = Path(sys.argv[sys.argv.index("--log") + 1]) if "--log" in sys.argv else SIMS / "pick_log_live.csv"
 TIER_BINS = [0, 2, 7, 12, 999]
 TIER_LABELS = ["QB1-2", "QB3-7", "QB8-12", "QB13+"]
 

@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import sys
 import json
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import PIPELINE
 from src.models.train import Model
 from src.models.train import split_positions, drop_non_features
 from src.models.short_season import routed_refit
@@ -18,7 +19,7 @@ def load_json(filename):
         return json.load(f)
     
 def load_data():
-    filepath = Path(__file__).parent.parent.parent / "data" / "processed"
+    filepath = PIPELINE
     prediction_df = pd.read_parquet(filepath/ "prediction_data.parquet")
     training_df = pd.read_parquet(filepath / "training_data.parquet")
     qb_params = load_json("qb_params")
@@ -88,7 +89,7 @@ if __name__ == "__main__":
     for name, df in results.items():
         save(df, f"{name}_predictions")
 
-    processed = Path(__file__).parent.parent.parent / "data" / "processed"
+    processed = PIPELINE
     check_freshness(inputs=[processed / "training_data.parquet", processed / "prediction_data.parquet"],
                     outputs=[processed / f"{name}_predictions.parquet" for name in results], label="predictions")
     update_manifest("predict", {"rows": {name: int(len(df)) for name, df in results.items()}, "validation": "passed"})

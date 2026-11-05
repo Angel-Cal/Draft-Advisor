@@ -21,7 +21,7 @@ Data files, `archive/` and build output are not listed.
     - `string TeamName(int team)`: "You" for the user's team, otherwise "Team n".
     - `int? PickNumber(string playerId)`: The overall pick number (1-based) at which the player was taken, or null if he is still available.
 - **ProjectionLocator.cs** (20 lines)
-  - `static class ProjectionLocator`: Finds the live projections file during development: the DRAFTBOT_PROJECTIONS variable, else data/processed/projections_2026_v1.json in a parent folder.
+  - `static class ProjectionLocator`: Finds the live projections file during development: the DRAFTBOT_PROJECTIONS variable, else data/processed/live/projections_2026_v1.json in a parent folder.
     - `static string? Find()`
 - **RosterView.cs** (36 lines)
   - `record SlotView(string Label, Position? Position, ValuedPlayer? Player, double? Replacement)`: One starting slot on the roster card: its label, the player in it (null if open) and the replacement-level points an open slot counts as.
@@ -73,7 +73,7 @@ Data files, `archive/` and build output are not listed.
     - `int? NextPick(int team)`: The 1-based overall number of the team's next pick after the one on the clock; null if it has none left.
     - `IReadOnlyList<int> UpcomingPicks(int team, int count)`: The 1-based overall numbers of the team's next count picks after the one on the clock (fewer if the draft ends first).
     - `bool Draft(string playerId)`: Drafts the player for the team on the clock.
-- **Explainer.cs** (216 lines)
+- **Explainer.cs** (253 lines)
   - `enum ReasonLabel`: What a recommendation's reasons are about, for badges next to the text.
   - `static class ReasonLabels`: What a tag is called on screen.
     - `static string DisplayName(this ReasonLabel label)`
@@ -84,6 +84,7 @@ Data files, `archive/` and build output are not listed.
     - `static string InjuryReason(Player player)`: The injury tag's text: the major injury he is coming off, if any, then the games he missed season by season, e.g. "Missed 14 games over the last 3 seasons (2023: 16 of 17, 2024: 4 of 17, 2025: 17 o...
     - `static string BestPickReason(ValueCandidate c, int pick)`: Why a pick the advice backs is recommended when waiting on him is cheap (so there is no waiting-cost reason to show): it is the best overall once everything is weighed, and whether he would be a re...
     - `static bool HasRoleCaution(Player player)`: True for a receiver whose last season is the kind that was often over-projected: at least half of his targets came while the team's top receiver was out, AND he has changed teams or a first-round r...
+    - `static bool FillsOpenSpot(Position position, Roster roster, LeagueSettings league)`: True when a player at position would take an open starting spot: his position has fewer players than starters, or (RB/WR/TE) the FLEX is still open because the flex-eligible players beyond their st...
 - **LeagueSettings.cs** (26 lines)
   - `record LeagueSettings(int Teams = 12, int Qb = 1, int Rb = 2, int Wr = 3, int Te = 1, int Flex = 1, int Bench = 8)`: Team count and starting lineup; every replacement level, tier and recommendation derives from these.
     - `int Starters(Position position)`
@@ -239,7 +240,7 @@ Data files, `archive/` and build output are not listed.
 - **PickLog.cs** (37 lines)
   - `static class PickLog`: Every pick of the drafter's own team, for analysis outside the Sim (`pick-log`: which round and which players each strategy takes).
     - `static int Write(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, IReadOnlyList<IDraftStrategy> strategies, int seeds, string path, int firstSeed = 0)`: Runs each strategy from every slot against the same seeded opponents (as `Experiment.Run` does) and writes one CSV row per pick of the drafter's team: season, seed, slot, strategy, round, player, p...
-- **Program.cs** (377 lines): Top-level program; commands: describe, backtest, draft, pick-log, diagnose, decompose, calibrate-noise, fit-noise, tune-bench, tune-need, tune-wait, tune-spread, tune-standardized, diagnose-scales, tune-scarce, tune-where, tune-horizon, tune-lookahead, tune-reach-wait, tune-reach-survival, tune-reach-picks, stability-reach, case-reach, world-sweep, calibrate-deviations, trace-reach, tune-reach-free, calibrate-survival, tune-rollout, tune-reachable, tune-survival, tune-slot, tune-bye, tune-starter, tune-value, tune-reach, tune-tiers
+- **Program.cs** (385 lines): Top-level program; commands: describe, backtest, draft, pick-log, diagnose, decompose, calibrate-noise, fit-noise, tune-bench, tune-need, tune-wait, tune-spread, tune-standardized, diagnose-scales, tune-scarce, tune-where, tune-horizon, tune-lookahead, tune-reach-wait, tune-reach-survival, tune-reach-picks, stability-reach, case-reach, world-sweep, calibrate-deviations, trace-reach, tune-reach-free, calibrate-survival, tune-rollout, tune-reachable, tune-survival, tune-slot, tune-bye, tune-starter, tune-value, tune-reach, tune-tiers
 - **ReachTrace.cs** (215 lines)
   - `static class ReachTrace`: Shared-state comparison of reach-cost variants: the adopted advisor drafts, and at each of its turns every variant is asked what it would pick in that same state (so the drafts do not drift apart).
     - `static List<ValueRecommenderStrategy> Variants()`: The adopted advisor against the variants; `adp` is plain ADP and `no reach cost` is the advisor with lambda 0 (the 4-sigma cap stays).
@@ -361,7 +362,7 @@ Data files, `archive/` and build output are not listed.
 - **CardChoiceTests.cs** (49 lines): 2 tests
 - **DiagnosticsTests.cs** (68 lines): 5 tests
 - **DraftStateTests.cs** (125 lines): 8 tests
-- **ExplainerTests.cs** (277 lines): 18 tests
+- **ExplainerTests.cs** (297 lines): 19 tests
 - **LeagueSeasonTests.cs** (112 lines): 8 tests
 - **LookaheadTests.cs** (96 lines): 6 tests
 - **MockDraftTests.cs** (131 lines): 12 tests
@@ -406,11 +407,11 @@ Data files, `archive/` and build output are not listed.
   - `write(doc)`
 - **ffc_scraper.py** (42 lines): Real draft-to-draft pick spread: Fantasy Football Calculator's public ADP API, 12-team PPR, one file per season. (runnable)
   - `fetch(season)`
-- **major_injuries.py** (96 lines): Major injuries (torn ACL, torn Achilles and the like): candidates found in nflverse data, confirmed by hand. (runnable)
+- **major_injuries.py** (98 lines): Major injuries (torn ACL, torn Achilles and the like): candidates found in nflverse data, confirmed by hand. (runnable)
   - `regular_season_weeks(season)`: Weeks in the regular season, byes included (17 before the 17-game era, 18 from 2021).
   - `season_ending_candidates(injuries, weekly, roster, pools)`: Players whose season S may have ended with a major injury, limited to players in the draft pool of season S+1.
   - `load_major_injuries(path)`: (player_id, season) -> {"season", "week", "injury"} for every confirmed major injury in the curated file.
-- **pipeline.py** (232 lines): (runnable)
+- **pipeline.py** (233 lines): (runnable)
   - `load_data()`
   - `load_predictions()`
   - `clean_data(roster, season)`
@@ -419,7 +420,7 @@ Data files, `archive/` and build output are not listed.
   - `save(df, filename)`
   - `load_totals(seasons)`
   - `advance_to_prediction_season(prediction_df, roster, totals, season)`: Prediction rows hold last season's age, experience and team; swap in the prediction season's.
-- **run_manifest.py** (56 lines): Run manifest and freshness checks: which code and params produced the current outputs, and are they stale.
+- **run_manifest.py** (57 lines): Run manifest and freshness checks: which code and params produced the current outputs, and are they stale.
   - `params_checksums()`
   - `update_manifest(stage, info)`: Record a pipeline stage (pipeline, predict, ...) with the commit, timestamp and params that produced it.
   - `check_freshness(inputs, outputs, label, strict)`: Every output must be at least as new as every input; otherwise it was built from older data.
@@ -465,9 +466,9 @@ Data files, `archive/` and build output are not listed.
     - `add_player(player_id, pos)`
     - `get_needs()`
     - `get_picks()`
-- **vor.py** (140 lines): (runnable)
+- **vor.py** (141 lines): (runnable)
   - `load_predictions()`
-  - `add_adp(qb_predictions, rb_predictions, wr_predictions, te_predictions)`: Attach FantasyPros ADP (data/external/adp_<season>.csv, written by adp_scraper.py) and write processed/adp_table.csv.
+  - `add_adp(qb_predictions, rb_predictions, wr_predictions, te_predictions)`: Attach FantasyPros ADP (data/external/adp_<season>.csv, written by adp_scraper.py) and write pipeline/adp_table.csv.
   - `add_adp_helper(adp_table, prediction_df)`
   - `normalize_names(df)`
   - `compute_vor(df, baseline_pos)`
@@ -495,13 +496,13 @@ Data files, `archive/` and build output are not listed.
   - `features(rows, model_name)`
   - `predictions(tests, model_names)`
   - `report(d, model_names)`
-- **advanced_features.py** (69 lines): Ablation of the 'process' feature groups (expected points, role, depth chart, team EPA, Next Gen Stats) on every position, each added to that position's current model, with a random-noise control o... (runnable)
+- **advanced_features.py** (70 lines): Ablation of the 'process' feature groups (expected points, role, depth chart, team EPA, Next Gen Stats) on every position, each added to that position's current model, with a random-noise control o... (runnable)
   - `group_columns(group, position)`: Candidate columns of a group (or 'a+b' union of groups) for a position: not already in its model.
   - `position_frame(position, train, context)`
-- **advisor_qb_timing.py** (62 lines): When does the adopted advisor take its QB, and from which tier? (runnable)
+- **advisor_qb_timing.py** (63 lines): When does the adopted advisor take its QB, and from which tier? (runnable)
   - `load()`
   - `report(picks, qbs)`
-- **availability_prior.py** (132 lines): Does a games-played prior fitted on a long window beat the totals target? (runnable)
+- **availability_prior.py** (133 lines): Does a games-played prior fitted on a long window beat the totals target? (runnable)
   - `load_history()`: One row per player-season 2000-2025 (QB/RB/WR/TE): games, workload per game and age.
   - `transitions(hist)`: A player with 4+ games in s-1 who played in s: last season's workload and this season's age -> this season's games as a share of the schedule.
   - `design(d)`
@@ -517,7 +518,7 @@ Data files, `archive/` and build output are not listed.
   - `curve_points(season, history)`: player_id -> expected PPR from the ADP curve fit on seasons before `season`.
   - `blended(model, curve, weight)`: Weighted average where the curve exists, the model alone elsewhere.
   - `rmse(a, b)`
-- **frozen_file_outcomes.py** (60 lines): Attach a season's outcomes to a frozen projections file, so the simulator can score the advisor on it (.claude/PREREGISTRATION_2026.md, "Advisor edge"). (runnable)
+- **frozen_file_outcomes.py** (61 lines): Attach a season's outcomes to a frozen projections file, so the simulator can score the advisor on it (.claude/PREREGISTRATION_2026.md, "Advisor edge"). (runnable)
   - `with_outcomes(doc, seasonal, weekly, season)`: A copy of the projections document as a backtest file with the season's actual_ppr and weekly_ppr on every player.
   - `option(name, default)`
 - **gap_attribution.py** (167 lines): Why is the model above the ADP curve, and do some reasons end below the curve more often? (runnable)
@@ -534,7 +535,7 @@ Data files, `archive/` and build output are not listed.
   - `report(d, rng)`
   - `adjusted(d, key)`: curve + b x (model - curve), with b per group fit on the draftable rows of the other seasons only (clipped to 0-1; groups named 'keep' stay at 1).
   - `compare(d)`: Held-out accuracy of each candidate: top-150 Spearman (mean over seasons) and RMSE over all ranked players, per position.
-- **handcuff_study.py** (185 lines): Handcuff study: when a team's lead RB misses games, can the RB who absorbs the work be identified from preseason information? (runnable)
+- **handcuff_study.py** (186 lines): Handcuff study: when a team's lead RB misses games, can the RB who absorbs the work be identified from preseason information? (runnable)
   - `load_weekly()`
   - `load_chart()`: Week-1 depth chart, running backs only (the file already keeps week 1 of each season).
   - `prior_season_roles(rb)`: Each RB's share of his team's carries and targets, and points per game, in a season; keyed to the NEXT season (what is known preseason).
@@ -559,7 +560,7 @@ Data files, `archive/` and build output are not listed.
 - **position_neutral.py** (63 lines): How much of the advisor's edge is luck in how the positions did against their ADP pricing? (runnable)
   - `position_factors(players, curves)`: position -> factor that rescales its outcomes, from the draftable rows of one season's file.
   - `neutralize(data, factors)`
-- **preseason_eval.py** (152 lines): Freeze a season's projections and score them later with rules written down in advance (.claude/PREREGISTRATION_2026.md). (runnable)
+- **preseason_eval.py** (153 lines): Freeze a season's projections and score them later with rules written down in advance (.claude/PREREGISTRATION_2026.md). (runnable)
   - `sha256(path)`
   - `snapshot(season, source, output)`: The projection file as a flat CSV, with the ADP-curve expectation (curves fit on earlier seasons only) and the role-caution flag.
   - `history(before)`: The 2022 to before-1 WR rows with the same columns: the flag is the role caution, healthy seasons only.
@@ -571,10 +572,10 @@ Data files, `archive/` and build output are not listed.
 - **qb_cliff.py** (71 lines): Realized QB cliff: what does each QB ADP rank actually return over a replacement QB? (runnable)
   - `rows()`
   - `report(d)`
-- **qb_depth_chart.py** (45 lines): Ablation of QB depth-chart features: expected starter, share of roster attempts, competition for the job. (runnable)
+- **qb_depth_chart.py** (46 lines): Ablation of QB depth-chart features: expected starter, share of roster attempts, competition for the job. (runnable)
   - `load_qb_with_depth()`
   - `variants(base_cols)`
-- **qb_experiments.py** (103 lines): QB experiments, each measured against the same walk-forward baseline: A) per-game PPR features, B) predict PPR per game then scale by games, C) lower-capacity models. (runnable)
+- **qb_experiments.py** (104 lines): QB experiments, each measured against the same walk-forward baseline: A) per-game PPR features, B) predict PPR per game then scale by games, C) lower-capacity models. (runnable)
   - `load_qb()`
   - `run(qb, features, seed, kind, params, target, games, noise_cols)`: Walk-forward out-of-sample predictions on the total-PPR scale.
   - `score(oos, top_keys)`
@@ -586,7 +587,7 @@ Data files, `archive/` and build output are not listed.
   - `tier_mean(e, tier)`
   - `report(e, label, rng)`
 - **rb_availability.py** (103 lines): Are the RB busts in rounds 3-6 injuries or genuine underperformance?
-- **rb_depth_chart.py** (46 lines): Ablation of RB depth-chart features on top of the current RB model (which already has the vacated features). (runnable)
+- **rb_depth_chart.py** (47 lines): Ablation of RB depth-chart features on top of the current RB model (which already has the vacated features). (runnable)
   - `load_rb_with_depth()`
   - `variants()`
 - **rb_premium.py** (96 lines): What does the market's RB premium pay for that season value over replacement misses? (runnable)
@@ -594,7 +595,7 @@ Data files, `archive/` and build output are not listed.
   - `player_seasons()`
   - `with_adp(ps)`
   - `gap(d, column)`: RB coefficient in column ~ 1 + adp + RB (same ADP, RB minus WR).
-- **rb_team_context.py** (99 lines): Ablation of RB team-context features: does each feature/group beat seed noise and random columns? (runnable)
+- **rb_team_context.py** (100 lines): Ablation of RB team-context features: does each feature/group beat seed noise and random columns? (runnable)
   - `load_rb()`
   - `top150_keys(position)`
   - `top150_rb_keys()`
@@ -613,16 +614,16 @@ Data files, `archive/` and build output are not listed.
 - **routed_oos.py** (98 lines): Does the routed projection (short_season.py) hold up under the live recipe, and what does it do to the simulator? (runnable)
   - `routed_predictions(first_test, only)`: One row per player-season in 2021-2025 (from `first_test`, restricted to the seasons in `only`): the current refit projection, the rate-view projection and the routed one.
   - `report(d)`
-- **seed_spread.py** (51 lines): How much of the simulator edge is the projection file's luck? (runnable)
+- **seed_spread.py** (52 lines): How much of the simulator edge is the projection file's luck? (runnable)
   - `seed_set_predictions(frames, seeds)`: Per-row mean prediction of both recipes over `seeds`, one row per player-season in 2021-2025.
-- **short_season_check.py** (82 lines): Does the model under-project players coming off an injury-shortened season? (runnable)
+- **short_season_check.py** (83 lines): Does the model under-project players coming off an injury-shortened season? (runnable)
   - `load_rows()`: Draftable player-seasons 2021-2025 with the model residual, the prior games and (2022 on) the ADP-curve residual.
   - `boot_mean(g, column, rng)`: Mean of `column` with a 90% bootstrap interval that resamples whole players.
   - `chance_gap(d, size, column, rng)`: SD of the mean of `column` over random draftable subsets of `size` rows: how far from the rest a chance group lands.
   - `report(d, rng)`
-- **short_season_curve.py** (52 lines): Pull short-season players toward the ADP curve: held-out accuracy, then backtest files for the simulator. (runnable)
+- **short_season_curve.py** (53 lines): Pull short-season players toward the ADP curve: held-out accuracy, then backtest files for the simulator. (runnable)
   - `adjusted(d, model_weight)`: The model's projection, except short-season rows with a curve value: model_weight x model + (1 - model_weight) x curve.
-- **short_season_fixes.py** (188 lines): Candidate fixes for under-projecting players coming off a short season (see short_season_check.py for the problem). (runnable)
+- **short_season_fixes.py** (189 lines): Candidate fixes for under-projecting players coming off a short season (see short_season_check.py for the problem). (runnable)
   - `load_positions()`: Per-position training frames plus the extra columns: last season's rate, the season before it, and this season's actual games.
   - `fit_predict(train, val, test, features, params, target, extra)`: One early-stopped LightGBM fit; the per-game target trains on rows with games and weights each by its games.
   - `expected_games(history, test)`: Games this season from last season's and the one before (least squares on the seasons already played; missing earlier season = last season's).
@@ -636,7 +637,7 @@ Data files, `archive/` and build output are not listed.
   - `ols_coef(y, gap, z)`: Coefficient of z in y ~ 1 + gap + z.
   - `test_cell(g, metric, rng)`: Spearman with both residuals, the z coefficient in actual - curve ~ gap + z, its bootstrap 90% interval and permutation p.
   - `run_tests(d, rates, metrics, positions, rng, title)`
-- **target_competition.py** (312 lines): Does the model over-project wide receivers whose target competition got tougher, or whose last-year volume came while a teammate was out? (runnable)
+- **target_competition.py** (313 lines): Does the model over-project wide receivers whose target competition got tougher, or whose last-year volume came while a teammate was out? (runnable)
   - `load_weekly()`: Regular-season weekly rows of the pass catchers: player, season, week, team, targets.
   - `load_start_roster()`: Each player's team and rookie status on his earliest roster row of the season (the file is sparse after week 1, so this is how the pipeline finds the start team).
   - `season_rates(weekly)`: Per player-season over all teams: games, targets, targets per game (0 when under MIN_GAMES games).
@@ -655,7 +656,7 @@ Data files, `archive/` and build output are not listed.
 - **thin_training_check.py** (64 lines): How does the length and recency of the training window change the advisor's edge? (runnable)
   - `windows(season, fixed, window)`: (train seasons, validation season) for a test season: the fixed span, or the `window` seasons ending two before it.
   - `window_predictions(tests, fixed, window, seed_offset)`: One row per player-season in `tests` with the early-stopped, 5-seed projection from the chosen training window.
-- **world_sweep.py** (136 lines): Does a recommender setting chosen on the validated files keep its sign in other worlds? (runnable)
+- **world_sweep.py** (137 lines): Does a recommender setting chosen on the validated files keep its sign in other worlds? (runnable)
   - `make_perturbed(seasons, shift)`: Validated files with N(0, NOISE_SD) added to every model projection.
   - `make_shuffled(seasons, shift)`: Validated files with the outcomes (actual_ppr and weekly_ppr) permuted inside groups of GROUP same-position players with neighbouring ADP (`seasons`, `shift`: as in make_perturbed).
   - `worlds()`
@@ -666,9 +667,9 @@ Data files, `archive/` and build output are not listed.
   - `quality(names)`: Per season: targets and what they were worth.
   - `attribute(name)`: What drives the live 2026 projection of a WR: contributions of each input (PPR points) and counterfactuals that change one group of inputs.
   - `gaps()`: The WRs the model rates GAP+ PPR above the ADP curve: how reliable those gaps are, the healthy ones it over-projected, and the live 2026 list.
-- **wr_target_rank.py** (55 lines): Ablation of WR1/WR2 rank features (by prior-season targets) added to the WR model, same protocol as advanced_features.py: 10 seeds, a random-noise control of the same size, top-150 Spearman as the... (runnable)
+- **wr_target_rank.py** (56 lines): Ablation of WR1/WR2 rank features (by prior-season targets) added to the WR model, same protocol as advanced_features.py: 10 seeds, a random-noise control of the same size, top-150 Spearman as the... (runnable)
   - `load_wr()`
-- **wr_team_context.py** (64 lines): Ablation of WR team-context features, same protocol as rb_team_context. (runnable)
+- **wr_team_context.py** (65 lines): Ablation of WR team-context features, same protocol as rb_team_context. (runnable)
   - `load_wr(features)`
   - `variants(features)`
 
@@ -720,7 +721,7 @@ Data files, `archive/` and build output are not listed.
 
 ## src/models/
 
-- **predict.py** (101 lines): (runnable)
+- **predict.py** (102 lines): (runnable)
   - `load_json(filename)`
   - `load_data()`
   - `save_metadata(df)`
@@ -732,7 +733,7 @@ Data files, `archive/` and build output are not listed.
   - `rate_refit(model, x_train, y_train, x_val, y_val, x_pred, params)`: `Model.refit_predict` on the rate view of all three frames.
   - `route(base, rates, games)`: The rate projection where the prior season had SHORT_SEASON_GAMES or fewer games, the base projection elsewhere.
   - `routed_refit(model, x_train, y_train, x_val, y_val, x_pred, params)`: Projections for `x_pred`: the validated refit recipe, routed for short-season players (the rate model is only fit when there are any).
-- **train.py** (306 lines): (runnable)
+- **train.py** (307 lines): (runnable)
   - `drop_non_features(df)`
   - `class Model`
     - `temporal_splits(df)`
@@ -749,14 +750,18 @@ Data files, `archive/` and build output are not listed.
   - `print_rolling_splits(df, model, params)`
   - `split_positions(df)`
 
+## src/
+
+- **paths.py** (24 lines): Folder layout of data/processed: live contract files, pipeline intermediates and experiment outputs.
+
 ## tests/
 
 - **conftest.py** (34 lines): shared fixtures
 - **test_adp_scraper.py** (21 lines): 2 tests
 - **test_advanced_features.py** (120 lines): 9 tests
-- **test_data_integrity.py** (192 lines): 16 tests
+- **test_data_integrity.py** (193 lines): 16 tests
 - **test_draft_state.py** (79 lines): 10 tests
-- **test_export_projections.py** (206 lines): 16 tests
+- **test_export_projections.py** (207 lines): 16 tests
 - **test_frozen_file_outcomes.py** (41 lines): 2 tests
 - **test_market_fallback.py** (66 lines): 5 tests
 - **test_ol_features.py** (40 lines): 2 tests

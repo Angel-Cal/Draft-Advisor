@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import ABLATIONS
 from src.models.train import drop_non_features
 from src.features.team_context import build_qb_depth_features, QB_DEPTH_FEATURES
 from src.evaluation.qb_experiments import load_qb, run, score, N_SEEDS
@@ -41,5 +42,5 @@ if __name__ == "__main__":
         rows.append(dict(variant=name, top150=r[:, 0].mean(), sd=r[:, 0].std(), all_qb=r[:, 1].mean(), rmse=r[:, 2].mean()))
     out = pd.DataFrame(rows)
     out["delta_vs_base"] = out["top150"] - out.loc[0, "top150"]
-    out.to_csv(ROOT / "data" / "processed" / "qb_depth_ablation.csv", index=False)
+    out.to_csv(ABLATIONS / "qb_depth_ablation.csv", index=False)
     print(out.round(4).to_string(index=False))

@@ -64,16 +64,36 @@ public class ExplainerTests
     }
 
     [Fact]
-    public void A_player_projected_below_replacement_is_described_like_any_other_non_starter()
+    public void A_player_who_would_take_an_open_spot_but_adds_nothing_over_replacement_fills_a_spot()
     {
-        // adp 1 but projected 60 against a replacement of 100: the model disagrees with drafters, and the tag is the plain "Not a starter"
+        // the QB spot is open, but he projects 60 against what a later QB is expected to score: he would start, yet adds nothing over waiting (user, 2026-11-04)
         var low = V("low", Position.QB, 60, 1);
 
         var e = Explainer.Explain(Pool(low), 0, [Candidate(low, gain: 0)], Reach)[0];
 
-        Assert.Equal(ReasonLabel.Backup, e.Labels[0]);
-        Assert.Equal("Not a starter", e.Labels[0].DisplayName());
-        Assert.Contains("insurance", e.Headline);
+        Assert.Equal(ReasonLabel.FillsSpot, e.Labels[0]);
+        Assert.Equal("Fills a spot", e.Labels[0].DisplayName());
+        Assert.Contains("would start in your open QB spot", e.Reasons[0]);
+        Assert.Contains("open QB spot", e.Headline);
+        Assert.DoesNotContain("insurance", e.Headline);
+    }
+
+    [Fact]
+    public void The_flex_counts_as_an_open_spot_until_the_extra_rb_wr_te_fill_it()
+    {
+        var league = new LeagueSettings();          // 2 RB, 3 WR, 1 TE, 1 FLEX
+        var state = new DraftState([.. new[] { "r1", "r2", "w1", "w2", "w3" }.Select((id, i) => V(id, id[0] == 'r' ? Position.RB : Position.WR, 200, i + 1)),
+            .. Enumerable.Range(1, 40).Select(i => V($"f{i}", Position.WR, 100, 100 + i))], league);
+        var roster = state.Teams[0];
+        Assert.True(Explainer.FillsOpenSpot(Position.QB, roster, league));                  // no QB yet
+
+        foreach (var id in new[] { "r1", "r2", "w1", "w2", "w3" }) roster.Add(state.Available.First(p => p.Id == id));
+        Assert.True(Explainer.FillsOpenSpot(Position.RB, roster, league));                  // RB spots full, but the FLEX is open
+        Assert.False(Explainer.FillsOpenSpot(Position.QB, new Roster(new LeagueSettings(Qb: 0)), new LeagueSettings(Qb: 0)));
+
+        roster.Add(state.Available.First(p => p.Id == "f1"));                                // a fourth WR takes the FLEX
+        Assert.False(Explainer.FillsOpenSpot(Position.RB, roster, league));
+        Assert.True(Explainer.FillsOpenSpot(Position.TE, roster, league));                  // the TE spot itself is still open
     }
 
     [Fact]

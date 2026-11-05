@@ -10,6 +10,8 @@ import json
 import sys
 from pathlib import Path
 import pandas as pd
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import LIVE
 
 ROOT = Path(__file__).parent.parent.parent
 CURATED = ROOT / "data" / "external" / "major_injuries.csv"
@@ -74,7 +76,7 @@ def load_major_injuries(path=CURATED):
 def _pools():
     """Draft season -> player_ids in that season's exported projection file (model-scored and market rows alike)."""
     pools = {}
-    for path in sorted((ROOT / "data" / "processed").glob("projections_*_v1.json")):
+    for path in sorted(LIVE.glob("projections_*_v1.json")):
         doc = json.loads(path.read_text())
         pools[doc["season"]] = {p["player_id"] for p in doc["players"] if not p["player_id"].startswith("market:")}
     return pools

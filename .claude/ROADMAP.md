@@ -64,7 +64,7 @@ features / train / predict   ---->                       VOR, tiers, recommender
 - [x] ~~Check nflverse/ffverse historical ECR~~ Skipped by decision: the user chose scraped historical ADP over expert rankings.
 - [x] Wayback Machine ADP scraper (`src/data/adp_scraper.py`): FantasyPros PPR consensus ADP, 2021–2025, snapshot closest to (and not after) the day before each season's opener; one CSV per season in `data/external/adp_<year>.csv`. (Fantasy Football Calculator was tried and rejected.)
 - [x] Walk-forward out-of-sample predictions (`src/evaluation/oos_predictions.py`, 5 seeds; kept separate from `train.py`)
-- [x] One season file per held-out season: `data/processed/season_<year>.parquet` (OOS projections + actuals) joined to `adp_<year>.csv` on `player_id`
+- [x] One season file per held-out season: `data/processed/pipeline/oos/season_<year>.parquet` (OOS projections + actuals) joined to `adp_<year>.csv` on `player_id`
 - [x] First benchmark (`src/evaluation/benchmark.py`): the model trails ADP on top-150 Spearman at every position (QB −0.10, RB −0.05, WR −0.06, TE −0.01), beats a last-year-PPR baseline everywhere, and matches ADP's ranking over all players for RB/WR/TE. Numbers and caveats in `STATUS.md`.
 
 Also done in Phase 1 (unplanned, but it changed the results): fixed a target-season leak in `implied_total` and several silent data bugs; built a validation layer, feature manifest, run manifest, integrity tests, pre-commit hook and CI workflow; ablated ~12 feature ideas (two survived: RB vacated volume and QB attempt share, plus the process features in `STATUS.md`).

@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import PIPELINE
 from src.draft.market_fallback import load_history
 from src.evaluation.benchmark import SEASONS, load_season
 from src.evaluation.blend_test import curve_points
@@ -32,7 +33,7 @@ GROUPS = {
 def load_rows():
     """Draftable player-seasons 2021-2025 with the model residual, the prior games and (2022 on) the ADP-curve residual."""
     history = load_history()
-    features = pd.read_parquet(ROOT / "data" / "processed" / "training_data.parquet")[["player_id", "season", "games", "games_delta"]]
+    features = pd.read_parquet(PIPELINE / "training_data.parquet")[["player_id", "season", "games", "games_delta"]]
     rows = []
     for season in SEASONS:
         df = load_season(season)

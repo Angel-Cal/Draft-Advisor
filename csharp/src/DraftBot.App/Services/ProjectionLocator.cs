@@ -1,6 +1,6 @@
 namespace DraftBot.App.Services;
 
-/// <summary>Finds the live projections file during development: the DRAFTBOT_PROJECTIONS variable, else data/processed/projections_2026_v1.json in a parent folder.</summary>
+/// <summary>Finds the live projections file during development: the DRAFTBOT_PROJECTIONS variable, else data/processed/live/projections_2026_v1.json in a parent folder.</summary>
 public static class ProjectionLocator
 {
     const string FileName = "projections_2026_v1.json";
@@ -12,7 +12,7 @@ public static class ProjectionLocator
 
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
-            var candidate = Path.Combine(dir.FullName, "data", "processed", FileName);
+            var candidate = Path.Combine(dir.FullName, "data", "processed", "live", FileName);
             if (File.Exists(candidate)) return candidate;
         }
         return null;

@@ -5,7 +5,7 @@ Three models on identical rows (players with a FantasyPros ADP, seasons 2015 on,
   adpfeat  the same plus ADP, ADP position rank and the ADP-curve value as inputs, target = season points
   resid    the same inputs, target = season points minus the ADP-curve value; the projection is curve + prediction
 The curve is the isotonic map from ADP position rank to expected points (market_fallback.fit_position_curves). A training row's curve leaves its own season out; validation and test rows use only earlier seasons.
-Writes backtest files with the projections under data/processed/adpres/<model> (`backtest --data data/processed/adpres/resid --seasons 2019-2025`) and prints accuracy against the main model on the draftable rows.
+Writes backtest files with the projections under data/processed/experiments/worlds/adpres/<model> (`backtest --data data/processed/experiments/worlds/adpres/resid --seasons 2019-2025`) and prints accuracy against the main model on the draftable rows.
 
 Run: python src/evaluation/adp_residual.py [--tests 2019,2020,2021,2022,2023,2024,2025] [--models plain,adpfeat,resid]
 """
@@ -18,13 +18,13 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import EXPERIMENT_OOS, LIVE, PIPELINE, WORLDS
 from src.draft.market_fallback import fit_position_curves, load_history
 from src.evaluation.oos_predictions import N_SEEDS, load_params
 from src.evaluation.refit_oos import POSITIONS, write_backtest_files
 from src.models.train import Model, drop_non_features, split_positions
 
 ROOT = Path(__file__).parent.parent.parent
-PROCESSED_DIR = ROOT / "data" / "processed"
 FIRST_SEASON = 2015
 ALL_SEASONS = range(2015, 2026)
 
@@ -65,7 +65,7 @@ def features(rows, model_name):
 
 
 def predictions(tests, model_names):
-    df = pd.read_parquet(PROCESSED_DIR / "training_data.parquet")
+    df = pd.read_parquet(PIPELINE / "training_data.parquet")
     adp = adp_table()
     history = load_history(ALL_SEASONS)
     model = Model()
@@ -94,7 +94,7 @@ def predictions(tests, model_names):
 def report(d, model_names):
     rows = []
     for season, g in d.groupby("season"):
-        base = pd.DataFrame(json.load(open(PROCESSED_DIR / f"projections_{season}_v1.json"))["players"])
+        base = pd.DataFrame(json.load(open(LIVE / f"projections_{season}_v1.json"))["players"])
         base = base[(~base["market_estimate"]) & (base["adp"] <= 150)][["player_id", "projected_ppr", "adp"]].rename(columns={"projected_ppr": "main_pred_ppr"})
         rows.append(g.merge(base, on="player_id"))
     m = pd.concat(rows)
@@ -116,8 +116,8 @@ if __name__ == "__main__":
     tests = [int(x) for x in arg("--tests", "2019,2020,2021,2022,2023,2024,2025").split(",")]
     names = arg("--models", "plain,adpfeat,resid").split(",")
     d = predictions(tests, names)
-    d.to_parquet(PROCESSED_DIR / "adp_residual_oos.parquet")
+    d.to_parquet(EXPERIMENT_OOS / "adp_residual_oos.parquet")
     report(d, names)
     for name in names:
-        write_backtest_files(d, f"{name}_pred_ppr", PROCESSED_DIR / "adpres" / name, f"{name} model on ADP-ranked rows (adp_residual.py)", seasons=tests)
-    print(f"\nwrote backtest files under {PROCESSED_DIR / 'adpres'}")
+        write_backtest_files(d, f"{name}_pred_ppr", WORLDS / "adpres" / name, f"{name} model on ADP-ranked rows (adp_residual.py)", seasons=tests)
+    print(f"\nwrote backtest files under {WORLDS / 'adpres'}")

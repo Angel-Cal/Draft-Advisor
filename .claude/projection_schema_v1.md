@@ -7,7 +7,7 @@
 
 ## File
 
-`projections_<season>_v1.json`, saved to `data/processed/` locally; the live file is published as a GitHub Release asset.
+`projections_<season>_v1.json`, saved to `data/processed/live/` locally; the live file is published as a GitHub Release asset.
 
 - **Live file** (`kind: "live"`): next season's projections, e.g. `projections_2026_v1.json`. ADP is FantasyPros (the final pre-season export, `data/external/adp_<season>.csv`).
 - **Backtest files** (`kind: "backtest"`): one per held-out season 2021–2025. Projections are walk-forward (out of

@@ -4,11 +4,11 @@ The validated files turned out to be one favourable draw for the survival-scaled
 runs the Sim's `world-sweep` (waiting weight x lambda, reach cap, the first free pick, each against the adopted advisor, paired, points and title odds) on several worlds and reports,
 per setting, the margin in each world, its mean and spread across worlds, and how many worlds it is ahead in.
 
-Worlds: `validated` (data/processed), `refit` and `refit_routed` (the live recipe, from routed_oos.py), `perturb/p0-p3` (validated projections plus N(0, 8) noise: projection luck only) and
+Worlds: `validated` (data/processed/live), `refit` and `refit_routed` (the live recipe, from routed_oos.py), `perturb/p0-p3` (validated projections plus N(0, 8) noise: projection luck only) and
 `shuffled/s0-s2` (validated projections and ADP, the actual outcomes of players with neighbouring ADP at the same position swapped in groups of four: outcome luck re-rolled, and the
 model's within-group information removed). Perturbed worlds share the real outcomes; shuffled worlds share the real projections.
 
-Writes data/processed/world_sweep.csv (or world_sweep_<arms>.csv). Run: python src/evaluation/world_sweep.py [--seeds 40] [--arms reach|need] [--make-only] [--worlds validated,refit]
+Writes data/processed/experiments/sims/world_sweep.csv (or world_sweep_<arms>.csv). Run: python src/evaluation/world_sweep.py [--seeds 40] [--arms reach|need] [--make-only] [--worlds validated,refit]
 `--tiers` instead runs the adopted advisor alone at several tier-gap settings in every world and prints its edge over ADP (the tier gap only changes the pool's valuation).
 """
 import json
@@ -18,9 +18,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import LIVE, SIMS, WORLDS
 
 ROOT = Path(__file__).parent.parent.parent
-PROCESSED = ROOT / "data" / "processed"
 SEASONS = range(2021, 2026)
 GROUP = 4          # neighbours (by ADP, same position) whose outcomes are swapped
 N_SHUFFLED = 3
@@ -31,11 +32,11 @@ NOISE_SD = 8.0
 def make_perturbed(seasons=SEASONS, shift=0):
     """Validated files with N(0, NOISE_SD) added to every model projection. `seasons` and `shift` (added to the RNG seed) let earlier seasons be added without changing the existing files."""
     for k in range(N_PERTURBED):
-        out = PROCESSED / "perturb" / f"p{k}"
+        out = WORLDS / "perturb" / f"p{k}"
         out.mkdir(parents=True, exist_ok=True)
         rng = np.random.default_rng(1000 + k + shift)
         for season in seasons:
-            data = json.loads((PROCESSED / f"projections_{season}_v1.json").read_text())
+            data = json.loads((LIVE / f"projections_{season}_v1.json").read_text())
             for p in data["players"]:
                 if not p["market_estimate"]:
                     p["projected_ppr"] = round(p["projected_ppr"] + float(rng.normal(0, NOISE_SD)), 2)
@@ -45,11 +46,11 @@ def make_perturbed(seasons=SEASONS, shift=0):
 def make_shuffled(seasons=SEASONS, shift=0):
     """Validated files with the outcomes (actual_ppr and weekly_ppr) permuted inside groups of GROUP same-position players with neighbouring ADP (`seasons`, `shift`: as in make_perturbed)."""
     for k in range(N_SHUFFLED):
-        out = PROCESSED / "shuffled" / f"s{k}"
+        out = WORLDS / "shuffled" / f"s{k}"
         out.mkdir(parents=True, exist_ok=True)
         rng = np.random.default_rng(2000 + k + shift)
         for season in seasons:
-            data = json.loads((PROCESSED / f"projections_{season}_v1.json").read_text())
+            data = json.loads((LIVE / f"projections_{season}_v1.json").read_text())
             players = data["players"]
             for position in {p["position"] for p in players}:
                 members = sorted([p for p in players if p["position"] == position], key=lambda p: p["adp"] if p["adp"] is not None else 1e9)
@@ -62,9 +63,9 @@ def make_shuffled(seasons=SEASONS, shift=0):
 
 
 def worlds():
-    found = {"validated": PROCESSED, "refit": PROCESSED / "routed" / "current", "refit_routed": PROCESSED / "routed" / "routed"}
-    found.update({f"perturb_p{k}": PROCESSED / "perturb" / f"p{k}" for k in range(N_PERTURBED)})
-    found.update({f"shuffled_s{k}": PROCESSED / "shuffled" / f"s{k}" for k in range(N_SHUFFLED)})
+    found = {"validated": LIVE, "refit": WORLDS / "routed" / "current", "refit_routed": WORLDS / "routed" / "routed"}
+    found.update({f"perturb_p{k}": WORLDS / "perturb" / f"p{k}" for k in range(N_PERTURBED)})
+    found.update({f"shuffled_s{k}": WORLDS / "shuffled" / f"s{k}" for k in range(N_SHUFFLED)})
     return {name: path for name, path in found.items() if (path / "projections_2021_v1.json").exists()}
 
 
@@ -127,7 +128,7 @@ if __name__ == "__main__":
             rows.append(dict(world=name, **row))
         print(f"{name}: done", flush=True)
     results = pd.DataFrame(rows)
-    results.to_csv(PROCESSED / ("world_sweep.csv" if arms == "reach" else f"world_sweep_{arms}.csv"), index=False)
+    results.to_csv(SIMS / ("world_sweep.csv" if arms == "reach" else f"world_sweep_{arms}.csv"), index=False)
     points, title, summary = summarize(results)
     pd.set_option("display.width", 250)
     print("\nPoints margin against the adopted advisor, by world (positive = ahead of the adopted settings)")

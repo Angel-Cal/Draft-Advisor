@@ -288,7 +288,7 @@ static void Backtest(string dataDir, Dictionary<string, string> options, SimSett
     Console.WriteLine(Experiment.Summarize(result.Rows));
     Console.WriteLine(Experiment.SummarizeBySlot(result.Rows, "need+wait"));
     Console.WriteLine(Experiment.SummarizeRegret(result.Regrets));
-    var output = options.GetValueOrDefault("out") ?? Path.Combine(dataDir, "sim_baseline.csv");
+    var output = options.GetValueOrDefault("out") ?? Path.Combine(SimOutputDirectory(dataDir), "sim_baseline.csv");
     var regretOutput = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(output))!, "sim_regret.csv");
     Experiment.WriteCsv(output, result.Rows);
     Experiment.WriteRegretCsv(regretOutput, result.Regrets);
@@ -366,12 +366,20 @@ static List<int> ParseSeasons(string text)
         : [int.Parse(text)];
 }
 
+/// <summary>Where a run writes its CSVs when --out is not given: data/processed/experiments/sims for the live folder (kept to the C# contract files), else the data folder itself.</summary>
+static string SimOutputDirectory(string dataDir)
+{
+    var dir = new DirectoryInfo(Path.GetFullPath(dataDir));
+    if (dir.Name != "live" || dir.Parent is null) return dataDir;
+    return Directory.CreateDirectory(Path.Combine(dir.Parent.FullName, "experiments", "sims")).FullName;
+}
+
 static string FindDataDirectory()
 {
     for (var dir = new DirectoryInfo(Directory.GetCurrentDirectory()); dir is not null; dir = dir.Parent)
     {
-        var candidate = Path.Combine(dir.FullName, "data", "processed");
+        var candidate = Path.Combine(dir.FullName, "data", "processed", "live");
         if (Directory.Exists(candidate)) return candidate;
     }
-    throw new DirectoryNotFoundException("could not find data/processed; pass --data DIR");
+    throw new DirectoryNotFoundException("could not find data/processed/live; pass --data DIR");
 }

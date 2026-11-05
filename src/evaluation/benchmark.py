@@ -4,10 +4,10 @@ from pathlib import Path
 from scipy.stats import spearmanr
 import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import ABLATIONS, OOS, PIPELINE
 from src.data.run_manifest import check_freshness, update_manifest
 
 ROOT = Path(__file__).parent.parent.parent
-PROCESSED_DIR = ROOT / "data" / "processed"
 EXTERNAL_DIR = ROOT / "data" / "external"
 SEASONS = range(2021, 2026)
 TOP_N_ADP = 150
@@ -16,10 +16,10 @@ N_UNRANKED = 50
 
 def load_season(season):
     """Model out-of-sample predictions joined to ADP; unranked players tied at last."""
-    oos = pd.read_parquet(PROCESSED_DIR / f"season_{season}.parquet")
+    oos = pd.read_parquet(OOS / f"season_{season}.parquet")
     adp = pd.read_csv(EXTERNAL_DIR / f"adp_{season}.csv")
 
-    last_year = pd.read_parquet(PROCESSED_DIR / "training_data.parquet")[["player_id", "season", "fantasy_points_ppr"]]
+    last_year = pd.read_parquet(PIPELINE / "training_data.parquet")[["player_id", "season", "fantasy_points_ppr"]]
     oos = oos.merge(last_year.rename(columns={"fantasy_points_ppr": "last_year_ppr"}), on=["player_id", "season"], how="left")
     df = oos.merge(adp[["player_id", "adp"]], on="player_id", how="left")
     df["in_top_adp"] = df["adp"].rank(method="first") <= TOP_N_ADP  # top N by ADP among modeled players
@@ -49,8 +49,8 @@ def spearman_rows(df, season, scope):
 
 
 if __name__ == "__main__":
-    check_freshness(inputs=[PROCESSED_DIR / "training_data.parquet", *(ROOT / "models" / f"{p}_params" for p in ("qb", "rb", "wr", "te"))],
-                    outputs=[PROCESSED_DIR / f"season_{s}.parquet" for s in SEASONS], label="out-of-sample predictions", strict=False)
+    check_freshness(inputs=[PIPELINE / "training_data.parquet", *(ROOT / "models" / f"{p}_params" for p in ("qb", "rb", "wr", "te"))],
+                    outputs=[OOS / f"season_{s}.parquet" for s in SEASONS], label="out-of-sample predictions", strict=False)
     rows = []
     for season in SEASONS:
         df = load_season(season)
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     results["model_minus_adp"] = results["model_spearman"] - results["adp_spearman"]
     results["model_minus_last_year"] = results["model_spearman"] - results["last_year_spearman"]
 
-    results.to_csv(PROCESSED_DIR / "benchmark_v1.csv", index=False)
+    results.to_csv(ABLATIONS / "benchmark_v1.csv", index=False)
     print(results.round(3).to_string(index=False))
     top = mean[mean["scope"] == f"top{TOP_N_ADP}_adp"].set_index("position")
     update_manifest("benchmark", {"top150_model_spearman": top["model_spearman"].round(3).to_dict(),

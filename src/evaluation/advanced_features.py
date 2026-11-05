@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import ABLATIONS, PIPELINE
 from src.models.train import split_positions
 from src.features.advanced import ADVANCED_GROUPS, load_advanced_context
 from src.features.registry import POSITION_FEATURES
@@ -37,7 +38,7 @@ def position_frame(position, train, context):
 
 
 if __name__ == "__main__":
-    train = pd.read_parquet(ROOT / "data" / "processed" / "training_data.parquet")
+    train = pd.read_parquet(PIPELINE / "training_data.parquet")
     roster = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_roster_20_25.parquet")
     context = load_advanced_context(roster[roster["gsis_id"].notna()])
     groups = sys.argv[1:] or list(ADVANCED_GROUPS)        # e.g. `python advanced_features.py ol`
@@ -64,6 +65,6 @@ if __name__ == "__main__":
         print(f"{position} done", flush=True)
     out = pd.DataFrame(rows)
     name = "advanced_features_ablation.csv" if len(groups) == len(ADVANCED_GROUPS) else f"advanced_{'_'.join(g.replace('+', '-') for g in groups)}_ablation.csv"
-    out.to_csv(ROOT / "data" / "processed" / name, index=False)
+    out.to_csv(ABLATIONS / name, index=False)
     pd.set_option("display.width", 200)
     print(out.round(4).to_string(index=False))

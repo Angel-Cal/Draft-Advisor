@@ -12,6 +12,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import ABLATIONS, PIPELINE
 from src.models.train import Model, split_positions, drop_non_features
 from src.evaluation.oos_predictions import load_params
 from src.evaluation.benchmark import SEASONS
@@ -29,7 +30,7 @@ SIMPLE_PARAMS = {"max_depth": 2, "num_leaves": 4, "min_child_samples": 25, "lear
 
 
 def load_qb():
-    train = pd.read_parquet(ROOT / "data" / "processed" / "training_data.parquet")
+    train = pd.read_parquet(PIPELINE / "training_data.parquet")
     seasonal = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_20_25.parquet")[["player_id", "season", "games"]]
     qb = split_positions(train)[0].merge(seasonal.rename(columns={"games": "games_actual"}),
                                          on=["player_id", "season"], how="left")
@@ -99,5 +100,5 @@ if __name__ == "__main__":
         print(f"{name}: done", flush=True)
     out = pd.DataFrame(rows)
     out["delta_vs_base"] = out["top150"] - out.loc[0, "top150"]
-    out.to_csv(ROOT / "data" / "processed" / "qb_experiments.csv", index=False)
+    out.to_csv(ABLATIONS / "qb_experiments.csv", index=False)
     print(out.round(4).to_string(index=False))

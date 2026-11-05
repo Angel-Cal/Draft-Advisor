@@ -193,7 +193,7 @@ results, so the pipeline checks itself:
 - **`tests/test_data_integrity.py`** recomputes lagged features from the raw files and fails if any column matches
   the target season; it also checks train/serve parity, ADP coverage, out-of-sample files and pinned packages.
   It skips when `data/` is absent (CI).
-- **`data/processed/run_manifest.json`** records the commit, timestamp, row counts and params checksums of each
+- **`data/processed/live/run_manifest.json`** records the commit, timestamp, row counts and params checksums of each
   pipeline, predict and benchmark run. Stale outputs (older than their inputs) raise or warn.
 - **Benchmark standard** (`src/evaluation/benchmark.py`): per-position only, scores averaged over 5 model seeds
   with their spread, and always shown next to the "last year's PPR" baseline.

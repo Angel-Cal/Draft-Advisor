@@ -7,7 +7,7 @@ other than the starter, and are scored by how often the pick is the absorber, ag
 not on the chart at all, how many PPR points a well-chosen backup is worth per season, and whether the share a team's RB2 absorbs persists
 from one season to the next.
 
-Run: python src/evaluation/handcuff_study.py   (writes data/processed/handcuff_events.csv)
+Run: python src/evaluation/handcuff_study.py   (writes data/processed/experiments/ablations/handcuff_events.csv)
 """
 import sys
 from pathlib import Path
@@ -17,11 +17,12 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import ABLATIONS
 from src.features.team_context import _norm
 
 ROOT = Path(__file__).parent.parent.parent
 RAW = ROOT / "data" / "raw"
-OUT = ROOT / "data" / "processed" / "handcuff_events.csv"
+OUT = ABLATIONS / "handcuff_events.csv"
 SEASONS = range(2015, 2025)      # depth charts end in 2024; prior-season shares need the season before
 MIN_ABSENT = 2                   # games the starter must miss for the team-season to count as an event
 MIN_PRESENT = 2                  # games he must play, to know what he was doing

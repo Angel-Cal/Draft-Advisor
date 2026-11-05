@@ -8,7 +8,7 @@ Kill: the difference between the "agree" and "disagree" slopes is inside the spr
 Dispersion = SD of log(source ADP) over the platforms that list the player (3 or more), minus its typical value at that ADP (quadratic in log ADP),
 so it is not a stand-in for ADP itself. Per-source ADPs come from the cached FantasyPros pages (data/raw/adp_html, the snapshots that
 adp_{season}.csv was built from). Rows: draftable modeled players (top 150 by ADP among non-market rows), 2019-2025, in the validated files
-(data/processed) and the live-recipe files (data/processed/routed/routed). The curve is the isotonic position-rank curve fit on earlier seasons
+(data/processed/live) and the live-recipe files (data/processed/experiments/worlds/routed/routed). The curve is the isotonic position-rank curve fit on earlier seasons
 only (2015 on), as in gap_reliability.py. Writes nothing; run: python src/evaluation/adp_dispersion.py
 """
 import json
@@ -20,15 +20,15 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import LIVE, WORLDS as WORLDS_DIR
 from src.draft.market_fallback import load_history
 from src.evaluation.blend_test import curve_points
 
 ROOT = Path(__file__).parent.parent.parent
-PROCESSED_DIR = ROOT / "data" / "processed"
 HTML_DIR = ROOT / "data" / "raw" / "adp_html"
 EXTERNAL_DIR = ROOT / "data" / "external"
 SEASONS = range(2019, 2026)
-WORLDS = {"validated": PROCESSED_DIR, "live recipe": PROCESSED_DIR / "routed" / "routed"}
+WORLDS = {"validated": LIVE, "live recipe": WORLDS_DIR / "routed" / "routed"}
 SOURCES = {"ESPN", "MFL", "FFC", "RTSports", "NFL", "Fantrax", "Sleeper", "CBS"}
 MIN_SOURCES = 3
 TOP_N = 150

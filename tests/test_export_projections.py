@@ -2,8 +2,9 @@ import json
 import numpy as np
 import pandas as pd
 import pytest
+from src.paths import LIVE
 from src.data import validate as v
-from src.data.export_projections import PROCESSED, attach_injury_history, build_backtest, games_history, injury_flag, to_document, weekly_lists
+from src.data.export_projections import attach_injury_history, build_backtest, games_history, injury_flag, to_document, weekly_lists
 from src.data.major_injuries import season_ending_candidates
 from src.draft.market_fallback import fit_position_curves
 
@@ -200,7 +201,7 @@ def test_projection_validator_allows_no_team_and_requires_actuals_in_backtests()
 
 @pytest.mark.parametrize("season", range(2021, 2027))
 def test_exported_files_are_valid(season):
-    path = PROCESSED / f"projections_{season}_v1.json"
+    path = LIVE / f"projections_{season}_v1.json"
     if not path.exists():
         pytest.skip("projection files not exported")
     v.check_projection_file(json.loads(path.read_text()))

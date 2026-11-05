@@ -1,7 +1,7 @@
 namespace DraftBot.Core;
 
 /// <summary>What a recommendation's reasons are about, for badges next to the text.</summary>
-public enum ReasonLabel { Starter, Backup, RunningOut, Discount, Reach, InjuryHistory, EstimatedProjection, RoleMayNotCarryOver }
+public enum ReasonLabel { Starter, Backup, RunningOut, Discount, Reach, InjuryHistory, EstimatedProjection, RoleMayNotCarryOver, FillsSpot }
 
 /// <summary>What a tag is called on screen. "Recommended" is the waiting-cost reason: it is about this particular player, not about the position.</summary>
 public static class ReasonLabels
@@ -9,7 +9,8 @@ public static class ReasonLabels
     public static string DisplayName(this ReasonLabel label) => label switch
     {
         ReasonLabel.Starter => "Starter",
-        ReasonLabel.Backup => "Not a starter",        ReasonLabel.RunningOut => "Recommended",
+        ReasonLabel.Backup => "Not a starter",
+        ReasonLabel.FillsSpot => "Fills a spot",        ReasonLabel.RunningOut => "Recommended",
         ReasonLabel.Discount => "Bargain",
         ReasonLabel.Reach => "Early pick",
         ReasonLabel.InjuryHistory => "Injury history",
@@ -40,8 +41,14 @@ public static class Explainer
     /// </summary>
     public const double NoticeableCost = 5;
 
-    /// <summary>How many standard deviations past (or ahead of) the pick a player's ADP must be before the "Early pick" (or "Bargain") tag is shown; the advice itself already keeps every reach (<see cref="IsReach"/>) out of its cards.</summary>
+    /// <summary>How many standard deviations ahead of the pick a player's ADP must be before the "Early pick" tag is shown; the advice itself already keeps every reach (<see cref="IsReach"/>) out of its cards.</summary>
     public const double EarlyPickSigmas = 1;
+
+    /// <summary>
+    /// How many standard deviations past his ADP the pick must be for "Bargain" (the price and the tag): half a sigma, about 7 picks late at pick 77 and 1-2 in round 1.
+    /// Was 1 sigma, which needed a 14-pick slide at pick 77 while "Early" shows 2-3 picks ahead (user, 2026-11-04). A display choice, not a tested one.
+    /// </summary>
+    public const double BargainSigmas = 0.5;
 
     /// <summary>
     /// Reach cost, in points, from which taking a player now counts as a reach: the advisor charges him this much for being picked before drafters usually take him (after the free pick and the chance
@@ -81,7 +88,13 @@ public static class Explainer
         }
 
         var starts = (c.Gain ?? 0) >= MinGain;
-        if (c.Gain is not null) Add(starts ? StartReason(c, roster, state.League) : BackupReason(c, roster), starts ? ReasonLabel.Starter : ReasonLabel.Backup);
+        var fills = !starts && FillsOpenSpot(player.Position, roster, state.League);
+        if (c.Gain is not null)
+        {
+            if (starts) Add(StartReason(c, roster, state.League), ReasonLabel.Starter);
+            else if (fills) Add(FillsSpotReason(c, LineupValue.Replacement(state)[player.Position]), ReasonLabel.FillsSpot);
+            else Add(BackupReason(c, roster), ReasonLabel.Backup);
+        }
 
         var scarcity = nextPick is null ? null : ScarcityReason(c, nextPick.Value);
         if (scarcity is not null) Add(scarcity, ReasonLabel.RunningOut);
@@ -95,7 +108,7 @@ public static class Explainer
         var pick = state.OverallPick + 1;
         if (PriceReason(c, reach, pick) is { } price) Add(price.Text, price.Label);
 
-        return new Explanation(player, Headline(c, starts, scarcity is not null) + (roleCaution is null ? "" : " Caution: his role may not carry over."), reasons.Take(MaxReasons).ToList(), labels.Take(MaxReasons).ToList());
+        return new Explanation(player, Headline(c, starts, fills, scarcity is not null) + (roleCaution is null ? "" : " Caution: his role may not carry over."), reasons.Take(MaxReasons).ToList(), labels.Take(MaxReasons).ToList());
     }
 
     /// <summary>
@@ -118,7 +131,7 @@ public static class Explainer
         return string.Join(" ", parts);
     }
 
-    static string Headline(ValueCandidate c, bool starts, bool scarce)
+    static string Headline(ValueCandidate c, bool starts, bool fills, bool scarce)
     {
         var p = c.Player;
         var who = $"{p.Player.PlayerName} ({p.Position}, {p.Player.Team})";
@@ -130,6 +143,7 @@ public static class Explainer
         var wait = scarce ? c.WaitBonus ?? 0 : 0;
         if (wait > Math.Max(gain, bench)) return $"{who}: the {p.Position}s thin out before your next pick, so waiting costs you.";
         if (starts) return $"{who}: he would start for you, adding about {gain:F0} points over a replacement-level player.";
+        if (fills) return $"{who}: he would fill your open {p.Position} spot, but about as well as a {p.Position} you can still get later.";
         return $"{who}: good insurance for your {p.Position} spot.";
     }
 
@@ -182,6 +196,29 @@ public static class Explainer
         return $"He {role}.";
     }
 
+    /// <summary>
+    /// True when a player at <paramref name="position"/> would take an open starting spot: his position has fewer players than starters, or (RB/WR/TE) the FLEX
+    /// is still open because the flex-eligible players beyond their starters do not fill it.
+    /// </summary>
+    public static bool FillsOpenSpot(Position position, Roster roster, LeagueSettings league)
+    {
+        if (roster.At(position).Count < league.Starters(position)) return true;
+        if (position == Position.QB || league.Flex == 0) return false;
+        var surplus = new[] { Position.RB, Position.WR, Position.TE }.Sum(p => Math.Max(0, roster.At(p).Count - league.Starters(p)));
+        return surplus < league.Flex;
+    }
+
+    /// <summary>The "Fills a spot" text: he would start, but projects no better than the replacement-level player the open spot already counts on.</summary>
+    static string FillsSpotReason(ValueCandidate c, double replacement)
+    {
+        var p = c.Player;
+        var why = c.WaitShortfall is { } cost && cost >= NoticeableCost
+            ? $"He is on the list because good {p.Position}s are running out before your next pick."
+            : "His value here is mostly as depth for injuries and bye weeks.";
+        return $"He would start in your open {p.Position} spot, but he projects {p.Player.ProjectedPpr:F0}, no more than the {replacement:F0} a {p.Position} you can still get later is expected to score, "
+               + $"so he adds little over waiting. {why}";
+    }
+
     static string BackupReason(ValueCandidate c, Roster roster)
     {
         var p = c.Player;
@@ -209,7 +246,7 @@ public static class Explainer
         var sigma = reach.Sigma(pick);
         if (c.ReachSigmas >= EarlyPickSigmas)
             return ($"This is an early pick for him: drafters usually take him around #{adp:F0} and you pick at #{pick}. The recommender still likes him enough to pay that price.", ReasonLabel.Reach);
-        if ((pick - adp) / sigma >= EarlyPickSigmas)
+        if ((pick - adp) / sigma >= BargainSigmas)
             return ($"He is a bargain here: drafters usually take him around #{adp:F0} and you pick at #{pick}.", ReasonLabel.Discount);
         return null;
     }

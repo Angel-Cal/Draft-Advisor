@@ -4,7 +4,7 @@ short_season_check.py shows the model under-projects draftable players who playe
 (-7), and short_season_fixes.py shows no model-side change repairs it. Here the projection of those players (curve available, prior games <= 9) becomes the
 ADP-curve expectation (weight 0) or the average of the two (weight 0.5); everyone else keeps the model. Curves are fit on earlier seasons only (2022-2025).
 Scored on the draftable rows: top-150 Spearman per position (mean over seasons), RMSE, and the residual of the short-season rows. Writes backtest files under
-data/processed/short_season/<arm>/ (`backtest --data <dir> --seasons 2022-2025` scores them); run: python src/evaluation/short_season_curve.py
+data/processed/experiments/short_season/<arm>/ (`backtest --data <dir> --seasons 2022-2025` scores them); run: python src/evaluation/short_season_curve.py
 """
 import sys
 from pathlib import Path
@@ -14,12 +14,13 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import SHORT_SEASON
 from src.evaluation.blend_test import rmse
 from src.evaluation.gap_reliability import load_rows
 from src.evaluation.refit_oos import write_backtest_files
 
 ROOT = Path(__file__).parent.parent.parent
-OUT_DIR = ROOT / "data" / "processed" / "short_season"
+OUT_DIR = SHORT_SEASON
 SHORT = 9
 ARMS = {"model": None, "short to curve": 0.0, "short half curve": 0.5}
 

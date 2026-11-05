@@ -22,13 +22,13 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import OOS, PIPELINE
 from src.draft.market_fallback import load_history
 from src.evaluation.blend_test import curve_points
 from src.evaluation.oos_predictions import FIRST_TRAIN_SEASON, N_SEEDS, load_params
 from src.models.train import Model, split_positions
 
 ROOT = Path(__file__).parent.parent.parent
-PROCESSED_DIR = ROOT / "data" / "processed"
 FIRST_TEST = 2019
 POSITIONS = ["QB", "RB", "WR", "TE"]
 BULLISH = 20.0
@@ -60,7 +60,7 @@ def group_of(feature, split_stat_line=False):
 
 def contributions():
     """Walk-forward test rows 2019-2025 with the seed-averaged prediction and per-feature contributions."""
-    df = pd.read_parquet(PROCESSED_DIR / "training_data.parquet")
+    df = pd.read_parquet(PIPELINE / "training_data.parquet")
     model = Model()
     frames = []
     for position, pos_df in zip(POSITIONS, split_positions(df)):
@@ -81,7 +81,7 @@ def contributions():
     c["position"] = c["position"].astype(str)
     drift = []
     for season, g in c.groupby("season"):
-        old = pd.read_parquet(PROCESSED_DIR / f"season_{season}.parquet").set_index(["player_id", "position"])["oos_pred_ppr"]
+        old = pd.read_parquet(OOS / f"season_{season}.parquet").set_index(["player_id", "position"])["oos_pred_ppr"]
         drift.append((g.set_index(["player_id", "position"])["pred"] - old.reindex(g.set_index(["player_id", "position"]).index)).abs().max())
     print(f"reproduced the walk-forward predictions: max drift against season_<year>.parquet {max(drift):.4f} PPR")
     return c

@@ -6,7 +6,7 @@ pricing implies relative to the other positions: the factor is (mean ADP-curve v
 The curve is fitted on the other seasons (leave-one-season-out, 2015-2025). Projections and ADP are untouched.
 If the edge is mostly position luck it should fall toward the outcome-shuffled level (about +13 a season); if it stays near its usual size the allocation logic is doing real work.
 
-Run: python src/evaluation/position_neutral.py   (writes data/processed/posneutral/validated and .../routed; `backtest --data <dir> --seasons 2019-2025`)
+Run: python src/evaluation/position_neutral.py   (writes data/processed/experiments/worlds/posneutral/validated and .../routed; `backtest --data <dir> --seasons 2019-2025`)
 """
 import json
 import sys
@@ -16,13 +16,13 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import LIVE, WORLDS
 from src.draft.market_fallback import fit_position_curves, load_history
 
 ROOT = Path(__file__).parent.parent.parent
-PROCESSED = ROOT / "data" / "processed"
 SEASONS = range(2019, 2026)
 DRAFTABLE_ADP = 150
-SOURCES = {"validated": PROCESSED, "routed": PROCESSED / "routed" / "routed"}
+SOURCES = {"validated": LIVE, "routed": WORLDS / "routed" / "routed"}
 
 
 def position_factors(players, curves):
@@ -50,7 +50,7 @@ if __name__ == "__main__":
     history = load_history(range(2015, 2026))
     table = {}
     for name, source in SOURCES.items():
-        out = PROCESSED / "posneutral" / name
+        out = WORLDS / "posneutral" / name
         out.mkdir(parents=True, exist_ok=True)
         for season in SEASONS:
             data = json.loads((source / f"projections_{season}_v1.json").read_text())
@@ -60,4 +60,4 @@ if __name__ == "__main__":
             (out / f"projections_{season}_v1.json").write_text(json.dumps(neutralize(data, factors)))
     print("factor applied to each position's outcomes (validated files): below 1 = the position beat its ADP pricing that season")
     print(pd.DataFrame({season: table[("validated", season)] for season in SEASONS}).round(3).to_string())
-    print(f"\nwrote {PROCESSED / 'posneutral'}")
+    print(f"\nwrote {WORLDS / 'posneutral'}")

@@ -15,12 +15,12 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import PIPELINE, WORLDS
 from src.evaluation.oos_predictions import N_SEEDS, load_params
 from src.evaluation.refit_oos import POSITIONS, write_backtest_files
 from src.models.train import Model, drop_non_features, split_positions
 
 ROOT = Path(__file__).parent.parent.parent
-PROCESSED_DIR = ROOT / "data" / "processed"
 
 
 def windows(season, fixed=None, window=None):
@@ -32,7 +32,7 @@ def windows(season, fixed=None, window=None):
 
 def window_predictions(tests, fixed=None, window=None, seed_offset=0):
     """One row per player-season in `tests` with the early-stopped, 5-seed projection from the chosen training window."""
-    df = pd.read_parquet(PROCESSED_DIR / "training_data.parquet")
+    df = pd.read_parquet(PIPELINE / "training_data.parquet")
     model = Model()
     rows = []
     for position, pos_df in zip(POSITIONS, split_positions(df)):
@@ -60,5 +60,5 @@ if __name__ == "__main__":
         fixed = (range(int(span.split("-")[0]), int(span.split("-")[1]) + 1), int(val))
     name = arg("--out", "thin")
     d = window_predictions(tests, fixed, window, int(arg("--seed-offset", 0)))
-    write_backtest_files(d, "window_pred_ppr", PROCESSED_DIR / name, f"training window {'rolling ' + str(window) if window else arg('--fixed', '2015-2017:2018')} (thin_training_check.py)", seasons=tests)
-    print(f"wrote {PROCESSED_DIR / name}")
+    write_backtest_files(d, "window_pred_ppr", WORLDS / name, f"training window {'rolling ' + str(window) if window else arg('--fixed', '2015-2017:2018')} (thin_training_check.py)", seasons=tests)
+    print(f"wrote {WORLDS / name}")
