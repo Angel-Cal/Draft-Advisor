@@ -62,7 +62,7 @@ A second, separate pre-registration: does the draft advisor, with the settings t
 **Frozen.**
 
 - **Code:** git commit `aba9db8` (Core defaults: reach cost lambda 1000 with a 4-sigma cap and a free first pick; waiting bonus weight 4; `NeedSettings.Default` = structural bench weights with option value, q = 0.23).
-- **Projections:** `data/processed/projections_2026_v1.json`, SHA-256 `ebe202bea8cb69798c28f9aa30b0d697422859de06dee02a7c495dd7a1f9518c`. This is the routed rate-view version, rebuilt 2026-10-29, so it differs from the file hashed in the WR sections above; those keep their own hash.
+- **Projections:** `data/processed/projections_2026_v1.json`, SHA-256 `ebe202bea8cb69798c28f9aa30b0d697422859de06dee02a7c495dd7a1f9518c`. This is the routed rate-view version, rebuilt 2026-10-29, so it differs from the file hashed in the WR sections above; those keep their own hash. **Location note, 2026-11-04 (no rule changed):** a later re-export (the injury-tag change) overwrote that path; the original was rebuilt byte for byte (export code at `13446f2`, header time 2026-10-29T08:43:41Z, same SHA-256) and is kept, tracked in git as a binary file, at `.claude/snapshots/projections_2026_v1_frozen.json`. Score from that copy.
 - **ADP:** `data/external/adp_2026.csv`, SHA-256 `1661f11d0a3fbab5ba303a02f2c7ac5fbe7980a7ce316176b8ea920737aa8cf6`, from the FantasyPros export dated 2026-09-07 (`FantasyPros_2026_Overall_ADP_Rankings.csv`, SHA-256 `a51645401e162bf18a6143ad1ff052f683c32ab5d911957ee3724a6ffe390a53`).
 - **League:** 12 teams, 1 QB / 2 RB / 3 WR / 1 TE / 1 FLEX / 8 bench (the user's leagues); the standard 2-WR league (`--wr 2`) is reported as well.
 
@@ -84,7 +84,7 @@ Rule: **consistent** if the result is inside the range; **failed** if below -3 p
 
 1. Refresh the raw stats through 2026 (extend the ranges in `src/data/scraper.py`; the seasonal and weekly parquet names may change, pass them with `--seasonal` and `--weekly`).
 2. Attach the outcomes to the frozen file, which also checks its hash:
-   `python src/evaluation/frozen_file_outcomes.py --season 2026 --source data/processed/projections_2026_v1.json --out data/processed/score2026 --expect-sha256 ebe202bea8cb69798c28f9aa30b0d697422859de06dee02a7c495dd7a1f9518c`
+   `python src/evaluation/frozen_file_outcomes.py --season 2026 --source .claude/snapshots/projections_2026_v1_frozen.json --out data/processed/score2026 --expect-sha256 ebe202bea8cb69798c28f9aa30b0d697422859de06dee02a7c495dd7a1f9518c`
 3. Score: `dotnet run -c Release --project csharp/src/DraftBot.Sim -- backtest --data data/processed/score2026 --seasons 2026 --seeds 200`, and again with `--wr 2`. Then `calibrate-deviations --data data/processed/score2026 --seasons 2026 --seeds 30` for the reported items.
 4. Record the results and the verdicts under the rules above in `LOG.md`.
 The builder was tested on 2025 on 2026-10-30: it reproduces every `actual_ppr` and `weekly_ppr` of the 2025 backtest file (0 of 245 differ) and the simulator gives identical results on the rebuilt file.
