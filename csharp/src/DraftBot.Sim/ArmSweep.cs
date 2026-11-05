@@ -14,9 +14,9 @@ public static class ArmSweep
     /// <param name="metric">What the arms are ranked and chosen by.</param>
     public static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds,
         IReadOnlyList<IDraftStrategy> arms, IReadOnlyList<IDraftStrategy> references, string headline, double noiseScale = 1.0,
-        SweepMetric metric = SweepMetric.Points)
+        SweepMetric metric = SweepMetric.Points, int firstSeed = 0)
     {
-        var rows = Experiment.Run(files, settings, references.Concat(arms).ToList(), noiseScales: [noiseScale], seeds).Rows;
+        var rows = Experiment.Run(files, settings, references.Concat(arms).ToList(), noiseScales: [noiseScale], seeds, firstSeed).Rows;
         var seasons = files.Keys.Order().ToList();
         var value = metric.Selector();
         var f = metric.Format();

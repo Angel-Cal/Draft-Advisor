@@ -27,6 +27,7 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import LIVE
 from src.evaluation.gap_reliability import load_rows, slope
 from src.features.advanced import TWO_WAY_PLAYERS
 from src.features.role_context import ROSTER_TEAMS, absence_share_prev, main_team
@@ -196,7 +197,7 @@ def live_2026_pool(weekly, roster):
         r26[c] = pd.to_numeric(r26[c], errors="coerce")
     r26 = r26.rename(columns={"gsis_id": "player_id"})[["player_id", "season", "week", "team", "position", "years_exp", "draft_number"]].drop_duplicates(["player_id", "season"])
     both = pd.concat([roster, r26], ignore_index=True)
-    projections = pd.DataFrame(json.load(open(RAW.parent / "processed" / "projections_2026_v1.json"))["players"])
+    projections = pd.DataFrame(json.load(open(LIVE / "projections_2026_v1.json"))["players"])
     wr = projections[projections["position"] == "WR"].copy()
     wr["curve"] = fit_position_curves(load_history())["WR"].predict(wr["adp"].rank(method="first").values)
     wr["gap"] = wr["projected_ppr"] - wr["curve"]
@@ -274,7 +275,7 @@ def live_2026_role(weekly, roster, quality, cuts):
     """2026 WRs whose 2025 depth, air-yards share and expected points per target jumped by more than the historical cut points."""
     import json
     from src.draft.market_fallback import fit_position_curves, load_history
-    projections = pd.DataFrame(json.load(open(RAW.parent / "processed" / "projections_2026_v1.json"))["players"])
+    projections = pd.DataFrame(json.load(open(LIVE / "projections_2026_v1.json"))["players"])
     wr = projections[projections["position"] == "WR"].copy()
     wr["curve"] = fit_position_curves(load_history())["WR"].predict(wr["adp"].rank(method="first").values)
     wr["gap"] = wr["projected_ppr"] - wr["curve"]

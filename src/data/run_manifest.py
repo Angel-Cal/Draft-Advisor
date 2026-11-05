@@ -7,10 +7,11 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import LIVE
 from src.data.validate import DataIntegrityError, _warn
 
 ROOT = Path(__file__).parent.parent.parent
-MANIFEST_PATH = ROOT / "data" / "processed" / "run_manifest.json"
+MANIFEST_PATH = LIVE / "run_manifest.json"
 PARAM_FILES = ["qb_params", "rb_params", "wr_params", "te_params"]
 
 

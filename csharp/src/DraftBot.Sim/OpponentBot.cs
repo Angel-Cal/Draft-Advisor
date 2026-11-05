@@ -10,8 +10,15 @@ namespace DraftBot.Sim;
 public sealed class OpponentBot
 {
     readonly Dictionary<string, double> key;
+    readonly OpponentStyle? style;
+    readonly int team;
 
-    OpponentBot(Dictionary<string, double> key) => this.key = key;
+    OpponentBot(Dictionary<string, double> key, OpponentStyle? style, int team)
+    {
+        this.key = key;
+        this.style = style is { IsDefault: false } ? style : null;
+        this.team = team;
+    }
 
     /// <summary>Pick key per player: ADP (unranked players count as one past the last ADP) plus this team's bias.</summary>
     public static OpponentBot Create(IReadOnlyList<ValuedPlayer> pool, SimSettings settings, int seed, int team)
@@ -24,11 +31,27 @@ public sealed class OpponentBot
             var adp = player.Player.Adp ?? unranked;
             key[player.Id] = adp + settings.NoiseSd(adp) * Gaussian(random);
         }
-        return new OpponentBot(key);
+        return new OpponentBot(key, settings.Style, team);
     }
 
-    public ValuedPlayer Pick(IReadOnlyList<ValuedPlayer> legal) =>
-        legal.MinBy(p => key[p.Id]) ?? throw new InvalidOperationException("no legal pick");
+    /// <summary>
+    /// The legal player with the lowest key. With a non-default <see cref="OpponentStyle"/> the key also moves earlier for the style's position shift, and, when the draft
+    /// <paramref name="state"/> is given, for a run on his position among the latest picks and for an open starter slot of this team at his position.
+    /// </summary>
+    public ValuedPlayer Pick(IReadOnlyList<ValuedPlayer> legal, DraftState? state = null)
+    {
+        if (style is null) return legal.MinBy(p => key[p.Id]) ?? throw new InvalidOperationException("no legal pick");
+        var recent = state is null || style.RunPull == 0
+            ? new Dictionary<Position, int>()
+            : state.History.TakeLast(style.RunWindow).GroupBy(h => h.Player.Position).ToDictionary(g => g.Key, g => g.Count());
+        double Key(ValuedPlayer p)
+        {
+            var k = key[p.Id] - style.Earlier(p.Position) - style.RunPull * recent.GetValueOrDefault(p.Position);
+            if (state is not null && style.NeedPull != 0 && state.Teams[team].At(p.Position).Count < state.League.Starters(p.Position)) k -= style.NeedPull;
+            return k;
+        }
+        return legal.MinBy(Key) ?? throw new InvalidOperationException("no legal pick");
+    }
 
     public static double UnrankedAdp(IReadOnlyList<ValuedPlayer> pool) => pool.Max(p => p.Player.Adp ?? 0) + 1;
 

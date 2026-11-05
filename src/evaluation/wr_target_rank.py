@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import ABLATIONS, PIPELINE
 from src.models.train import split_positions
 from src.features.team_context import build_team_context
 from src.features.wr_rank import build_wr_rank_features, WR_RANK_FEATURES
@@ -22,7 +23,7 @@ VARIANTS = {"all_receivers_total": ["target_rank_now"], "wr_total": ["wr_target_
 
 
 def load_wr():
-    train = pd.read_parquet(ROOT / "data" / "processed" / "training_data.parquet")
+    train = pd.read_parquet(PIPELINE / "training_data.parquet")
     seasonal = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_20_25.parquet")
     roster = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_roster_20_25.parquet")
     roster = roster[roster["gsis_id"].notna()]
@@ -50,6 +51,6 @@ if __name__ == "__main__":
                          rmse_delta=(r[:, 2] - base[:, 2]).mean()))
         print(label, "done", flush=True)
     out = pd.DataFrame(rows)
-    out.to_csv(ROOT / "data" / "processed" / "wr_target_rank_ablation.csv", index=False)
+    out.to_csv(ABLATIONS / "wr_target_rank_ablation.csv", index=False)
     pd.set_option("display.width", 200)
     print(out.round(4).to_string(index=False))

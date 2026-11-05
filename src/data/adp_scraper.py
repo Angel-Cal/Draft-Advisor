@@ -17,17 +17,24 @@ CACHE_DIR = ROOT / "data" / "raw" / "adp_html"
 FP_URL = "fantasypros.com/nfl/adp/ppr-overall.php"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 POSITIONS = ["QB", "RB", "WR", "TE"]
-SEASON_OPENERS = {2021: "2021-09-09", 2022: "2022-09-08", 2023: "2023-09-07",
+SEASON_OPENERS = {2019: "2019-09-05", 2020: "2020-09-10", 2021: "2021-09-09", 2022: "2022-09-08", 2023: "2023-09-07",
                   2024: "2024-09-05", 2025: "2025-09-04", 2026: "2026-09-09"}
 # how far before the day before the opener to look for a capture; 2026 has none inside 21 days (the last pre-season capture is 2026-08-15, 24 days before)
 WINDOW_DAYS = {2026: 30}
+# 2019 has no capture before the opener (Sep 5); the only one is Sep 9, so look this many days past the day before the opener. The page's own source dates
+# (`source_dates`) say whether its data predates Week 1, which is what matters.
+AFTER_DAYS = {2019: 6}
 # the live page lists its sources' dates (ESPN, CBS, Sleeper, Fantrax 9/07, RTSports 9/06), so an export of it is the pre-season ADP, dated 2026-09-07
-LOCAL_EXPORT_SNAPSHOT = {2026: "20260907"}
+# 2015-2018: FantasyPros' year view of the PPR ADP, exported by hand (no capture dates are printed; the Sleeper and RTSports columns are mostly empty then), used as the market input of the ADP-conditioned model
+LOCAL_EXPORT_SNAPSHOT = {2015: "preseason", 2016: "preseason", 2017: "preseason", 2018: "preseason", 2026: "20260907"}
 NAME_ALIASES = {"hollywood brown": "marquise brown", "gabe davis": "gabriel davis",
                 "kenny gainwell": "kenneth gainwell", "chig okonkwo": "chigoziem okonkwo",
                 "ken walker": "kenneth walker", "joshua palmer": "josh palmer",
-                "mitch trubisky": "mitchell trubisky", "robby anderson": "robbie chosen", "robbie anderson": "robbie chosen"}
-ID_OVERRIDES = {("mike williams", "WR"): "00-0033536", ("kyle williams", "WR"): "00-0040131"}
+                "mitch trubisky": "mitchell trubisky", "robby anderson": "robbie chosen", "robbie anderson": "robbie chosen",
+                "benjamin watson": "ben watson", "william fuller": "will fuller", "robert kelley": "rob kelley"}
+ID_OVERRIDES = {("mike williams", "WR"): "00-0033536", ("kyle williams", "WR"): "00-0040131",
+                # ambiguous names in the 2015-2018 exports: the veterans, not the later namesakes
+                ("frank gore", "RB"): "00-0023500", ("steve smith", "WR"): "00-0020337", ("zach miller", "TE"): "00-0025425"}
 
 
 def wayback_get(url, params=None, retries=8):
@@ -49,7 +56,7 @@ def closest_snapshot(season):
     window = lambda days: (target + timedelta(days=days)).strftime("%Y%m%d")
     back = WINDOW_DAYS.get(season, 21)
     resp = wayback_get("https://web.archive.org/cdx/search/cdx", params={
-        "url": FP_URL, "from": window(-back), "to": window(0), "output": "json",
+        "url": FP_URL, "from": window(-back), "to": window(AFTER_DAYS.get(season, 0)), "output": "json",
         "fl": "timestamp", "filter": "statuscode:200"})
     stamps = [row[0] for row in resp.json()[1:]]
     return min(stamps, key=lambda ts: abs(datetime.strptime(ts, "%Y%m%d%H%M%S") - target))
@@ -60,8 +67,16 @@ def fetch_html(season, timestamp):
     path = CACHE_DIR / f"{season}_{timestamp}.html"
     if not path.exists():
         resp = wayback_get(f"https://web.archive.org/web/{timestamp}id_/https://www.{FP_URL}")
+        if "<table" not in resp.text:      # Wayback answers 200 with a block notice when it flags the client as a bot
+            raise RuntimeError(f"Wayback returned no ADP table for {season} ({resp.text[:120]!r}); wait before retrying")
         path.write_text(resp.text, encoding="utf-8")
     return path.read_text(encoding="utf-8")
+
+
+def source_dates(html):
+    """The dates the page prints for its sources (FantasyPros lists e.g. 'ESPN 9/07'); empty if the page does not."""
+    text = re.sub(r"<[^>]+>", " ", html)
+    return sorted(set(re.findall(r"(?:ESPN|CBS|Sleeper|Fantrax|RTSports|NFL|Yahoo|MyFantasyLeague|MFL)[^0-9]{0,40}(\d{1,2}/\d{1,2})", text)))
 
 
 def parse_adp(html, season, timestamp):
@@ -76,7 +91,7 @@ def parse_adp(html, season, timestamp):
 def parse_adp_csv(path, season, snapshot):
     """FantasyPros' own CSV export of the ADP page (columns Rank, "Player (Bye)", POS, ESPN, Sleeper, CBS, RTSports, Fantrax, AVG, Real-Time): same frame as parse_adp."""
     table = pd.read_csv(path)
-    player = table["Player (Bye)"].str.extract(r"^(?P<Player>.+?)\s+(?P<team>[A-Z]{2,3})\s+\(\d+\)$")
+    player = table["Player (Bye)"].str.extract(r"^(?P<Player>.+?)(?:\s+(?!(?:II|III|IV)$)(?P<team>[A-Z]{2,3})(?:\s+\(\d+\))?)?$")      # older exports often carry no team or bye, or a team without the bye (a name suffix is not a team)
     df = pd.DataFrame({"season": season, "snapshot": snapshot, "rank": table["Rank"], "Player": player["Player"], "team": player["team"],
                        "position": table["POS"].str.extract(r"^([A-Z]+)")[0], "adp": table["AVG"]})
     return df[df["position"].isin(POSITIONS) & df["Player"].notna()]
@@ -122,7 +137,9 @@ if __name__ == "__main__":
             continue
         timestamp = closest_snapshot(season)
         print(f"{season}: snapshot {timestamp}")
-        frames.append(parse_adp(fetch_html(season, timestamp), season, timestamp))
+        html = fetch_html(season, timestamp)
+        print(f"{season}: dates printed on the page: {source_dates(html) or 'none found'}")
+        frames.append(parse_adp(html, season, timestamp))
     adp = pd.concat(frames, ignore_index=True)
     adp = attach_player_ids(adp, pd.read_parquet(ROOT / "data" / "raw" / "ids.parquet"))
     for season in seasons:

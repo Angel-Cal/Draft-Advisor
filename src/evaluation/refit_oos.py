@@ -2,9 +2,9 @@
 
 For each test season 2021-2025 and position: early-stop on the previous season (fit on the seasons before it), refit on every season before the test season
 at the best iteration, 5 seeds averaged. Both refit tree counts are run: exactly the best iteration, and scaled by the data-size ratio.
-Writes data/processed/refit_oos.parquet and prints RMSE and top-150 Spearman next to the validated (`season_<year>.parquet`) and live-style
-(`live_style_oos.parquet`) numbers, and writes backtest projection files with the unscaled refit predictions to data/processed/refit/
-(`backtest --data data/processed/refit --seasons 2021-2025 --seeds 100` measures the simulator edge).
+Writes data/processed/experiments/oos/refit_oos.parquet and prints RMSE and top-150 Spearman next to the validated (`season_<year>.parquet`) and live-style
+(`live_style_oos.parquet`) numbers, and writes backtest projection files with the unscaled refit predictions to data/processed/experiments/worlds/refit/
+(`backtest --data data/processed/experiments/worlds/refit --seasons 2021-2025 --seeds 100` measures the simulator edge).
 
 Run: python src/evaluation/refit_oos.py
 """
@@ -17,13 +17,13 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import EXPERIMENT_OOS, LIVE, PIPELINE, WORLDS
 from src.evaluation.benchmark import load_season
 from src.evaluation.live_style_oos import rmse
 from src.evaluation.oos_predictions import load_params
 from src.models.train import Model, split_positions
 
 ROOT = Path(__file__).parent.parent.parent
-PROCESSED_DIR = ROOT / "data" / "processed"
 POSITIONS = ["QB", "RB", "WR", "TE"]
 SEASONS = range(2021, 2026)
 VARIANTS = {"refit_pred_ppr": False, "refit_scaled_pred_ppr": True}
@@ -31,7 +31,7 @@ VARIANTS = {"refit_pred_ppr": False, "refit_scaled_pred_ppr": True}
 
 def refit_predictions():
     """One row per player-season in 2021-2025 with a prediction column per refit variant."""
-    df = pd.read_parquet(PROCESSED_DIR / "training_data.parquet")
+    df = pd.read_parquet(PIPELINE / "training_data.parquet")
     model = Model()
     rows = []
     for position, pos_df in zip(POSITIONS, split_positions(df)):
@@ -46,14 +46,14 @@ def refit_predictions():
     return pd.concat(rows, ignore_index=True)
 
 
-def write_backtest_files(predictions, column, out_dir, note, ratios=None):
+def write_backtest_files(predictions, column, out_dir, note, ratios=None, seasons=SEASONS):
     """Copies of the backtest projection files with projected_ppr replaced by `column` (`backtest --data <out_dir>` then scores them).
 
     ratios optionally scales each position's RMSE in the file header; market-estimate rows keep their projection.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    for season in SEASONS:
-        path = PROCESSED_DIR / f"projections_{season}_v1.json"
+    for season in seasons:
+        path = LIVE / f"projections_{season}_v1.json"
         data = json.loads(path.read_text())
         pred = predictions[predictions["season"] == season].set_index("player_id")[column]
         for player in data["players"]:
@@ -68,8 +68,8 @@ def write_backtest_files(predictions, column, out_dir, note, ratios=None):
 
 if __name__ == "__main__":
     refit = refit_predictions()
-    refit.to_parquet(PROCESSED_DIR / "refit_oos.parquet")
-    live = pd.read_parquet(PROCESSED_DIR / "live_style_oos.parquet")[["player_id", "season", "live_pred_ppr"]]
+    refit.to_parquet(EXPERIMENT_OOS / "refit_oos.parquet")
+    live = pd.read_parquet(EXPERIMENT_OOS / "live_style_oos.parquet")[["player_id", "season", "live_pred_ppr"]]
 
     frames = []
     for season in SEASONS:
@@ -94,5 +94,5 @@ if __name__ == "__main__":
 
     # position RMSE in each header is scaled by the refit/validated ratio, as in live_style_oos.py
     ratios = {p: rmse(g["refit_pred_ppr"], g["actual_ppr"]) / rmse(g["oos_pred_ppr"], g["actual_ppr"]) for p, g in d.groupby("position")}
-    out_dir = write_backtest_files(refit, "refit_pred_ppr", PROCESSED_DIR / "refit", "refit training (refit_oos.py)", ratios)
+    out_dir = write_backtest_files(refit, "refit_pred_ppr", WORLDS / "refit", "refit training (refit_oos.py)", ratios)
     print(f"\nRMSE scaled by {({p: round(r, 3) for p, r in ratios.items()})}; wrote {out_dir}")

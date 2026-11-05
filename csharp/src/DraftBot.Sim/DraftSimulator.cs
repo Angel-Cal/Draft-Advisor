@@ -27,7 +27,7 @@ public static class DraftSimulator
         {
             var team = state.CurrentTeam;
             var legal = team == slot && !settings.StrategyFollowsRules ? state.Available : DraftRules.LegalPicks(state, team, settings);
-            var pick = bots[team]?.Pick(legal) ?? strategy.Pick(state, team, legal);
+            var pick = bots[team]?.Pick(legal, state) ?? strategy.Pick(state, team, legal);
             if (team == slot && regret is not null) regrets.Add(regret.Evaluate(legal, pick, state.Round));
             state.Draft(pick.Id);
         }

@@ -3,6 +3,7 @@ import nflreadpy as nflread
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import PIPELINE
 from src.features.build_features import build_features, build_prediction_features
 from src.data.validate import (drop_junk_rows, check_raw_seasonal, check_raw_roster, check_retention,
                                 check_no_row_loss, check_training, check_prediction, SKILL_POSITIONS)
@@ -14,7 +15,7 @@ from src.features.registry import ADVANCED_MODEL_COLUMNS
 
 
 RAW_DIR = Path(__file__).parent.parent.parent / "data" / "raw"
-PROCESSED_DIR = Path(__file__).parent.parent.parent / "data" / "processed"
+PROCESSED_DIR = PIPELINE      # every save() output lands here
 
 def load_data():
     seasonal = pd.read_parquet(RAW_DIR /'seasonal_20_25.parquet')

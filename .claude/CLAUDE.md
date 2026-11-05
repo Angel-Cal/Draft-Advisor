@@ -15,7 +15,7 @@ Contract between the two: `.claude/projection_schema_v1.md`.
 
 - `src/data` scrape, clean, validate, export JSON | `src/features` feature engineering | `src/models` train/predict |
   `src/evaluation` benchmarks and ablations | `src/draft` the old Python advisor (superseded by C#; `vor.py` and `market_fallback.py` are still used by the pipeline)
-- `csharp/src/DraftBot.Core` draft logic | `csharp/src/DraftBot.Sim` simulator and CLI (`Program.cs` lists the commands) | `csharp/tests`
+- `csharp/src/DraftBot.Core` draft logic | `csharp/src/DraftBot.Sim` simulator and CLI (`Program.cs` lists the commands) | `csharp/src/DraftBot.App` app screens (Razor) | `csharp/src/DraftBot.Desktop` WPF host | `csharp/tests`
 - `archive/` dead code; `data/` is generated (gitignored), large, and should not be read wholesale
 
 ## Commands
@@ -28,3 +28,5 @@ Contract between the two: `.claude/projection_schema_v1.md`.
 
 - Document public C# members with `/// <summary>` and Python functions with docstrings; the first sentence feeds the code map.
 - Log decisions that rejected an alternative or changed results in `.claude/LOG.md`; update STATUS.md's hand-off when the state changes.
+- Every commit is also pushed to origin (the current branch) in the same step, without being asked; merging or pushing to another branch still needs a request.
+- Excercist Abstract thought

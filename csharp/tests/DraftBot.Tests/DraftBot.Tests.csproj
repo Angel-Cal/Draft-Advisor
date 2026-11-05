@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\DraftBot.Core\DraftBot.Core.csproj" />
     <ProjectReference Include="..\..\src\DraftBot.Sim\DraftBot.Sim.csproj" />
+    <ProjectReference Include="..\..\src\DraftBot.App\DraftBot.App.csproj" />
   </ItemGroup>
 
 </Project>

@@ -14,6 +14,7 @@ namespace DraftBot.Sim;
 /// <param name="StrategyFollowsRules">False lifts the caps and forced fills for the strategy being evaluated only (opponents keep them).</param>
 /// <param name="Season">Head-to-head season and playoff shape for the league-finish odds; null means <see cref="SeasonFormat"/>'s defaults (13 weeks, 6 playoff teams).</param>
 /// <param name="ScheduleSamples">Random schedules each draft's season is replayed under; the odds are averaged over them.</param>
+/// <param name="Style">Opponent behavior beyond ADP plus noise (see <see cref="OpponentStyle"/>); null is the calibrated default.</param>
 public sealed record SimSettings(
     LeagueSettings League,
     double NoiseBase = 1.0,
@@ -26,7 +27,8 @@ public sealed record SimSettings(
     bool StrategyFollowsRules = true,
     bool WeeklyLineups = true,
     SeasonFormat? Season = null,
-    int ScheduleSamples = 200)
+    int ScheduleSamples = 200,
+    OpponentStyle? Style = null)
 {
     public SeasonFormat SeasonRules => Season ?? new SeasonFormat();
 

@@ -233,6 +233,11 @@ def check_projection_file(doc):
                     errors.append(f"weekly_ppr does not add up to actual_ppr for {int((gap > 0.05).sum())} players")
     if "absence_share_prev" in players.columns and not players["absence_share_prev"].dropna().between(0, 1).all():
         errors.append("absence_share_prev outside [0, 1]")
+    if "games_history" in players.columns:      # optional: [{season, games, of}], null for players with no history
+        bad = players["games_history"].map(lambda h: h is not None and not (isinstance(h, list) and len(h) <= 3 and
+                                           all(0 <= x["games"] <= x["of"] and x["of"] in (16, 17) for x in h)))
+        if bad.any():
+            errors.append(f"{int(bad.sum())} malformed games_history entries")
     for flag in ("team_changed", "rookie_r1_teammate"):
         if flag in players.columns and not players[flag].dropna().isin([True, False]).all():
             errors.append(f"{flag} must be true, false or null")

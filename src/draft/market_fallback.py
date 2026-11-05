@@ -17,12 +17,12 @@ MAX_FIT_ADP = 250
 SYNTHETIC_PREFIX = "market:"
 
 
-def load_history():
-    """One row per player-season with a position-rank by ADP and the actual season PPR (>= 4 games)."""
+def load_history(seasons=HISTORY_SEASONS):
+    """One row per player-season in `seasons` with a position-rank by ADP and the actual season PPR (>= 4 games)."""
     seasonal = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_20_25.parquet")
     seasonal = seasonal[seasonal["player_id"].notna()]
     frames = []
-    for season in HISTORY_SEASONS:
+    for season in seasons:
         adp = pd.read_csv(ROOT / "data" / "external" / f"adp_{season}.csv")[["player_id", "position", "adp"]]
         actual = seasonal[seasonal["season"] == season][["player_id", "fantasy_points_ppr", "games"]]
         frame = adp.merge(actual, on="player_id")

@@ -64,7 +64,7 @@ features / train / predict   ---->                       VOR, tiers, recommender
 - [x] ~~Check nflverse/ffverse historical ECR~~ Skipped by decision: the user chose scraped historical ADP over expert rankings.
 - [x] Wayback Machine ADP scraper (`src/data/adp_scraper.py`): FantasyPros PPR consensus ADP, 2021–2025, snapshot closest to (and not after) the day before each season's opener; one CSV per season in `data/external/adp_<year>.csv`. (Fantasy Football Calculator was tried and rejected.)
 - [x] Walk-forward out-of-sample predictions (`src/evaluation/oos_predictions.py`, 5 seeds; kept separate from `train.py`)
-- [x] One season file per held-out season: `data/processed/season_<year>.parquet` (OOS projections + actuals) joined to `adp_<year>.csv` on `player_id`
+- [x] One season file per held-out season: `data/processed/pipeline/oos/season_<year>.parquet` (OOS projections + actuals) joined to `adp_<year>.csv` on `player_id`
 - [x] First benchmark (`src/evaluation/benchmark.py`): the model trails ADP on top-150 Spearman at every position (QB −0.10, RB −0.05, WR −0.06, TE −0.01), beats a last-year-PPR baseline everywhere, and matches ADP's ranking over all players for RB/WR/TE. Numbers and caveats in `STATUS.md`.
 
 Also done in Phase 1 (unplanned, but it changed the results): fixed a target-season leak in `implied_total` and several silent data bugs; built a validation layer, feature manifest, run manifest, integrity tests, pre-commit hook and CI workflow; ablated ~12 feature ideas (two survived: RB vacated volume and QB attempt share, plus the process features in `STATUS.md`).
@@ -84,6 +84,7 @@ Also done in Phase 1 (unplanned, but it changed the results): fixed a target-sea
 - [ ] Pull 2026 data, retrain
 - [x] Team-context features: done early, in Phase 1. Joined on the player's current (start-of-season roster) team and lagged. Only survivors are in the model; team pass rate/pace/EPA, QB quality on receivers, depth ranks within team and OL features all tested null (see `STATUS.md`). Remaining here: re-check with 2026 data
 - [ ] Half-PPR and standard targets
+- [x] Short-season (injury) under-projection: players with prior games <= 9 are projected from a rate view of the features (`src/models/short_season.py`, wired into `predict.refit_position`; done 2026-10-29, see `LOG.md`)
 - [x] ADP-to-points fallback curve for rookies and missing players: done in Phase 1 (`src/draft/market_fallback.py`, rows flagged `market_estimate`)
 
 ### Phase 4: Recommender v2 (Feb to Apr 2027; started early, 2026-10)
@@ -91,6 +92,7 @@ Also done in Phase 1 (unplanned, but it changed the results): fixed a target-sea
 - [ ] Add components one at a time; keep each only if the simulator shows improvement:
   - roster need (nonlinear, ramps up mid-draft): done 2026-10-22 as marginal lineup gain over replacement plus position-specific bench value (structural k-th-backup weights, option value over the waiver level, dead-pick exclusion), see `LOG.md`
   - tier cliff / cost of waiting until next pick: tested 2026-10-22 as a VONA bonus (`WaitSettings`, `tune-wait`); no gain on points alone, but under the league-finish metric (title odds +1.9 pp, points +11 at weight 4) it held up at every noise level and was adopted 2026-10-25 as the default advisor, see `LOG.md`
+  - reach cost at the top of the draft: first pick of reach free (`FreePicks` 1) and a top-pick confidence share on the advice; survival-scaled cost tried and rejected; settings re-tested in ten worlds (bench structure, lambda, cap, waiting weight, tiers all hold): done 2026-10-29, see `LOG.md`
   - position safety (P(player survives to my next pick) from teams picking in between): shares its survival model with the waiting bonus, so expect little extra
   - run detection (continuous intensity): deferred by the user 2026-10-28 to early draft season (Aug 2027), when mock drafts against real drafters can show whether runs exist and which way to play them; see `STATUS.md` "Open / Deferred"
   - adaptive risk by round (floor early, ceiling mid, variance late): checked 2026-10-25, no player-level risk signal (RB/WR flat; QB/TE weak and upside-only), see `LOG.md`; would also need a league-finish metric to matter

@@ -9,6 +9,7 @@ import optuna
 import sys
 import json
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import PIPELINE
 from src.features.registry import other_position_features
 
 
@@ -281,7 +282,7 @@ def split_positions(df):
 
 if __name__ == "__main__":
     sys.stdout = open("output.log", "w")
-    filepath = Path(__file__).parent.parent.parent / "data" / "processed"/ 'training_data.parquet'
+    filepath = PIPELINE / 'training_data.parquet'
     df = pd.read_parquet(filepath)
     qb_df, rb_df, wr_df, te_df = split_positions(df)
 

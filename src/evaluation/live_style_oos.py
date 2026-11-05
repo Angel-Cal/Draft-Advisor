@@ -2,9 +2,9 @@
 (a 1000-tree cap), no early stopping and one seed; `oos_predictions.py` early-stops on the previous season and averages five seeds.
 
 For each test season 2021-2025 this trains on every earlier season (the walk-forward train and validation seasons together, as the live model sees all
-past data) the live way, writes the predictions to data/processed/live_style_oos.parquet, and writes copies of the backtest projection files with
-projected_ppr replaced to data/processed/live_style/ (position RMSE in each header scaled by the live-style/validated RMSE ratio, as in blend_test.py),
-so `backtest --data data/processed/live_style --seasons 2021-2025` measures how much of the simulator edge survives the shipped recipe.
+past data) the live way, writes the predictions to data/processed/experiments/oos/live_style_oos.parquet, and writes copies of the backtest projection files with
+projected_ppr replaced to data/processed/experiments/worlds/live_style/ (position RMSE in each header scaled by the live-style/validated RMSE ratio, as in blend_test.py),
+so `backtest --data data/processed/experiments/worlds/live_style --seasons 2021-2025` measures how much of the simulator edge survives the shipped recipe.
 
 Run: python src/evaluation/live_style_oos.py
 """
@@ -17,20 +17,20 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import EXPERIMENT_OOS, LIVE, PIPELINE, WORLDS
 from src.evaluation.benchmark import load_season
 from src.evaluation.oos_predictions import load_params
 from src.models.train import Model, split_positions
 
 ROOT = Path(__file__).parent.parent.parent
-PROCESSED_DIR = ROOT / "data" / "processed"
-OUT_DIR = PROCESSED_DIR / "live_style"
+OUT_DIR = WORLDS / "live_style"
 POSITIONS = ["QB", "RB", "WR", "TE"]
 SEASONS = range(2021, 2026)
 
 
 def live_style_predictions():
     """One row per player-season in 2021-2025: predicted the live way (all earlier seasons, params as saved, no early stopping, one seed)."""
-    df = pd.read_parquet(PROCESSED_DIR / "training_data.parquet")
+    df = pd.read_parquet(PIPELINE / "training_data.parquet")
     model = Model()
     rows = []
     for position, pos_df in zip(POSITIONS, split_positions(df)):
@@ -51,7 +51,7 @@ def rmse(a, b):
 
 if __name__ == "__main__":
     live = live_style_predictions()
-    live.to_parquet(PROCESSED_DIR / "live_style_oos.parquet")
+    live.to_parquet(EXPERIMENT_OOS / "live_style_oos.parquet")
 
     ratios, table = {}, []
     for season in SEASONS:
@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
     OUT_DIR.mkdir(exist_ok=True)
     for season in SEASONS:
-        path = PROCESSED_DIR / f"projections_{season}_v1.json"
+        path = LIVE / f"projections_{season}_v1.json"
         data = json.loads(path.read_text())
         pred = live[live["season"] == season].set_index("player_id")["live_pred_ppr"]
         replaced = 0

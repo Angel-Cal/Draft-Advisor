@@ -19,7 +19,8 @@ public class ExplainerTests
         new(extra.Concat(Enumerable.Range(1, 30).Select(i => V($"f{i}", Position.WR, 100, 100 + i))), Four);
 
     static ValueCandidate Candidate(ValuedPlayer p, double? gain = 50, double? bench = 0, double? wait = null, double sigmas = 0, ValuedPlayer? fallback = null) =>
-        new(p, 50, 0, sigmas, gain, gain is null ? null : 0.25, bench, wait, WaitFallback: fallback is null ? null : new ValueCandidate(fallback, 0, 0, 0));
+        new(p, 50, 0, sigmas, gain, gain is null ? null : 0.25, bench, wait,
+            WaitAlternatives: fallback is null ? null : [new WaitAlternative(new ValueCandidate(fallback, 0, 0, 0), 0.8)], WaitShortfall: wait / 4);
 
     [Fact]
     public void A_player_who_fills_an_open_slot_is_described_as_starting_with_the_points_he_adds()
@@ -29,8 +30,7 @@ public class ExplainerTests
 
         var e = Explainer.Explain(state, 0, [Candidate(star, gain: 80)], Reach)[0];
 
-        Assert.Contains("fills an open starting RB spot", e.Reasons[0]);
-        Assert.Contains("250", e.Reasons[0]);
+        Assert.Equal("He fills an open starting RB spot.", e.Reasons[0]);
         Assert.Equal(ReasonLabel.Starter, e.Labels[0]);
         Assert.StartsWith("star (RB, KC): he would start for you, adding about 80 points", e.Headline);
     }
@@ -45,7 +45,7 @@ public class ExplainerTests
 
         var e = Explainer.Explain(state, 0, [Candidate(better, gain: 50)], Reach)[0];
 
-        Assert.Contains("would start ahead of old (150 projected)", e.Reasons[0]);
+        Assert.Equal("He would start ahead of old.", e.Reasons[0]);
     }
 
     [Fact]
@@ -64,6 +64,39 @@ public class ExplainerTests
     }
 
     [Fact]
+    public void A_player_who_would_take_an_open_spot_but_adds_nothing_over_replacement_fills_a_spot()
+    {
+        // the QB spot is open, but he projects 60 against what a later QB is expected to score: he would start, yet adds nothing over waiting (user, 2026-11-04)
+        var low = V("low", Position.QB, 60, 1);
+
+        var e = Explainer.Explain(Pool(low), 0, [Candidate(low, gain: 0)], Reach)[0];
+
+        Assert.Equal(ReasonLabel.FillsSpot, e.Labels[0]);
+        Assert.Equal("Fills a spot", e.Labels[0].DisplayName());
+        Assert.Contains("would start in your open QB spot", e.Reasons[0]);
+        Assert.Contains("open QB spot", e.Headline);
+        Assert.DoesNotContain("insurance", e.Headline);
+    }
+
+    [Fact]
+    public void The_flex_counts_as_an_open_spot_until_the_extra_rb_wr_te_fill_it()
+    {
+        var league = new LeagueSettings();          // 2 RB, 3 WR, 1 TE, 1 FLEX
+        var state = new DraftState([.. new[] { "r1", "r2", "w1", "w2", "w3" }.Select((id, i) => V(id, id[0] == 'r' ? Position.RB : Position.WR, 200, i + 1)),
+            .. Enumerable.Range(1, 40).Select(i => V($"f{i}", Position.WR, 100, 100 + i))], league);
+        var roster = state.Teams[0];
+        Assert.True(Explainer.FillsOpenSpot(Position.QB, roster, league));                  // no QB yet
+
+        foreach (var id in new[] { "r1", "r2", "w1", "w2", "w3" }) roster.Add(state.Available.First(p => p.Id == id));
+        Assert.True(Explainer.FillsOpenSpot(Position.RB, roster, league));                  // RB spots full, but the FLEX is open
+        Assert.False(Explainer.FillsOpenSpot(Position.QB, new Roster(new LeagueSettings(Qb: 0)), new LeagueSettings(Qb: 0)));
+
+        roster.Add(state.Available.First(p => p.Id == "f1"));                                // a fourth WR takes the FLEX
+        Assert.False(Explainer.FillsOpenSpot(Position.RB, roster, league));
+        Assert.True(Explainer.FillsOpenSpot(Position.TE, roster, league));                  // the TE spot itself is still open
+    }
+
+    [Fact]
     public void The_waiting_reason_names_the_fallback_the_waiting_bonus_assumed_and_how_much_worse_he_is()
     {
         var star = V("star", Position.RB, 250, 2);
@@ -74,9 +107,10 @@ public class ExplainerTests
 
         Assert.Contains(ReasonLabel.RunningOut, e.Labels);
         var reason = e.Reasons[e.Labels.ToList().IndexOf(ReasonLabel.RunningOut)];
-        Assert.Contains("mid", reason);
+        Assert.Contains("mid, projected 190", reason);
         Assert.Contains("#8", reason);
-        Assert.Contains("60 points lower", reason);
+        Assert.Contains("about 7.5 points", reason);          // the bonus (30) over the weight (4)
+        Assert.Contains("is 80%", reason);
     }
 
     [Fact]
@@ -92,9 +126,8 @@ public class ExplainerTests
         var e = Explainer.Explain(state, 0, [ranked.Single(c => c.Player.Id == "star")], reach)[0];
 
         var reason = e.Reasons[e.Labels.ToList().IndexOf(ReasonLabel.RunningOut)];
-        Assert.Contains("near", reason);
+        Assert.Contains("near, projected 200", reason);
         Assert.DoesNotContain("far", reason);
-        Assert.Contains("50 points lower", reason);
     }
 
     [Fact]
@@ -124,7 +157,7 @@ public class ExplainerTests
     }
 
     [Fact]
-    public void A_reach_and_a_bargain_are_told_apart_by_how_far_his_ADP_is_from_the_pick()
+    public void A_reach_gets_a_tag_and_a_late_pick_does_not()
     {
         var late = V("late", Position.RB, 200, 20);
         var early = V("early", Position.RB, 200, 1);
@@ -137,8 +170,8 @@ public class ExplainerTests
         Assert.Contains(ReasonLabel.Reach, reach.Labels);
         Assert.Contains("#20", reach.Reasons.Last());
         Assert.Contains("#11", reach.Reasons.Last());
-        Assert.Contains(ReasonLabel.Discount, bargain.Labels);
         Assert.DoesNotContain(ReasonLabel.Reach, bargain.Labels);
+        Assert.DoesNotContain(bargain.Reasons, r => r.Contains("bargain", StringComparison.OrdinalIgnoreCase));   // shown by the card's price, not a tag (user, 2026-11-04)
     }
 
     [Fact]
@@ -240,5 +273,25 @@ public class ExplainerTests
 
         Assert.Equal(["b", "a"], all.Select(e => e.Player.Id));
         Assert.All(all.SelectMany(e => e.Reasons.Append(e.Headline)), text => Assert.DoesNotContain("score", text, StringComparison.OrdinalIgnoreCase));
+    }
+    [Fact]
+    public void Injury_reason_lists_the_major_injury_and_the_games_missed_season_by_season()
+    {
+        var p = Player("x", Position.WR, 200, injury: true) with
+        {
+            GamesHistory = [new(2023, 16, 17), new(2024, 4, 17), new(2025, 17, 17)],
+            MajorInjury = new(2025, 4, "torn ACL"),
+        };
+
+        Assert.Equal("Major injury last season: torn ACL (week 4). Missed 14 games over the last 3 seasons (2023: 16 of 17, 2024: 4 of 17, 2025: 17 of 17), "
+                     + "so his projection carries more risk than most.", Explainer.InjuryReason(p));
+    }
+
+    [Fact]
+    public void Injury_reason_handles_one_season_and_files_without_history()
+    {
+        var rookie = Player("r", Position.RB, 200, injury: true) with { GamesHistory = [new(2025, 9, 17)] };
+        Assert.Equal("Missed 8 games in 2025 (played 9 of 17), so his projection carries more risk than most.", Explainer.InjuryReason(rookie));
+        Assert.Contains("missed significant time", Explainer.InjuryReason(Player("o", Position.RB, 200, injury: true)));
     }
 }

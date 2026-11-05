@@ -1,6 +1,6 @@
 """Freeze a season's projections and score them later with rules written down in advance (.claude/PREREGISTRATION_2026.md).
 
-  python src/evaluation/preseason_eval.py snapshot --season 2026 [--source data/processed/projections_2026_v1.json] [--output path.csv]
+  python src/evaluation/preseason_eval.py snapshot --season 2026 [--source data/processed/live/projections_2026_v1.json] [--output path.csv]
       writes .claude/snapshots/projections_<season>_preseason.csv (or --output): the projections, the ADP-curve expectation, the gap and the role-caution inputs and flag, and
       prints the SHA-256 of the source file and the snapshot so the freeze can be checked later.
   python src/evaluation/preseason_eval.py score --season 2026 --actuals data/raw/seasonal_20_26.parquet [--snapshot path] [--exclude 00-0038117]
@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import LIVE
 from src.draft.market_fallback import fit_position_curves, load_history
 from src.evaluation.benchmark import TOP_N_ADP
 from src.evaluation.gap_reliability import load_rows, slope_interval
@@ -138,14 +139,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("command", choices=["snapshot", "score"])
     parser.add_argument("--season", type=int, required=True)
-    parser.add_argument("--source", default=None, help="snapshot: the projection json (default data/processed/projections_<season>_v1.json)")
+    parser.add_argument("--source", default=None, help="snapshot: the projection json (default data/processed/live/projections_<season>_v1.json)")
     parser.add_argument("--output", default=None, help="snapshot: where to write the csv (default .claude/snapshots/projections_<season>_preseason.csv, the primary freeze; use another name for a sensitivity snapshot)")
     parser.add_argument("--snapshot", default=None, help="score: the frozen csv (default .claude/snapshots/projections_<season>_preseason.csv)")
     parser.add_argument("--actuals", default=None, help="score: seasonal stats parquet that holds the season's results")
     parser.add_argument("--exclude", nargs="*", default=[], help="score: player ids whose early results were already known when the rules were frozen")
     args = parser.parse_args()
     if args.command == "snapshot":
-        snapshot(args.season, args.source or ROOT / "data" / "processed" / f"projections_{args.season}_v1.json", args.output)
+        snapshot(args.season, args.source or LIVE / f"projections_{args.season}_v1.json", args.output)
     else:
         if not args.actuals:
             sys.exit("score needs --actuals (a seasonal stats parquet with the season's results)")

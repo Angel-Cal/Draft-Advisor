@@ -3,6 +3,7 @@ import numpy as np
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import PIPELINE, ROOT
 from src.data.pipeline import save
 from src.data.validate import check_advisor_table
 from src.draft.market_fallback import load_history, fit_position_curves, market_projections
@@ -10,7 +11,7 @@ from src.draft.market_fallback import load_history, fit_position_curves, market_
 # pooled walk-forward RMSE, test seasons 2021-2025, mean over 5 model seeds (tests/test_data_integrity.py keeps this honest)
 RMSE = {"QB": 84.28, "RB": 58.86, "WR": 53.48, "TE": 38.69}
 REPLACEMENT_RANK = {"QB": 12, "RB": 29, "WR": 41, "TE": 12}
-filepath = Path(__file__).parent.parent.parent / "data" / "processed"
+filepath = PIPELINE
 
 
 def load_predictions():
@@ -25,15 +26,15 @@ def load_predictions():
     return qb_predictions, rb_predictions, wr_predictions, te_predictions
 
 def add_adp(qb_predictions, rb_predictions, wr_predictions, te_predictions):
-    """Attach FantasyPros ADP (data/external/adp_<season>.csv, written by adp_scraper.py) and write processed/adp_table.csv."""
+    """Attach FantasyPros ADP (data/external/adp_<season>.csv, written by adp_scraper.py) and write pipeline/adp_table.csv."""
     season = int(pd.read_parquet(filepath / "prediction_data.parquet", columns=["season"])["season"].max()) + 1      # same rule export_projections uses
-    adp = pd.read_csv(filepath.parent / "external" / f"adp_{season}.csv")      # source of truth; adp_table.csv is output
+    adp = pd.read_csv(ROOT / "data" / "external" / f"adp_{season}.csv")      # source of truth; adp_table.csv is output
     adp_table = pd.DataFrame({"Player": adp["name"], "Position": adp["position"], "ADP": adp["adp"],
                               "Team": adp["team"], "player_id": adp["player_id"]})
     adp_table = normalize_names(adp_table)
     adp_table = adp_table.dropna(subset=["ADP"]).drop_duplicates("player_id")
     adp_table = adp_table.sort_values("ADP").reset_index(drop=True)
-    adp_table.to_csv(filepath.parent/"processed"/ "adp_table.csv", index=False)
+    adp_table.to_csv(filepath / "adp_table.csv", index=False)
     qb_predictions = add_adp_helper(adp_table, qb_predictions)
     qb_predictions = qb_predictions.dropna(subset=["adp"])
     rb_predictions = add_adp_helper(adp_table, rb_predictions)

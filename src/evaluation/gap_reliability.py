@@ -17,13 +17,13 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import PIPELINE, WORLDS
 from src.draft.market_fallback import load_history
 from src.evaluation.benchmark import load_season
 from src.evaluation.blend_test import SEASONS, blended, curve_points, rmse
 from src.evaluation.refit_oos import write_backtest_files
 
 ROOT = Path(__file__).parent.parent.parent
-PROCESSED_DIR = ROOT / "data" / "processed"
 N_BOOT = 2000
 SEED = 0
 
@@ -31,7 +31,7 @@ SEED = 0
 def load_rows():
     """Ranked player-seasons 2022-2025 with the model, the ADP curve, the outcome and the player-type columns."""
     history = load_history()
-    features = pd.read_parquet(PROCESSED_DIR / "training_data.parquet")[["player_id", "season", "games", "games_delta", "age", "years_exp"]]
+    features = pd.read_parquet(PIPELINE / "training_data.parquet")[["player_id", "season", "games", "games_delta", "age", "years_exp"]]
     rows = []
     for season in SEASONS:
         df = load_season(season)
@@ -98,7 +98,7 @@ CANDIDATES = {
     "position x gap sign": lambda d: d["position"] + np.where(d["gap"] > 0, "+", "-"),
     "RB fades only": lambda d: pd.Series(np.where((d["position"] == "RB") & (d["gap"] < 0), "RB-", "keep"), index=d.index),
 }
-CANDIDATE_DIR = PROCESSED_DIR / "gap_shrink"
+CANDIDATE_DIR = WORLDS / "gap_shrink"
 
 
 def adjusted(d, key):

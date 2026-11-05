@@ -12,9 +12,9 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import ABLATIONS, OOS
 
 ROOT = Path(__file__).parent.parent.parent
-PROCESSED_DIR = ROOT / "data" / "processed"
 EXTERNAL_DIR = ROOT / "data" / "external"
 SEASONS = range(2021, 2026)
 TOP_N_ADP = 150
@@ -36,7 +36,7 @@ def weekly_features(weekly, season, suffix):
 
 def load_season(season, weekly):
     """Draftable veterans for one season with prior-season features and the realised misses."""
-    oos = pd.read_parquet(PROCESSED_DIR / f"season_{season}.parquet")
+    oos = pd.read_parquet(OOS / f"season_{season}.parquet")
     adp = pd.read_csv(EXTERNAL_DIR / f"adp_{season}.csv")[["player_id", "adp"]]
     df = oos.merge(adp, on="player_id").nsmallest(TOP_N_ADP, "adp")
     df = df.merge(weekly_features(weekly, season - 1, "prev"), on="player_id").merge(weekly_features(weekly, season, "now")[["player_id", "sd_now", "games_now"]], on="player_id", how="left")
@@ -77,7 +77,7 @@ if __name__ == "__main__":
                 rows.append({"position": position, "feature": feature, "target": target, "n": n, "partial_r": r,
                              "seasons_same_sign": int(sum(np.sign(x) == np.sign(r) for x in per_season if not np.isnan(x))), "seasons": int(sum(not np.isnan(x) for x in per_season))})
     results = pd.DataFrame(rows)
-    results.to_csv(PROCESSED_DIR / "risk_predictability.csv", index=False)
+    results.to_csv(ABLATIONS / "risk_predictability.csv", index=False)
     print(f"{len(data)} player-seasons, {data['season'].nunique()} seasons, top {TOP_N_ADP} by ADP, >= {MIN_GAMES} prior games")
     for target in TARGETS:
         print(f"\n{target}: partial Spearman with prior-season feature (same-sign seasons in brackets)")

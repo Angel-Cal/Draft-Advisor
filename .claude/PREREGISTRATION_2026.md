@@ -55,6 +55,52 @@ Nothing new gets tested on these 2026 results and called pre-registered; any ide
 2. Run the scorer command above, with `--actuals` pointing at the refreshed file.
 3. Record the results and the decision under the rules above in `LOG.md`.
 
+## Advisor edge (registered 2026-10-30, before any 2026 results are in our data)
+
+A second, separate pre-registration: does the draft advisor, with the settings tuned on 2019-2025, beat plain ADP when scored on 2026 outcomes? Everything in the sections above is unchanged.
+
+**Frozen.**
+
+- **Code:** git commit `aba9db8` (Core defaults: reach cost lambda 1000 with a 4-sigma cap and a free first pick; waiting bonus weight 4; `NeedSettings.Default` = structural bench weights with option value, q = 0.23).
+- **Projections:** `data/processed/projections_2026_v1.json`, SHA-256 `ebe202bea8cb69798c28f9aa30b0d697422859de06dee02a7c495dd7a1f9518c`. This is the routed rate-view version, rebuilt 2026-10-29, so it differs from the file hashed in the WR sections above; those keep their own hash. **Location note, 2026-11-04 (no rule changed):** a later re-export (the injury-tag change) overwrote that path; the original was rebuilt byte for byte (export code at `13446f2`, header time 2026-10-29T08:43:41Z, same SHA-256) and is kept, tracked in git as a binary file, at `.claude/snapshots/projections_2026_v1_frozen.json`. Score from that copy.
+- **ADP:** `data/external/adp_2026.csv`, SHA-256 `1661f11d0a3fbab5ba303a02f2c7ac5fbe7980a7ce316176b8ea920737aa8cf6`, from the FantasyPros export dated 2026-09-07 (`FantasyPros_2026_Overall_ADP_Rankings.csv`, SHA-256 `a51645401e162bf18a6143ad1ff052f683c32ab5d911957ee3724a6ffe390a53`).
+- **League:** 12 teams, 1 QB / 2 RB / 3 WR / 1 TE / 1 FLEX / 8 bench (the user's leagues); the standard 2-WR league (`--wr 2`) is reported as well.
+
+**P1 (primary).** The `need+wait` advisor against pure ADP, paired, on the 2026 file with 2026 outcomes: title odds in percentage points, opponent noise x1, 200 seeds, clustered standard error.
+Expected +4.5 pp; 90% season-level range -3 to +12 (seven backtest seasons 2019-2025: per-season SD 2.7 pp on the validated files and 5.6 on the live-recipe files, means 4.5 and 5.4).
+Rule: **consistent** if the result is inside the range; **failed** if below -3 pp; above +12 pp is reported as luck, not as a gain. One season has little power: this can catch a broken advisor, not confirm the edge.
+
+**P2 (pooled).** Add 2026 as the eighth season to the live-recipe backtest series and report the pooled mean title edge with a season-level 90% interval. **Supported** if the interval's lower bound is above 0.
+
+**P3 (points).** The same comparison in starter points: expected +40, 90% range -30 to +120 (per-season SD 39 to 51). Reported alongside, no decision attached.
+
+**Reported, no decision attached:** the 2-WR league version of P1 and P3; the split of the gain by rounds 1-2, 3-6 and 7+; the WR-over-RB swap payoff in rounds 3-6 with the passed RB and the taken WR listed separately (`calibrate-deviations`).
+
+**What may not change.** The frozen items, the metric, the seed count and the ranges above. Any change to the advisor's settings before scoring makes the result a hypothesis for 2027. Nothing found while looking at the 2026 results is called pre-registered.
+
+**Known limits.** The 2026 season began 2026-09-09 and the file was rebuilt after that; its inputs hold no 2026 results, but the user has seen some early ones. The test uses ADP-following bots, not real drafters. It tests the settings tuned on 2019-2025 (the tuning channel stays open until this runs), and the 2026 ADP is the FantasyPros export of 2026-09-07.
+
+**Procedure** (after the regular season, January 2027):
+
+1. Refresh the raw stats through 2026 (extend the ranges in `src/data/scraper.py`; the seasonal and weekly parquet names may change, pass them with `--seasonal` and `--weekly`).
+2. Attach the outcomes to the frozen file, which also checks its hash:
+   `python src/evaluation/frozen_file_outcomes.py --season 2026 --source .claude/snapshots/projections_2026_v1_frozen.json --out data/processed/score2026 --expect-sha256 ebe202bea8cb69798c28f9aa30b0d697422859de06dee02a7c495dd7a1f9518c`
+3. Score: `dotnet run -c Release --project csharp/src/DraftBot.Sim -- backtest --data data/processed/score2026 --seasons 2026 --seeds 200`, and again with `--wr 2`. Then `calibrate-deviations --data data/processed/score2026 --seasons 2026 --seeds 30` for the reported items.
+4. Record the results and the verdicts under the rules above in `LOG.md`.
+The builder was tested on 2025 on 2026-10-30: it reproduces every `actual_ppr` and `weekly_ppr` of the 2025 backtest file (0 of 245 differ) and the simulator gives identical results on the rebuilt file.
+
+## Trend-driven likes (registered 2026-11-04, before any 2026 results are in our data)
+
+**Origin.** A lead from `src/evaluation/gap_attribution.py` (LOG 2026-11-04), found after the fact as one of five driver groups: draftable bullish calls (model minus ADP curve > +20 PPR) whose largest positive excess contribution is the year-over-year change features (`*_delta`, "trend") ended below the curve in 6 of 9 cases (67%) in 2019-2025, against 39-42% for the stat-line, context and profile groups, and did not beat the curve on average (-1.4 PPR; slope -0.12). That fits an older lead: RBs whose carries per game rose are over-projected (LOG 2026-10-21).
+
+**Hypothesis T1.** Trend-driven likes end below the ADP curve more often than the other bullish calls. 2026 is the first season this lead has not seen.
+
+**Fixed now.** The definitions in `gap_attribution.py` as of this date: the five groups (stat line, efficiency, trend, profile, context), bullish = gap > +20 among the top 150 by ADP among modeled players, the walk-forward fold for the test season (train through 2024, early-stop on 2025, 5 seeds, params as saved), the typical-at-price baseline (quadratic in the curve value per position, fit on all modeled rows with an ADP), and the ADP curve fit on 2015 through the season before.
+
+**What 2026 can and cannot show.** About 1-2 trend-driven likes per season (9 in seven seasons), so 2026 alone decides nothing. Report every 2026 trend-driven like with its projection, curve value, outcome and whether it ended below the curve, next to the other bullish calls' below-curve share. Keep a running out-of-sample count from 2026 on; **no change to the model or the advisor until there are at least 20 out-of-sample trend-driven likes**, and then only if their below-curve share beats the rest by more than the shuffled-label spread (the same test as in the script). The 2019-2025 rows are never pooled into that count.
+
+**Procedure** (January 2027, after step 1 of the procedure above): extend `LAST_SEASON` in `Model.rolling_splits` (`src/models/train.py`) to 2026, check that `gap_attribution.py` still reproduces `season_<year>.parquet` for 2019-2025, run it, and record the 2026 rows and the running count in `LOG.md`.
+
 ## 2027: the clean version
 
 In the first week of August 2027, before the draft, regenerate the projections, rosters and ADP, run `snapshot --season 2027`, record its SHA-256 here, and score it after the season with the same
