@@ -192,7 +192,7 @@ public static class ReachTrace
     {
         var pool = Valuator.Value(file.Players, file.PositionRmse, settings.League, new ValuationSettings(settings.TierGapRmse));
         var state = new DraftState(pool, settings.League);
-        foreach (var name in drafted) state.Draft(pool.Where(p => p.Player.PlayerName == name).OrderBy(p => p.Player.Adp ?? 1e9).First().Id);
+        foreach (var name in drafted) state.Draft(state.Available.Where(p => p.Player.PlayerName == name).OrderBy(p => p.Player.Adp ?? 1e9).First().Id);     // undrafted only: two players can share a name (J.Williams)
         var lines = new List<string> { $"pick {state.OverallPick + 1} for team {teamIndex + 1}, after {string.Join(", ", drafted)}" };
         foreach (var variant in Variants().Prepend(new ValueRecommenderStrategy("adopted", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait))
                      .Append(new("S + free 1 pick", new ReachSettings(1000, 4, SurvivalPower: 1, FreePicks: 1), NeedSettings.Default, ValueRecommender.DefaultWait)))

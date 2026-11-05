@@ -77,6 +77,30 @@ public sealed class ValueRecommenderStrategy(string name, ReachSettings reach, N
     }
 }
 
+/// <summary>
+/// Another strategy with a QB timing rule (LOG 2026-11-04): before round <paramref name="notBeforeRound"/> it may not take a QB, except one ranked within the
+/// season's top <paramref name="allowTopRanks"/> QBs by ADP (0 = no exception). If the rule would leave nothing legal, the rule is dropped for that pick.
+/// </summary>
+public sealed class QbTimingStrategy(string name, IDraftStrategy inner, int notBeforeRound, int allowTopRanks = 0) : IDraftStrategy
+{
+    public string Name => name;
+
+    public ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)
+    {
+        if (state.Round >= notBeforeRound) return inner.Pick(state, team, legal);
+        var filtered = legal.Where(p => p.Position != Position.QB || QbAdpRank(state, p) <= allowTopRanks).ToList();
+        return inner.Pick(state, team, filtered.Count > 0 ? filtered : legal);
+    }
+
+    /// <summary>1-based rank of a QB by ADP among every QB in the season's pool (still available or already drafted); a QB with no ADP ranks last.</summary>
+    public static int QbAdpRank(DraftState state, ValuedPlayer qb)
+    {
+        var adp = qb.Player.Adp ?? double.MaxValue;
+        return 1 + state.Available.Concat(state.History.Select(h => h.Player))
+            .Count(p => p.Position == Position.QB && p.Id != qb.Id && (p.Player.Adp ?? double.MaxValue) < adp);
+    }
+}
+
 /// <summary>The recommender with a rollout on top (see <see cref="Rollout"/>): the base recommender proposes, simulated completions of the draft decide.</summary>
 public sealed class RolloutStrategy(string name, ReachSettings reach, NeedSettings need, RolloutSettings rollout, WaitSettings? baseWait = null) : IDraftStrategy
 {

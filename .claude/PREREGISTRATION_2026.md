@@ -89,6 +89,18 @@ Rule: **consistent** if the result is inside the range; **failed** if below -3 p
 4. Record the results and the verdicts under the rules above in `LOG.md`.
 The builder was tested on 2025 on 2026-10-30: it reproduces every `actual_ppr` and `weekly_ppr` of the 2025 backtest file (0 of 245 differ) and the simulator gives identical results on the rebuilt file.
 
+## Trend-driven likes (registered 2026-11-04, before any 2026 results are in our data)
+
+**Origin.** A lead from `src/evaluation/gap_attribution.py` (LOG 2026-11-04), found after the fact as one of five driver groups: draftable bullish calls (model minus ADP curve > +20 PPR) whose largest positive excess contribution is the year-over-year change features (`*_delta`, "trend") ended below the curve in 6 of 9 cases (67%) in 2019-2025, against 39-42% for the stat-line, context and profile groups, and did not beat the curve on average (-1.4 PPR; slope -0.12). That fits an older lead: RBs whose carries per game rose are over-projected (LOG 2026-10-21).
+
+**Hypothesis T1.** Trend-driven likes end below the ADP curve more often than the other bullish calls. 2026 is the first season this lead has not seen.
+
+**Fixed now.** The definitions in `gap_attribution.py` as of this date: the five groups (stat line, efficiency, trend, profile, context), bullish = gap > +20 among the top 150 by ADP among modeled players, the walk-forward fold for the test season (train through 2024, early-stop on 2025, 5 seeds, params as saved), the typical-at-price baseline (quadratic in the curve value per position, fit on all modeled rows with an ADP), and the ADP curve fit on 2015 through the season before.
+
+**What 2026 can and cannot show.** About 1-2 trend-driven likes per season (9 in seven seasons), so 2026 alone decides nothing. Report every 2026 trend-driven like with its projection, curve value, outcome and whether it ended below the curve, next to the other bullish calls' below-curve share. Keep a running out-of-sample count from 2026 on; **no change to the model or the advisor until there are at least 20 out-of-sample trend-driven likes**, and then only if their below-curve share beats the rest by more than the shuffled-label spread (the same test as in the script). The 2019-2025 rows are never pooled into that count.
+
+**Procedure** (January 2027, after step 1 of the procedure above): extend `LAST_SEASON` in `Model.rolling_splits` (`src/models/train.py`) to 2026, check that `gap_attribution.py` still reproduces `season_<year>.parquet` for 2019-2025, run it, and record the 2026 rows and the running count in `LOG.md`.
+
 ## 2027: the clean version
 
 In the first week of August 2027, before the draft, regenerate the projections, rosters and ADP, run `snapshot --season 2027`, record its SHA-256 here, and score it after the season with the same

@@ -229,7 +229,10 @@ Data files, `archive/` and build output are not listed.
     - `ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)`
   - `static class Decomposition`
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds)`
-- **Program.cs** (368 lines): Top-level program; commands: describe, backtest, draft, diagnose, decompose, calibrate-noise, fit-noise, tune-bench, tune-need, tune-wait, tune-spread, tune-standardized, diagnose-scales, tune-scarce, tune-where, tune-horizon, tune-lookahead, tune-reach-wait, tune-reach-survival, tune-reach-picks, stability-reach, case-reach, world-sweep, calibrate-deviations, trace-reach, tune-reach-free, calibrate-survival, tune-rollout, tune-reachable, tune-survival, tune-slot, tune-bye, tune-starter, tune-value, tune-reach, tune-tiers
+- **PickLog.cs** (37 lines)
+  - `static class PickLog`: Every pick of the drafter's own team, for analysis outside the Sim (`pick-log`: which round and which players each strategy takes).
+    - `static int Write(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, IReadOnlyList<IDraftStrategy> strategies, int seeds, string path, int firstSeed = 0)`: Runs each strategy from every slot against the same seeded opponents (as `Experiment.Run` does) and writes one CSV row per pick of the drafter's team: season, seed, slot, strategy, round, player, p...
+- **Program.cs** (377 lines): Top-level program; commands: describe, backtest, draft, pick-log, diagnose, decompose, calibrate-noise, fit-noise, tune-bench, tune-need, tune-wait, tune-spread, tune-standardized, diagnose-scales, tune-scarce, tune-where, tune-horizon, tune-lookahead, tune-reach-wait, tune-reach-survival, tune-reach-picks, stability-reach, case-reach, world-sweep, calibrate-deviations, trace-reach, tune-reach-free, calibrate-survival, tune-rollout, tune-reachable, tune-survival, tune-slot, tune-bye, tune-starter, tune-value, tune-reach, tune-tiers
 - **ReachTrace.cs** (215 lines)
   - `static class ReachTrace`: Shared-state comparison of reach-cost variants: the adopted advisor drafts, and at each of its turns every variant is asked what it would pick in that same state (so the drafts do not drift apart).
     - `static List<ValueRecommenderStrategy> Variants()`: The adopted advisor against the variants; `adp` is plain ADP and `no reach cost` is the advisor with lambda 0 (the 4-sigma cap stays).
@@ -294,7 +297,7 @@ Data files, `archive/` and build output are not listed.
 - **SimSettings.cs** (36 lines)
   - `record SimSettings(LeagueSettings League, double NoiseBase = 1.0, double NoisePerAdp = 0.12, double NoiseScale = 1.0, int MaxQb = 2, int MaxTe = 2, int ForceStartersAfterRound = 10, double TierGapRmse = 0.1, bool StrategyFollowsRules = true, bool WeeklyLineups = true, SeasonFormat? Season = null, int ScheduleSamples = 200, OpponentStyle? Style = null)`: Simulator knobs.
     - `double NoiseSd(double adp)`
-- **Strategies.cs** (91 lines)
+- **Strategies.cs** (115 lines)
   - `interface IDraftStrategy`: How the drafter being evaluated chooses.
     - `ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)`
   - `class AdpStrategy`: Takes the best ADP available, no noise: an opponent who always agrees with the market.
@@ -307,6 +310,9 @@ Data files, `archive/` and build output are not listed.
     - `ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)`
   - `class ValueRecommenderStrategy(string name, ReachSettings reach, NeedSettings? need = null, WaitSettings? wait = null, LookaheadSettings? lookahead = null)`: The single-score recommender (ValueRecommender): its best legal suggestion, else the best VOR.
     - `ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)`
+  - `class QbTimingStrategy(string name, IDraftStrategy inner, int notBeforeRound, int allowTopRanks = 0)`: Another strategy with a QB timing rule (LOG 2026-11-04): before round notBeforeRound it may not take a QB, except one ranked within the season's top allowTopRanks QBs by ADP (0 = no exception).
+    - `ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)`
+    - `static int QbAdpRank(DraftState state, ValuedPlayer qb)`: 1-based rank of a QB by ADP among every QB in the season's pool (still available or already drafted); a QB with no ADP ranks last.
   - `class RolloutStrategy(string name, ReachSettings reach, NeedSettings need, RolloutSettings rollout, WaitSettings? baseWait = null)`: The recommender with a rollout on top (see Rollout): the base recommender proposes, simulated completions of the draft decide.
     - `ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)`
 - **SurvivalCalibration.cs** (96 lines)
@@ -329,9 +335,10 @@ Data files, `archive/` and build output are not listed.
     - `static TierScore Score(ProjectionFile file, double gapRmse)`: Season score: adjusted R-squared per position, weighted by players per position.
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, double current)`: Leave-one-season-out on the advantage over equal-size tiers: pick the grid value with the best mean advantage on the other seasons, score it on the held-out season, and compare with the current thr...
   - `record TierScore(double AdjustedR2, double QuantileR2, int Tiers, double LargestTierShare)`
-- **WorldSweep.cs** (86 lines)
+- **WorldSweep.cs** (99 lines)
   - `static class WorldSweep`: One arm set on one projection world (a `--data` folder), reported both ways at once (mean starter points and title odds, each against the adopted advisor, paired) in tab-separated RESULT lines that...
     - `static List<ValueRecommenderStrategy> Arms(string set = "reach")`: The arm sets: "reach" = the waiting-bonus weight (0 = plain `need`) at lambda 300 / 1000 / 3000, the reach cap and the first free pick; "need" = the roster-need terms (bench weights, the option val...
+    - `static List<IDraftStrategy> QbArms(IDraftStrategy adopted)`: The "qb" arm set (LOG 2026-11-04): the adopted advisor with no QB before round 6 / 7 / 8 / 9, and the barbell (no QB before round 8 unless he is a QB1-2 by ADP), testing whether skipping the mid-ti...
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale, int firstSeed, string set = "reach")`
 
 ## csharp/tests/DraftBot.Tests/
@@ -350,6 +357,7 @@ Data files, `archive/` and build output are not listed.
 - **NoiseCalibrationTests.cs** (90 lines): 4 tests
 - **OpponentBotTests.cs** (60 lines): 3 tests
 - **ProjectionFileTests.cs** (69 lines): 5 tests
+- **QbTimingTests.cs** (48 lines): 3 tests
 - **ReachTests.cs** (131 lines): 9 tests
 - **RecommenderTests.cs** (157 lines): 10 tests
 - **RolloutTests.cs** (96 lines): 5 tests
@@ -452,6 +460,15 @@ Data files, `archive/` and build output are not listed.
 
 - **adp_curve_world.py** (43 lines): Does the advisor's WR-over-RB lean come from what the model learned, or from the lineup structure? (runnable)
   - `option(name, default)`
+- **adp_dispersion.py** (163 lines): Is the model's disagreement with the ADP curve more trustworthy where the ADP sources disagree with each other? (runnable)
+  - `source_adps(season)`: player_id -> list of the platforms' ADPs, parsed from the cached page that adp_{season}.csv was built from.
+  - `load_rows()`: Draftable modeled player-seasons with the curve, the projection in each world and the source dispersion.
+  - `slope(g, world)`: Least squares through the origin: share of the model's gap to the curve that shows up in the outcome.
+  - `terciles(disp)`
+  - `player_boot(g, world, rng)`
+  - `perm_difference(d, world, rng)`: Observed disagree-minus-agree slope and its permutation p (dispersion shuffled within season).
+  - `held_out(d, world)`: Leave one season out: b per tercile fit on the other seasons (clipped 0-1), applied to the held-out season; RMSE vs model and a uniform b.
+  - `report(d)`
 - **adp_residual.py** (123 lines): Train the model on what ADP misses? (runnable)
   - `adp_table()`: player_id, season, adp, ADP position and position rank, for the seasons with an ADP file.
   - `curve_values(rows, history, fit_seasons)`: The ADP-curve value of each row, from a curve fitted on `fit_seasons` of the history.
@@ -462,6 +479,9 @@ Data files, `archive/` and build output are not listed.
 - **advanced_features.py** (69 lines): Ablation of the 'process' feature groups (expected points, role, depth chart, team EPA, Next Gen Stats) on every position, each added to that position's current model, with a random-noise control o... (runnable)
   - `group_columns(group, position)`: Candidate columns of a group (or 'a+b' union of groups) for a position: not already in its model.
   - `position_frame(position, train, context)`
+- **advisor_qb_timing.py** (62 lines): When does the adopted advisor take its QB, and from which tier? (runnable)
+  - `load()`
+  - `report(picks, qbs)`
 - **availability_prior.py** (132 lines): Does a games-played prior fitted on a long window beat the totals target? (runnable)
   - `load_history()`: One row per player-season 2000-2025 (QB/RB/WR/TE): games, workload per game and age.
   - `transitions(hist)`: A player with 4+ games in s-1 who played in s: last season's workload and this season's age -> this season's games as a share of the schedule.
@@ -481,6 +501,13 @@ Data files, `archive/` and build output are not listed.
 - **frozen_file_outcomes.py** (60 lines): Attach a season's outcomes to a frozen projections file, so the simulator can score the advisor on it (.claude/PREREGISTRATION_2026.md, "Advisor edge"). (runnable)
   - `with_outcomes(doc, seasonal, weekly, season)`: A copy of the projections document as a backtest file with the season's actual_ppr and weekly_ppr on every player.
   - `option(name, default)`
+- **gap_attribution.py** (167 lines): Why is the model above the ADP curve, and do some reasons end below the curve more often? (runnable)
+  - `group_of(feature, split_stat_line)`: Driver family of a feature: stat line (or volume / production when split), efficiency, trend, profile, context.
+  - `contributions()`: Walk-forward test rows 2019-2025 with the seed-averaged prediction and per-feature contributions.
+  - `add_market(c)`
+  - `excess_by_group(d, split_stat_line)`: Per-row excess contribution of each driver group over its typical value at the same curve value (per position).
+  - `report(d, excess, label, rng)`
+  - `test(b, focus, rng)`: Below-curve rate of `focus`-driven bullish calls minus the rest, with labels shuffled within season and position.
 - **gap_reliability.py** (140 lines): Is the model's disagreement with the ADP curve equally trustworthy for every kind of player? (runnable)
   - `load_rows()`: Ranked player-seasons 2022-2025 with the model, the ADP curve, the outcome and the player-type columns.
   - `slope(g)`: Least squares through the origin: how much of the model's gap shows up in the outcome.
@@ -495,6 +522,15 @@ Data files, `archive/` and build output are not listed.
   - `load_draft_capital()`: Draft pick number by player where the roster file has it (it starts in 2020, so older players may be missing); None if the columns are absent.
   - `team_event(season, team, starter_id, chart_rows, rb, team_weeks)`: One team-season: when the starter was absent, who gained points.
   - `main()`
+- **int_game_script.py** (178 lines): Do interceptions carry positive fantasy signal for QBs through game script? (runnable)
+  - `qb_play_points(pbp)`: Long table: one row per (play, credited player) with that player's PPR points, dropback and interception on the play.
+  - `game_rows()`: One row per team-game: the starter's first-half interceptions, second-half and full-game outcomes, and the pre-treatment controls.
+  - `ols(d, y, x)`
+  - `fit(d, y, x, rng)`: Coefficients of x with a 90% bootstrap interval that resamples whole QBs.
+  - `game_report(d, rng)`
+  - `season_rows()`
+  - `season_report(d, rng)`
+  - `market_report(d, rng)`
 - **live_style_oos.py** (87 lines): What if the validated backtests had been trained the way the live 2026 file is? (runnable)
   - `live_style_predictions()`: One row per player-season in 2021-2025: predicted the live way (all earlier seasons, params as saved, no early stopping, one seed).
   - `rmse(a, b)`
@@ -513,6 +549,9 @@ Data files, `archive/` and build output are not listed.
   - `h1(d, label, rng)`
   - `h2(d, label, rng)`
   - `score(season, snapshot_path, actuals_path, exclude)`
+- **qb_cliff.py** (71 lines): Realized QB cliff: what does each QB ADP rank actually return over a replacement QB? (runnable)
+  - `rows()`
+  - `report(d)`
 - **qb_depth_chart.py** (45 lines): Ablation of QB depth-chart features: expected starter, share of roster attempts, competition for the job. (runnable)
   - `load_qb_with_depth()`
   - `variants(base_cols)`
@@ -520,6 +559,13 @@ Data files, `archive/` and build output are not listed.
   - `load_qb()`
   - `run(qb, features, seed, kind, params, target, games, noise_cols)`: Walk-forward out-of-sample predictions on the total-PPR scale.
   - `score(oos, top_keys)`
+- **qb_opportunity_cost.py** (116 lines): Is an early QB worth his pick? (runnable)
+  - `replacement_levels(season_points, wr_slots)`: {position: season points of the best non-starter} from a greedy fill of a 12-team lineup with actual points.
+  - `rows(wr_slots)`
+  - `qb_excess(d, window, comparators)`: QB rows in the three tiers with the mean start VOR of the RBs/WRs drafted within `window` picks.
+  - `boot(e, stat, rng)`
+  - `tier_mean(e, tier)`
+  - `report(e, label, rng)`
 - **rb_availability.py** (103 lines): Are the RB busts in rounds 3-6 injuries or genuine underperformance?
 - **rb_depth_chart.py** (46 lines): Ablation of RB depth-chart features on top of the current RB model (which already has the vacated features). (runnable)
   - `load_rb_with_depth()`

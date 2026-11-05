@@ -63,6 +63,15 @@ switch (command)
         break;
     case "draft":
         return Draft(dataDir, options, settings);
+    case "pick-log":      // every own-team pick of plain ADP and the adopted advisor, as CSV (`--out`, default <data>/pick_log.csv)
+    {
+        var files = ParseSeasons(options.GetValueOrDefault("seasons") ?? "2019-2025").ToDictionary(y => y, y => ProjectionFile.Load(Path.Combine(dataDir, $"projections_{y}_v1.json")));
+        IDraftStrategy[] strategies = [new AdpStrategy(), new ValueRecommenderStrategy("need+wait", ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait)];
+        var output = options.GetValueOrDefault("out") ?? Path.Combine(dataDir, "pick_log.csv");
+        var n = PickLog.Write(files, settings, strategies, int.Parse(options.GetValueOrDefault("seeds") ?? "100"), output);
+        Console.WriteLine($"wrote {n} picks to {output}");
+        break;
+    }
     case "diagnose":
         Console.WriteLine(PickDiagnostics.Report(
             ProjectionFile.Load(Path.Combine(dataDir, $"projections_{options.GetValueOrDefault("season") ?? "2025"}_v1.json")),

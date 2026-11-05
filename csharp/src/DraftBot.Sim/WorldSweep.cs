@@ -59,10 +59,23 @@ public static class WorldSweep
         return arms;
     }
 
+    /// <summary>
+    /// The "qb" arm set (LOG 2026-11-04): the adopted advisor with no QB before round 6 / 7 / 8 / 9, and the barbell (no QB before round 8 unless he is a QB1-2 by ADP),
+    /// testing whether skipping the mid-tier QBs (QB3-7, rounds 4-6) that the realized-value study found to be the weakest buy helps.
+    /// </summary>
+    public static List<IDraftStrategy> QbArms(IDraftStrategy adopted)
+    {
+        var arms = new List<IDraftStrategy>();
+        foreach (var round in new[] { 6, 7, 8, 9 })
+            arms.Add(new QbTimingStrategy($"no QB before round {round}", adopted, round));
+        arms.Add(new QbTimingStrategy("barbell: QB1-2 or round 8+", adopted, 8, allowTopRanks: 2));
+        return arms;
+    }
+
     public static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale, int firstSeed, string set = "reach")
     {
         var headline = new ValueRecommenderStrategy(HeadlineName, ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait);
-        var arms = Arms(set);
+        var arms = set == "qb" ? QbArms(headline) : Arms(set).Cast<IDraftStrategy>().ToList();
         var strategies = new List<IDraftStrategy> { new AdpStrategy(), headline };
         strategies.AddRange(arms);
         var rows = Experiment.Run(files, settings, strategies, [noiseScale], seeds, firstSeed).Rows;
