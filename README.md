@@ -68,7 +68,7 @@ An earlier version of this table reported higher R² from a leaked feature (see 
 - Ceiling/floor bands from position-level walk-forward RMSE; per-position tiers by value dropoff
 - A simulator drafts against ADP-plus-noise opponents calibrated to real mock drafts and scores rosters by weekly lineups with actual results
 - Not yet built: position safety, run detection (roadmap Phase 4). Plain-language reasoning is built (`Explainer`; shown by `draft --recommender need`)
-- The earlier Python advisor in `src/draft/` is superseded by the C# core
+- The earlier Python advisor is superseded by the C# core (kept in `archive/` with the concluded experiments)
 
 ## Project Structure
 
@@ -86,21 +86,18 @@ DraftBot/
 │   │   ├── validate.py       # Data-integrity checks that stop a run on silent problems
 │   │   ├── adp_scraper.py    # Historical ADP (FantasyPros via the Wayback Machine)
 │   │   ├── ffc_scraper.py    # Real pick-spread data (FFC mock drafts) for simulator calibration
+│   │   ├── advisor_table.py  # Live projections + ADP, with ADP-curve rows for rookies/unmodeled players
+│   │   ├── market_fallback.py # The ADP-to-points curves behind those rows
 │   │   └── export_projections.py  # projections_<season>_v1.json for the C# side
 │   ├── features/
 │   │   └── build_features.py # Feature engineering and prediction features
 │   ├── models/
 │   │   ├── train.py          # Model training, walk-forward validation, Optuna tuning
 │   │   └── predict.py        # Generates 2026 projections from trained models
-│   └── draft/
-│       ├── vor.py            # VOR calculation, ceiling/floor, tiers, ADP integration
-│       ├── roster.py         # Per-team roster needs and flex/bench tracking
-│       ├── draft_state.py    # Snake draft order and 12-team player pool
-│       ├── recommender.py    # Position + player scoring and recommendation (superseded by csharp/)
-│       └── advisor.py        # Interactive CLI draft assistant (superseded by csharp/)
+│   └── evaluation/           # Walk-forward predictions, benchmark, pre-registered scoring, world sweeps
 ├── csharp/                   # DraftBot.Core (draft logic), DraftBot.Sim (simulator + CLI), DraftBot.App + DraftBot.Desktop (the app), DraftBot.Tests (xUnit)
 ├── .claude/                  # STATUS.md (hand-off), LOG.md (decision log), ROADMAP.md, projection schema
-├── plan.txt                  # Draft advisor design spec
+├── archive/                  # Concluded experiments and the superseded Python advisor (see its README)
 ├── requirements.txt
 └── README.md
 ```
@@ -136,7 +133,7 @@ python src/models/train.py
 python src/models/predict.py
 
 # 5. Build the draft advisor's player table (adds ADP-derived projections for rookies/unmodeled players)
-python src/draft/vor.py
+python src/data/advisor_table.py
 
 # 6. Export the projection files the C# side reads (live season + 2021-2025 backtests)
 python src/data/export_projections.py

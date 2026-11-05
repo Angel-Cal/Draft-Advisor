@@ -30,15 +30,6 @@ def load_data():
     check_raw_roster(roster)
     return seasonal, roster, pbp, id, snaps
 
-def load_predictions():
-    adp_table = pd.read_csv(Path(__file__).parent.parent.parent / "data" / "external" / "4for4-adp-table.csv")
-    qb_predictions = pd.read_parquet(PROCESSED_DIR / "qb_predictions.parquet")
-    rb_predictions = pd.read_parquet(PROCESSED_DIR / "rb_predictions.parquet")
-    wr_predictions = pd.read_parquet(PROCESSED_DIR / "wr_predictions.parquet")
-    te_predictions = pd.read_parquet(PROCESSED_DIR / "te_predictions.parquet")
-
-    return adp_table, qb_predictions, rb_predictions, wr_predictions, te_predictions
-
 def clean_data(roster, season):
     ROSTER_KEEP_COLS = [
         "gsis_id",

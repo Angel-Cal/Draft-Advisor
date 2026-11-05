@@ -14,7 +14,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.paths import PIPELINE
-from src.draft.market_fallback import load_history
+from src.data.market_fallback import load_history
 from src.evaluation.benchmark import SEASONS, load_season
 from src.evaluation.blend_test import curve_points
 

@@ -160,13 +160,13 @@ def test_advisor_table_has_one_row_per_player_and_flags_market_rows():
 
 @needs(*(OOS / f"season_{s}.parquet" for s in SEASONS))
 def test_advisor_rmse_constants_match_the_current_walk_forward_error():
-    """vor.py uses these for ceiling/floor; they must track the model, not an earlier version of it."""
-    from src.draft.vor import RMSE
+    """Every projection file carries these as position_rmse; they must track the model, not an earlier version of it."""
+    from src.data.export_projections import RMSE
     oos = pd.concat(pd.read_parquet(OOS / f"season_{s}.parquet") for s in SEASONS)
     seed_columns = [c for c in oos.columns if c.startswith("oos_pred_s")]
     for position, group in oos.groupby("position"):
         current = np.mean([np.sqrt(((group[c] - group["actual_ppr"]) ** 2).mean()) for c in seed_columns])
-        assert RMSE[position] == pytest.approx(current, rel=0.05), f"{position}: vor.py has {RMSE[position]}, current {current:.2f}"
+        assert RMSE[position] == pytest.approx(current, rel=0.05), f"{position}: export_projections.py has {RMSE[position]}, current {current:.2f}"
 
 
 @needs(RAW / "ff_opportunity_14_25.parquet", PIPELINE / "training_data.parquet")

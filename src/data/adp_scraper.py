@@ -10,7 +10,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from src.draft.vor import normalize_names
+from src.data.advisor_table import normalize_names
 
 ROOT = Path(__file__).parent.parent.parent
 CACHE_DIR = ROOT / "data" / "raw" / "adp_html"

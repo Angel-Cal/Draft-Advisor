@@ -69,7 +69,7 @@ public static class NoiseCalibration
         {
             var scaled = settings with { NoiseScale = scale };
             var spreads = files.SelectMany(f => Simulate(
-                Valuator.Value(f.Value.Players, f.Value.PositionRmse, settings.League, new ValuationSettings(settings.TierGapRmse)), scaled, drafts)).ToList();
+                settings.Pool(f.Value), scaled, drafts)).ToList();
             return ByBucket(spreads);
         });
 
@@ -102,7 +102,7 @@ public static class NoiseCalibration
     {
         var realBuckets = ByBucket(files.Keys.SelectMany(season => LoadReal(Path.Combine(ffcDirectory, $"ffc_ppr12_{season}.json"))));
         var pools = files.ToDictionary(f => f.Key, f =>
-            Valuator.Value(f.Value.Players, f.Value.PositionRmse, settings.League, new ValuationSettings(settings.TierGapRmse)));
+            settings.Pool(f.Value));
 
         var results = new List<(double Base, double Slope, double Rms, double[] Ratios)>();
         foreach (var b in bases)

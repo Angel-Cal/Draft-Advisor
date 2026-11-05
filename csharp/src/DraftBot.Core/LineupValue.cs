@@ -42,35 +42,26 @@ public static class LineupValue
     public static double Best(IEnumerable<ValuedPlayer> players, LeagueSettings league, IReadOnlyDictionary<Position, double> replacement)
     {
         var list = players.ToList();
+        return BestTotal(league, position => list.Where(p => p.Position == position).Select(p => p.Player.ProjectedPpr)
+            .Concat(Enumerable.Repeat(replacement[position], league.Starters(position) + league.Flex)));
+    }
+
+    /// <summary>
+    /// The lineup rule every score shares: each position's dedicated slots take its highest <paramref name="points"/>, then the FLEX slots take the highest
+    /// leftovers among RB/WR/TE. <paramref name="points"/> gives the candidates' points at a position (projections, actual season points or one week's points).
+    /// </summary>
+    public static double BestTotal(LeagueSettings league, Func<Position, IEnumerable<double>> points)
+    {
         var total = 0.0;
         var leftovers = new List<double>();
         foreach (var position in Positions.All)
         {
             var slots = league.Starters(position);
-            var candidates = list.Where(p => p.Position == position).Select(p => p.Player.ProjectedPpr)
-                .Concat(Enumerable.Repeat(replacement[position], slots + league.Flex))
-                .OrderByDescending(x => x).ToList();
-            total += candidates.Take(slots).Sum();
-            if (Positions.FlexEligible.Contains(position)) leftovers.AddRange(candidates.Skip(slots));
+            var ranked = points(position).OrderByDescending(x => x).ToList();
+            total += ranked.Take(slots).Sum();
+            if (Positions.FlexEligible.Contains(position)) leftovers.AddRange(ranked.Skip(slots));
         }
-        total += leftovers.OrderByDescending(x => x).Take(league.Flex).Sum();
-        return total;
-    }
-
-    /// <summary>
-    /// What a roster earns in bye weeks beyond its season-total lineup. Each week's lineup is the best one among the players not on bye, a player scoring
-    /// his projection / 17 in each week he plays and open slots filled by replacement-level pickups every week, so the weekly lineups add up to
-    /// <see cref="Best"/> plus this cover. Adding a player changes it by the points his presence adds in other players' bye weeks (and keeps a bye hole of his own covered).
-    /// </summary>
-    public static double ByeCover(IReadOnlyList<ValuedPlayer> roster, LeagueSettings league, IReadOnlyDictionary<Position, double> replacement, ByeSchedule byes)
-    {
-        const double PlayedWeeks = 17;
-        var full = Best(roster, league, replacement);
-        var byeWeeks = roster.Select(p => byes.WeekOf(p.Player.Team)).Where(w => w is not null).Select(w => w!.Value).Distinct().ToList();
-        var total = full * (ByeSchedule.Weeks - byeWeeks.Count);
-        foreach (var week in byeWeeks)
-            total += Best(roster.Where(p => byes.WeekOf(p.Player.Team) != week), league, replacement);
-        return total / PlayedWeeks - full;
+        return total + leftovers.OrderByDescending(x => x).Take(league.Flex).Sum();
     }
 
     /// <summary>How many points <paramref name="candidate"/> adds to the roster's best lineup (0 if he would not start).</summary>

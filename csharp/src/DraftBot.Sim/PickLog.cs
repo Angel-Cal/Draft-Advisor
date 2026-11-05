@@ -14,7 +14,7 @@ public static class PickLog
         int seeds, string path, int firstSeed = 0)
     {
         var pools = files.ToDictionary(f => f.Key,
-            f => Valuator.Value(f.Value.Players, f.Value.PositionRmse, settings.League, new ValuationSettings(settings.TierGapRmse)));
+            f => settings.Pool(f.Value));
         var jobs = (from season in files.Keys.Order()
                     from seed in Enumerable.Range(firstSeed, seeds)
                     from slot in Enumerable.Range(0, settings.League.Teams)

@@ -4,7 +4,6 @@ import lightgbm as lgb
 from lightgbm import LGBMRegressor
 import sklearn.metrics as lk
 from pathlib import Path
-import matplotlib.pyplot as plt
 import optuna 
 import sys
 import json
@@ -22,27 +21,6 @@ def drop_non_features(df):
 
 
 class Model:
-    def __init__(self, train_range = (range(2015, 2024)), val_season = 2024, test_season = 2025):
-        self.train_range = train_range
-        self.val_season = val_season
-        self.test_season = test_season
-
-    def temporal_splits(self, df):
-        x_train = df[df["season"].isin(self.train_range)]
-        y_train = x_train["target_ppr"]
-        x_train = drop_non_features(x_train)
-
-        x_val = df[df["season"] == self.val_season]
-        y_val = x_val["target_ppr"]
-        x_val = drop_non_features(x_val)
-
-        x_test = df[df["season"] == self.test_season]
-        y_test = x_test["target_ppr"]
-        x_test = drop_non_features(x_test)
-
-        return x_train, x_val, x_test, y_train, y_val, y_test
-     
-        
     def rolling_splits(self, df, min_train_seasons=6, offset=1):
         FIRST_SEASON = 2015
         LAST_SEASON = 2025
@@ -118,22 +96,6 @@ class Model:
         rmse = lk.root_mean_squared_error(y_test, y_pred)
         return mae, r2, rmse
 
-    def evaluate_per_position(self, model, x_test, y_test, positions):
-        y_pred = model.predict(x_test)
-        for pos in positions.unique():
-            mask = positions == pos
-            mae = lk.mean_absolute_error(y_test[mask], y_pred[mask])
-            r2 = lk.r2_score(y_test[mask], y_pred[mask])
-            rmse = lk.root_mean_squared_error(y_test[mask], y_pred[mask])
-            print("Metric for position: ", pos, "\nMAE: ", mae, "\nr2:", r2, "\nRMSE: ", rmse, "\n")
-
-    def ablate(self, x_train, x_test, x_val, exclude_patterns = []):
-        drop_cols = [c for c in x_train.columns if any(p in c for p in exclude_patterns)]
-        x_train = x_train.drop(columns = drop_cols)
-        x_test = x_test.drop(columns = drop_cols)
-        x_val = x_val.drop(columns = drop_cols)
-        return x_train, x_test, x_val
-    
     def objective(self, trial, df):
         params = {
             "num_leaves" : trial.suggest_int("num_leaves", 20, 200),
@@ -189,16 +151,6 @@ class Model:
             json.dump(best_params, f)
         return best_params
         
-
-# def print_baseline(df, model):
-#     x_train, x_val, x_test, y_train, y_val, y_test = model.temporal_splits(df)
-#     x_train_org = x_train
-#     x_val_org = x_val
-#     x_test_org = x_test
-#     positions = x_test["position"]
-#     trained_model = model.train_model(x_train, x_val, y_train, y_val)
-#     mae, r2, rmse = model.evaluate_model(trained_model, x_test, y_test)
-#     print("Baseline:\nMAE: ", mae, "R2: ", r2, "RMSE: ", rmse, "\n")
 
 def print_rolling_splits(df, model, params):
     df_list = model.rolling_splits(df)
@@ -287,10 +239,6 @@ if __name__ == "__main__":
     qb_df, rb_df, wr_df, te_df = split_positions(df)
 
     model = Model()
-    qb_x_train, qb_x_val, qb_x_test, qb_y_train, qb_y_val, qb_y_test = model.temporal_splits(qb_df)
-    rb_x_train, rb_x_val, rb_x_test, rb_y_train, rb_y_val, rb_y_test = model.temporal_splits(rb_df)
-    wr_x_train, wr_x_val, wr_x_test, wr_y_train, wr_y_val, wr_y_test = model.temporal_splits(wr_df)
-    te_x_train, te_x_val, te_x_test, te_y_train, te_y_val, te_y_test = model.temporal_splits(te_df)
 
     qb_params = model.tune(qb_df, "qb")
     rb_params = model.tune(rb_df, "rb")

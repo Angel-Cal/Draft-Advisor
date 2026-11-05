@@ -23,7 +23,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.paths import OOS, PIPELINE
-from src.draft.market_fallback import load_history
+from src.data.market_fallback import load_history
 from src.evaluation.blend_test import curve_points
 from src.evaluation.oos_predictions import FIRST_TRAIN_SEASON, N_SEEDS, load_params
 from src.models.train import Model, split_positions

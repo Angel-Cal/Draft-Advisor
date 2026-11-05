@@ -13,7 +13,7 @@ public static class WorldSweep
 
     /// <summary>
     /// The arm sets: "reach" = the waiting-bonus weight (0 = plain `need`) at lambda 300 / 1000 / 3000, the reach cap and the first free pick; "need" = the roster-need terms (bench weights, the
-    /// option value over the waiver level, the bench miss probability q, the starter option and the bye-week cover); "tiers" = no arms (the headline alone, for the tier-gap setting, which only
+    /// option value over the waiver level, the bench miss probability q); "tiers" = no arms (the headline alone, for the tier-gap setting, which only
     /// changes the pool's valuation); "ladder" = the adopted advisor with its terms removed one level at a time (no waiting bonus, then no option value, then no roster need at all), for pricing each
     /// term in points and title odds. All against the adopted advisor.
     /// </summary>
@@ -28,7 +28,7 @@ public static class WorldSweep
                 foreach (var weight in new[] { 0.0, 1, 2, 4, 8 })
                 {
                     if (lambda == 1000 && weight == 4) continue;                                                   // the headline itself
-                    arms.Add(new($"l{lambda:0} w{weight:0.##}", new ReachSettings(lambda, 4, FreePicks: 1), NeedSettings.Default, weight == 0 ? null : new WaitSettings(weight, Reachable: AlternativeReach.WithinCap)));
+                    arms.Add(new($"l{lambda:0} w{weight:0.##}", new ReachSettings(lambda, 4, FreePicks: 1), NeedSettings.Default, weight == 0 ? null : new WaitSettings(weight)));
                 }
             foreach (var cap in new[] { 2.0, 3, 6 })
                 arms.Add(new($"cap {cap:0}", new ReachSettings(1000, cap, FreePicks: 1), NeedSettings.Default, wait));
@@ -42,13 +42,6 @@ public static class WorldSweep
                 arms.Add(new($"flat bench {f:0.##}", reach, new NeedSettings(f), wait));
             foreach (var q in new[] { 0.10, 0.15, 0.30, 0.40 })
                 arms.Add(new($"q {q:0.##}", reach, NeedSettings.Option with { MissProbability = q }, wait));
-            arms.Add(new("starter option 1", reach, NeedSettings.WithStarterOption(1), wait));
-            arms.Add(new("bye cover", reach, NeedSettings.WithByes, wait));
-        }
-        else if (set == "spread")
-        {
-            foreach (var scale in new[] { 0.5, 2.0, 3, 4 })      // the advisor's survival spread told the opponents' noise (the sim's own noise is --noise); 1 is the headline
-                arms.Add(new($"wait spread x{scale:0.#}", reach, NeedSettings.Default, new WaitSettings(4, SpreadScale: scale, Reachable: AlternativeReach.WithinCap)));
         }
         else if (set == "ladder")
         {

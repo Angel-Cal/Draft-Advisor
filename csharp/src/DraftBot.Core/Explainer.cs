@@ -10,7 +10,8 @@ public static class ReasonLabels
     {
         ReasonLabel.Starter => "Starter",
         ReasonLabel.Backup => "Not a starter",
-        ReasonLabel.FillsSpot => "Fills a spot",        ReasonLabel.RunningOut => "Recommended",
+        ReasonLabel.FillsSpot => "Fills a spot",
+        ReasonLabel.RunningOut => "Recommended",
         ReasonLabel.Reach => "Early pick",
         ReasonLabel.InjuryHistory => "Injury history",
         ReasonLabel.EstimatedProjection => "Estimate",
@@ -50,8 +51,7 @@ public static class Explainer
     public const double BargainSigmas = 0.5;
 
     /// <summary>
-    /// Reach cost, in points, from which taking a player now counts as a reach: the advisor charges him this much for being picked before drafters usually take him (after the free pick and the chance
-    /// that he lasts to my next pick). One line for everything the screen says about reaching: the advice backs no reach as a card (see <see cref="DraftAdvisor"/>), a position whose best player is a
+    /// Reach cost, in points, from which taking a player now counts as a reach: the advisor charges him this much for being picked before drafters usually take him (after the free pick). One line for everything the screen says about reaching: the advice backs no reach as a card (see <see cref="DraftAdvisor"/>), a position whose best player is a
     /// reach is marked so, and "not reaching for him" in <see cref="BestPickReason"/> is below it. A display choice, not a tested one; defined by the cost, not by a number of picks, so the screen
     /// and the score cannot disagree.
     /// </summary>
@@ -69,13 +69,13 @@ public static class Explainer
     /// One explanation per candidate, in the order given. The player named as the alternative to waiting is the one the recommender's waiting bonus
     /// assumed (<see cref="ValueCandidate.WaitFallback"/>), so the sentence and the score always agree.
     /// </summary>
-    public static IReadOnlyList<Explanation> Explain(DraftState state, int teamIndex, IReadOnlyList<ValueCandidate> candidates, ReachSettings reach)
+    public static IReadOnlyList<Explanation> Explain(DraftState state, int teamIndex, IReadOnlyList<ValueCandidate> candidates)
     {
         var next = state.NextPick(teamIndex);
-        return candidates.Select(c => Describe(c, state, state.Teams[teamIndex], reach, next)).ToList();
+        return candidates.Select(c => Describe(c, state, state.Teams[teamIndex], next)).ToList();
     }
 
-    static Explanation Describe(ValueCandidate c, DraftState state, Roster roster, ReachSettings reach, int? nextPick)
+    static Explanation Describe(ValueCandidate c, DraftState state, Roster roster, int? nextPick)
     {
         var player = c.Player;
         var reasons = new List<string>();
@@ -105,7 +105,7 @@ public static class Explainer
         if (player.Player.MarketEstimate) Add("His projection is an estimate taken from where drafters rank him (a rookie or a player the model cannot score), so it is less reliable.", ReasonLabel.EstimatedProjection);
 
         var pick = state.OverallPick + 1;
-        if (PriceReason(c, reach, pick) is { } price) Add(price.Text, price.Label);
+        if (PriceReason(c, pick) is { } price) Add(price.Text, price.Label);
 
         return new Explanation(player, Headline(c, starts, fills, scarcity is not null) + (roleCaution is null ? "" : " Caution: his role may not carry over."), reasons.Take(MaxReasons).ToList(), labels.Take(MaxReasons).ToList());
     }
@@ -203,7 +203,7 @@ public static class Explainer
     {
         if (roster.At(position).Count < league.Starters(position)) return true;
         if (position == Position.QB || league.Flex == 0) return false;
-        var surplus = new[] { Position.RB, Position.WR, Position.TE }.Sum(p => Math.Max(0, roster.At(p).Count - league.Starters(p)));
+        var surplus = Positions.FlexEligible.Sum(p => Math.Max(0, roster.At(p).Count - league.Starters(p)));
         return surplus < league.Flex;
     }
 
@@ -239,10 +239,9 @@ public static class Explainer
                + $"{who.Player.PlayerName}, projected {who.Player.ProjectedPpr:F0}, and the chance he is still there is {Math.Round(fallback.Survival * 100):0}%.";
     }
 
-    static (string Text, ReasonLabel Label)? PriceReason(ValueCandidate c, ReachSettings reach, int pick)
+    static (string Text, ReasonLabel Label)? PriceReason(ValueCandidate c, int pick)
     {
         if (c.Player.Player.Adp is not { } adp) return null;
-        var sigma = reach.Sigma(pick);
         if (c.ReachSigmas >= EarlyPickSigmas)
             return ($"This is an early pick for him: drafters usually take him around #{adp:F0} and you pick at #{pick}. The recommender still likes him enough to pay that price.", ReasonLabel.Reach);
         return null;

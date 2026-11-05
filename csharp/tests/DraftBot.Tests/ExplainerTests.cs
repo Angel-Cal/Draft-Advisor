@@ -28,7 +28,7 @@ public class ExplainerTests
         var star = V("star", Position.RB, 250, 2);
         var state = Pool(star);
 
-        var e = Explainer.Explain(state, 0, [Candidate(star, gain: 80)], Reach)[0];
+        var e = Explainer.Explain(state, 0, [Candidate(star, gain: 80)])[0];
 
         Assert.Equal("He fills an open starting RB spot.", e.Reasons[0]);
         Assert.Equal(ReasonLabel.Starter, e.Labels[0]);
@@ -43,7 +43,7 @@ public class ExplainerTests
         var state = Pool(old, better);
         state.Draft("old");
 
-        var e = Explainer.Explain(state, 0, [Candidate(better, gain: 50)], Reach)[0];
+        var e = Explainer.Explain(state, 0, [Candidate(better, gain: 50)])[0];
 
         Assert.Equal("He would start ahead of old.", e.Reasons[0]);
     }
@@ -56,7 +56,7 @@ public class ExplainerTests
         var state = Pool(old, backup);
         state.Draft("old");
 
-        var e = Explainer.Explain(state, 0, [Candidate(backup, gain: 0, bench: 5)], Reach)[0];
+        var e = Explainer.Explain(state, 0, [Candidate(backup, gain: 0, bench: 5)])[0];
 
         Assert.Equal(ReasonLabel.Backup, e.Labels[0]);
         Assert.Contains("insurance for old", e.Reasons[0]);
@@ -69,7 +69,7 @@ public class ExplainerTests
         // the QB spot is open, but he projects 60 against what a later QB is expected to score: he would start, yet adds nothing over waiting (user, 2026-11-04)
         var low = V("low", Position.QB, 60, 1);
 
-        var e = Explainer.Explain(Pool(low), 0, [Candidate(low, gain: 0)], Reach)[0];
+        var e = Explainer.Explain(Pool(low), 0, [Candidate(low, gain: 0)])[0];
 
         Assert.Equal(ReasonLabel.FillsSpot, e.Labels[0]);
         Assert.Equal("Fills a spot", e.Labels[0].DisplayName());
@@ -103,7 +103,7 @@ public class ExplainerTests
         var mid = V("mid", Position.RB, 190, 30);
         var state = Pool(star, mid);
 
-        var e = Explainer.Explain(state, 0, [Candidate(star, gain: 80, wait: 30, fallback: mid)], Reach)[0];
+        var e = Explainer.Explain(state, 0, [Candidate(star, gain: 80, wait: 30, fallback: mid)])[0];
 
         Assert.Contains(ReasonLabel.RunningOut, e.Labels);
         var reason = e.Reasons[e.Labels.ToList().IndexOf(ReasonLabel.RunningOut)];
@@ -123,7 +123,7 @@ public class ExplainerTests
         var reach = new ReachSettings(1000, 4);
 
         var ranked = ValueRecommender.Rank(state, reach, wait: ValueRecommender.DefaultWait);
-        var e = Explainer.Explain(state, 0, [ranked.Single(c => c.Player.Id == "star")], reach)[0];
+        var e = Explainer.Explain(state, 0, [ranked.Single(c => c.Player.Id == "star")])[0];
 
         var reason = e.Reasons[e.Labels.ToList().IndexOf(ReasonLabel.RunningOut)];
         Assert.Contains("near, projected 200", reason);
@@ -137,8 +137,8 @@ public class ExplainerTests
         var twin = V("twin", Position.RB, 246, 30);
         var state = Pool(star, twin);
 
-        var noBonus = Explainer.Explain(state, 0, [Candidate(star, wait: null, fallback: twin)], Reach)[0];
-        var similar = Explainer.Explain(state, 0, [Candidate(star, wait: 3, fallback: twin)], Reach)[0];
+        var noBonus = Explainer.Explain(state, 0, [Candidate(star, wait: null, fallback: twin)])[0];
+        var similar = Explainer.Explain(state, 0, [Candidate(star, wait: 3, fallback: twin)])[0];
 
         Assert.DoesNotContain(ReasonLabel.RunningOut, noBonus.Labels);
         Assert.DoesNotContain(ReasonLabel.RunningOut, similar.Labels);
@@ -151,7 +151,7 @@ public class ExplainerTests
         var mid = V("mid", Position.RB, 190, 30);
         var state = Pool(star, mid);
 
-        var e = Explainer.Explain(state, 0, [Candidate(star, gain: 20, bench: 0, wait: 60, fallback: mid)], Reach)[0];
+        var e = Explainer.Explain(state, 0, [Candidate(star, gain: 20, bench: 0, wait: 60, fallback: mid)])[0];
 
         Assert.Contains("RBs thin out before your next pick", e.Headline);
     }
@@ -164,8 +164,8 @@ public class ExplainerTests
         var state = Pool(late, early);
         foreach (var filler in Enumerable.Range(1, 10)) state.Draft($"f{filler}");       // now pick 11
 
-        var reach = Explainer.Explain(state, 0, [Candidate(late, sigmas: 2.5)], Reach)[0];
-        var bargain = Explainer.Explain(state, 0, [Candidate(early)], Reach)[0];
+        var reach = Explainer.Explain(state, 0, [Candidate(late, sigmas: 2.5)])[0];
+        var bargain = Explainer.Explain(state, 0, [Candidate(early)])[0];
 
         Assert.Contains(ReasonLabel.Reach, reach.Labels);
         Assert.Contains("#20", reach.Reasons.Last());
@@ -180,7 +180,7 @@ public class ExplainerTests
         var risky = V("risky", Position.RB, 200, 10, injury: true, market: true);
         var state = Pool(risky);
 
-        var e = Explainer.Explain(state, 0, [Candidate(risky)], Reach)[0];
+        var e = Explainer.Explain(state, 0, [Candidate(risky)])[0];
 
         Assert.Contains(ReasonLabel.InjuryHistory, e.Labels);
         Assert.Contains(ReasonLabel.EstimatedProjection, e.Labels);
@@ -194,7 +194,7 @@ public class ExplainerTests
         var mid = V("mid", Position.RB, 190, 60);
         var state = Pool(star, mid);
 
-        var e = Explainer.Explain(state, 0, [Candidate(star, gain: 80, wait: 30, sigmas: 3, fallback: mid)], Reach)[0];
+        var e = Explainer.Explain(state, 0, [Candidate(star, gain: 80, wait: 30, sigmas: 3, fallback: mid)])[0];
 
         Assert.Equal(4, e.Reasons.Count);
         Assert.Equal(4, e.Labels.Count);
@@ -207,7 +207,7 @@ public class ExplainerTests
         var star = V("star", Position.RB, 250, 2);
         var state = Pool(star);
 
-        var e = Explainer.Explain(state, 0, [Candidate(star, gain: null)], Reach)[0];
+        var e = Explainer.Explain(state, 0, [Candidate(star, gain: null)])[0];
 
         Assert.DoesNotContain(ReasonLabel.Starter, e.Labels);
         Assert.DoesNotContain(ReasonLabel.Backup, e.Labels);
@@ -220,7 +220,7 @@ public class ExplainerTests
         var p = WithRole(V("p", Position.WR, 190, 30), 0.81, moved: true, rookie: false);
         var state = Pool(p);
 
-        var e = Explainer.Explain(state, 0, [Candidate(p)], Reach)[0];
+        var e = Explainer.Explain(state, 0, [Candidate(p)])[0];
 
         var reason = e.Reasons[e.Labels.ToList().IndexOf(ReasonLabel.RoleMayNotCarryOver)];
         Assert.Contains("81% of his targets", reason);
@@ -237,7 +237,7 @@ public class ExplainerTests
         var both = WithRole(V("b", Position.WR, 190, 31), 0.9, moved: true, rookie: true);
         var state = Pool(rookieOnly, both);
 
-        var all = Explainer.Explain(state, 0, [Candidate(rookieOnly), Candidate(both)], Reach);
+        var all = Explainer.Explain(state, 0, [Candidate(rookieOnly), Candidate(both)]);
         string Caution(Explanation e) => e.Reasons[e.Labels.ToList().IndexOf(ReasonLabel.RoleMayNotCarryOver)];
 
         Assert.Contains("first-round rookie receiver is on his roster", Caution(all[0]));
@@ -255,7 +255,7 @@ public class ExplainerTests
         var p = WithRole(V("p", Position.WR, 190, 30), absence, moved, rookie);
         var state = Pool(p);
 
-        var e = Explainer.Explain(state, 0, [Candidate(p)], Reach)[0];
+        var e = Explainer.Explain(state, 0, [Candidate(p)])[0];
 
         Assert.DoesNotContain(ReasonLabel.RoleMayNotCarryOver, e.Labels);
         Assert.DoesNotContain("Caution", e.Headline);
@@ -269,7 +269,7 @@ public class ExplainerTests
         var b = V("b", Position.WR, 230, 3);
         var state = Pool(a, b);
 
-        var all = Explainer.Explain(state, 0, [Candidate(b), Candidate(a)], Reach);
+        var all = Explainer.Explain(state, 0, [Candidate(b), Candidate(a)]);
 
         Assert.Equal(["b", "a"], all.Select(e => e.Player.Id));
         Assert.All(all.SelectMany(e => e.Reasons.Append(e.Headline)), text => Assert.DoesNotContain("score", text, StringComparison.OrdinalIgnoreCase));

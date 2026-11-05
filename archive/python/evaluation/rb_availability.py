@@ -14,7 +14,7 @@ import pandas as pd
 from scipy import stats
 ROOT = str(Path(__file__).parent.parent.parent) + "/"
 sys.path.insert(0, ROOT)
-from src.draft.market_fallback import fit_position_curves, load_history
+from src.data.market_fallback import fit_position_curves, load_history
 
 hist = load_history(range(2015, 2026))
 seas = pd.read_parquet(ROOT + "data/raw/seasonal_20_25.parquet")

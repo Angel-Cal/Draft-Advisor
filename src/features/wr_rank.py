@@ -7,7 +7,7 @@ import pandas as pd
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from src.features.team_context import _roster_start
+from src.features.team_context import roster_start
 
 WR_RANK_FEATURES = ["wr_target_rank", "wr_target_rank_pg"]
 MIN_RATE_GAMES = 4      # a season shorter than this says too little about a target rate (the same cut as the volatility features)
@@ -27,7 +27,7 @@ def build_wr_rank_features(seasonal, roster):
     Rank 1 is the team's leader among the WRs on its start-of-season roster; ties share the better rank. Known before season t starts.
     """
     history = _history(seasonal)
-    wrs = _roster_start(roster)
+    wrs = roster_start(roster)
     wrs = wrs[wrs["position"] == "WR"].copy()
     for lag in (1, 2):
         lagged = history.assign(season=history["season"] + lag)[["player_id", "season", "targets", "rate"]]

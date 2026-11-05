@@ -72,19 +72,6 @@ public class ReachTests
     }
 
     [Fact]
-    public void Turning_off_the_gap_term_drops_it_from_the_score()
-    {
-        var state = State(V("a", Position.WR, adp: 1, vorRank: 1, valueGap: 0), V("b", Position.WR, adp: 2, vorRank: 2, valueGap: 8));
-
-        var withGap = BaselineRecommender.SelectPlayers(Position.WR, state, 0, new ReachSettings(0, 4)).ToDictionary(c => c.Player.Id);
-        var without = BaselineRecommender.SelectPlayers(Position.WR, state, 0, new ReachSettings(0, 4, UseGapTerm: false)).ToDictionary(c => c.Player.Id);
-
-        Assert.Equal(0.5, withGap["b"].GapTerm);
-        Assert.Equal(0, without["b"].GapTerm);
-        Assert.Equal(0.5, without["a"].WeightedValue);       // only the rank term remains
-    }
-
-    [Fact]
     public void An_empty_window_falls_back_to_everyone_rather_than_leaving_no_recommendation()
     {
         var state = State(V("late-1", Position.WR, adp: 90, vorRank: 1, valueGap: 0), V("late-2", Position.RB, adp: 95, vorRank: 2, valueGap: 0));

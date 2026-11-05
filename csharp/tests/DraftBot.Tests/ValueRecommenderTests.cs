@@ -107,15 +107,4 @@ public class ValueRecommenderTests
             new StringReader(""), new StringWriter(), reach: null, singleScore: true));
     }
 
-    [Fact]
-    public void The_arm_sweep_reports_each_arm_and_a_leave_one_season_out_check()
-    {
-        var files = new Dictionary<int, ProjectionFile> { [2023] = BacktestFile(2023), [2024] = BacktestFile(2024) };
-        IDraftStrategy[] arms = [new ValueRecommenderStrategy("a1", new ReachSettings(10, 4)), new ValueRecommenderStrategy("a2", new ReachSettings(1000, 4))];
-
-        var text = ArmSweep.Report(files, new SimSettings(new LeagueSettings()), 1, arms, [new AdpStrategy(), new VorStrategy()], headline: "vor");
-
-        foreach (var expected in new[] { "a1", "a2", "adp", "vor", "leave-one-season-out", "held-out gain over vor", "2023", "2024" })
-            Assert.Contains(expected, text);
-    }
 }

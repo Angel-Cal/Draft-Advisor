@@ -2,7 +2,7 @@
 
 **Created:** 2026-10-20
 **Target:** usable for my real draft in August 2027
-**Companion docs:** `STATUS.md` (current state), `plan.txt` (original advisor spec)
+**Companion docs:** `STATUS.md` (current state), `archive/plan.txt` (original advisor spec)
 
 ---
 
@@ -85,7 +85,7 @@ Also done in Phase 1 (unplanned, but it changed the results): fixed a target-sea
 - [x] Team-context features: done early, in Phase 1. Joined on the player's current (start-of-season roster) team and lagged. Only survivors are in the model; team pass rate/pace/EPA, QB quality on receivers, depth ranks within team and OL features all tested null (see `STATUS.md`). Remaining here: re-check with 2026 data
 - [ ] Half-PPR and standard targets
 - [x] Short-season (injury) under-projection: players with prior games <= 9 are projected from a rate view of the features (`src/models/short_season.py`, wired into `predict.refit_position`; done 2026-10-29, see `LOG.md`)
-- [x] ADP-to-points fallback curve for rookies and missing players: done in Phase 1 (`src/draft/market_fallback.py`, rows flagged `market_estimate`)
+- [x] ADP-to-points fallback curve for rookies and missing players: done in Phase 1 (`src/data/market_fallback.py`, rows flagged `market_estimate`)
 
 ### Phase 4: Recommender v2 (Feb to Apr 2027; started early, 2026-10)
 - [x] Single score across all available players (replaces position-first selection): `value` variant = VOR minus an ADP-reach cost (done 2026-10-21, see `LOG.md`). Roster need and bench value then made it the `need` recommender, +42 over ADP in the simulator

@@ -35,7 +35,7 @@ public static class DeviationCalibration
         var adopted = Advisor(advisor);
         var adp = new AdpStrategy();
         var scaled = settings with { NoiseScale = noiseScale };
-        var pools = files.ToDictionary(f => f.Key, f => Valuator.Value(f.Value.Players, f.Value.PositionRmse, settings.League, new ValuationSettings(settings.TierGapRmse)));
+        var pools = files.ToDictionary(f => f.Key, f => settings.Pool(f.Value));
         var replacement = pools.ToDictionary(p => p.Key, p => ReplacementLevel.Points(p.Value.Select(x => x.Player with { ProjectedPpr = x.Player.ActualPpr!.Value }).ToList(), settings.League));
 
         var jobs = (from season in files.Keys.Order() from seed in Enumerable.Range(firstSeed, seeds) from slot in Enumerable.Range(0, settings.League.Teams) select (season, seed, slot)).ToList();

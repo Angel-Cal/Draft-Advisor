@@ -253,7 +253,7 @@ else
 
     static string Over(double value) => (value >= 0 ? "+" : "-") + Math.Abs(Math.Round(value)).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-    // price = where drafters usually take him against where I pick: early (a reach) when the advisor charges for it (Explainer.IsReach), a bargain a full sigma after his ADP, otherwise fair
+    // price = where drafters usually take him against where I pick: early (a reach) when the advisor charges for it (Explainer.IsReach), a bargain Explainer.BargainSigmas after his ADP, otherwise fair
     static string PriceText(ValueCandidate c, int pick)
     {
         if (c.Player.Player.Adp is not { } adp) return "-";

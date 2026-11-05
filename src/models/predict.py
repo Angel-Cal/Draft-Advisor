@@ -1,6 +1,5 @@
 import pandas as pd
 from pathlib import Path
-import matplotlib.pyplot as plt
 import sys
 import json
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -54,35 +53,13 @@ def refit_position(model, training_df, prediction_df, params):
 
 if __name__ == "__main__":
     prediction_df, training_df, qb_params, rb_params, wr_params, te_params = load_data()
-    qb_training_df, rb_training_df, wr_training_df, te_training_df = split_positions(training_df)
-    qb_prediction_df, rb_prediction_df, wr_prediction_df, te_prediction_df = split_positions(prediction_df)
-
-    qb_prediction_df = drop_season(qb_prediction_df)
-    rb_prediction_df = drop_season(rb_prediction_df)
-    wr_prediction_df = drop_season(wr_prediction_df)
-    te_prediction_df = drop_season(te_prediction_df)
-
-    qb_meta = save_metadata(qb_prediction_df)
-    rb_meta = save_metadata(rb_prediction_df)
-    wr_meta = save_metadata(wr_prediction_df)
-    te_meta = save_metadata(te_prediction_df)
-
-    qb_prediction_df = drop_meta(qb_prediction_df)
-    rb_prediction_df = drop_meta(rb_prediction_df)
-    wr_prediction_df = drop_meta(wr_prediction_df)
-    te_prediction_df = drop_meta(te_prediction_df)
-
+    params = {"qb": qb_params, "rb": rb_params, "wr": wr_params, "te": te_params}
     model = Model()
-    qb_prediction = refit_position(model, qb_training_df, qb_prediction_df, qb_params)
-    rb_prediction = refit_position(model, rb_training_df, rb_prediction_df, rb_params)
-    wr_prediction = refit_position(model, wr_training_df, wr_prediction_df, wr_params)
-    te_prediction = refit_position(model, te_training_df, te_prediction_df, te_params)
-
     results = {}
-    for name, meta, prediction in [("qb", qb_meta, qb_prediction), ("rb", rb_meta, rb_prediction),
-                                   ("wr", wr_meta, wr_prediction), ("te", te_meta, te_prediction)]:
-        results[name] = meta.copy()
-        results[name]['projected_ppr'] = prediction  # type: ignore
+    for name, training, prediction in zip(params, split_positions(training_df), split_positions(prediction_df)):
+        prediction = drop_season(prediction)
+        results[name] = save_metadata(prediction)
+        results[name]["projected_ppr"] = refit_position(model, training, drop_meta(prediction), params[name])
 
     # validate everything before writing anything, so a bad run can't leave half-updated outputs
     check_prediction_outputs({name.upper(): df for name, df in results.items()})
@@ -93,10 +70,3 @@ if __name__ == "__main__":
     check_freshness(inputs=[processed / "training_data.parquet", processed / "prediction_data.parquet"],
                     outputs=[processed / f"{name}_predictions.parquet" for name in results], label="predictions")
     update_manifest("predict", {"rows": {name: int(len(df)) for name, df in results.items()}, "validation": "passed"})
-
-
-    
-
-    
-
-

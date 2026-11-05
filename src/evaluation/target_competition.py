@@ -189,7 +189,7 @@ def profile_report(d, rng):
 def live_2026_pool(weekly, roster):
     """The live 2026 WRs with the model's projection, the ADP curve, the gap, the competition measures and the new-situation flag."""
     import json
-    from src.draft.market_fallback import fit_position_curves, load_history
+    from src.data.market_fallback import fit_position_curves, load_history
     r26 = pd.read_parquet(RAW / "roster_2026.parquet")
     r26 = r26[r26["position"].isin(CATCHERS) & ~r26["gsis_id"].isin(TWO_WAY_PLAYERS)].dropna(subset=["gsis_id"]).copy()
     r26["week"], r26["team"] = 0, r26["team"].replace(ROSTER_TEAMS)
@@ -274,7 +274,7 @@ def role_report(d, rng, cuts=None):
 def live_2026_role(weekly, roster, quality, cuts):
     """2026 WRs whose 2025 depth, air-yards share and expected points per target jumped by more than the historical cut points."""
     import json
-    from src.draft.market_fallback import fit_position_curves, load_history
+    from src.data.market_fallback import fit_position_curves, load_history
     projections = pd.DataFrame(json.load(open(LIVE / "projections_2026_v1.json"))["players"])
     wr = projections[projections["position"] == "WR"].copy()
     wr["curve"] = fit_position_curves(load_history())["WR"].predict(wr["adp"].rank(method="first").values)

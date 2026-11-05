@@ -19,7 +19,7 @@ from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.paths import EXPERIMENT_OOS, LIVE, PIPELINE, WORLDS
-from src.draft.market_fallback import fit_position_curves, load_history
+from src.data.market_fallback import fit_position_curves, load_history
 from src.evaluation.oos_predictions import N_SEEDS, load_params
 from src.evaluation.refit_oos import POSITIONS, write_backtest_files
 from src.models.train import Model, drop_non_features, split_positions

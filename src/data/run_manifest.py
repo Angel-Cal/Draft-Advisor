@@ -8,14 +8,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.paths import LIVE
-from src.data.validate import DataIntegrityError, _warn
+from src.data.validate import DataIntegrityError, warn
 
 ROOT = Path(__file__).parent.parent.parent
 MANIFEST_PATH = LIVE / "run_manifest.json"
 PARAM_FILES = ["qb_params", "rb_params", "wr_params", "te_params"]
 
 
-def _git(*args):
+def git(*args):
     try:
         return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -36,8 +36,8 @@ def update_manifest(stage, info):
     manifest[stage] = {
         **info,
         "timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "git_commit": _git("rev-parse", "--short", "HEAD"),
-        "uncommitted_changes": bool(_git("status", "--porcelain", "--", "src", "tests")),
+        "git_commit": git("rev-parse", "--short", "HEAD"),
+        "uncommitted_changes": bool(git("status", "--porcelain", "--", "src", "tests")),
         "params_md5": params_checksums(),
     }
     MANIFEST_PATH.write_text(json.dumps(manifest, indent=2, default=str))
@@ -54,4 +54,4 @@ def check_freshness(inputs, outputs, label, strict=True):
         message = f"outputs older than their inputs (rerun the producing step): {stale}"
         if strict:
             raise DataIntegrityError(f"[freshness:{label}] {message}")
-        _warn(message, f"freshness:{label}")
+        warn(message, f"freshness:{label}")

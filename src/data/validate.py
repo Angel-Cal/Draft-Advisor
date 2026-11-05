@@ -42,7 +42,7 @@ def _raise_if(errors, label):
         raise DataIntegrityError(f"[{label}] " + "; ".join(errors))
 
 
-def _warn(message, label):
+def warn(message, label):
     warnings.warn(f"[{label}] {message}", DataIntegrityWarning, stacklevel=3)
 
 
@@ -79,7 +79,7 @@ def check_raw_roster(roster):
     _raise_if(errors, "raw roster")
     dupes = int(roster.duplicated(["gsis_id", "season", "week"]).sum())
     if dupes:
-        _warn(f"{dupes} duplicate (gsis_id, season, week) roster rows (first one wins)", "raw roster")
+        warn(f"{dupes} duplicate (gsis_id, season, week) roster rows (first one wins)", "raw roster")
 
 
 def check_retention(expected, actual, label, min_ratio=RETENTION_MIN):
@@ -130,10 +130,10 @@ def check_prediction(prediction, training):
 
     in_both = [c for c in training.columns if c in prediction.columns]
     if in_both != [c for c in prediction.columns if c in training.columns]:
-        _warn("column order differs from training (predict.py aligns by name)", "prediction")
+        warn("column order differs from training (predict.py aligns by name)", "prediction")
     changed = [c for c in in_both if str(training[c].dtype) != str(prediction[c].dtype)]
     if changed:
-        _warn(f"dtype differs from training for {changed}", "prediction")
+        warn(f"dtype differs from training for {changed}", "prediction")
 
     # stale-input guard: age should have advanced a year relative to each player's last training row
     last = training.sort_values("season").groupby("player_id").tail(1).set_index("player_id")["age"]
@@ -145,13 +145,13 @@ def check_prediction(prediction, training):
     _raise_if(errors, "prediction")
 
     if prediction["implied_total"].isna().mean() > 0.15:
-        _warn(f"{prediction['implied_total'].isna().mean():.0%} of prediction rows have no implied_total", "prediction")
+        warn(f"{prediction['implied_total'].isna().mean():.0%} of prediction rows have no implied_total", "prediction")
     numeric = [c for c in in_both if pd.api.types.is_numeric_dtype(training[c]) and c not in ({"season", "player_id"} | DRIFT_IGNORE)]
     std = training[numeric].std().replace(0, np.nan)
     drift = ((prediction[numeric].mean() - training[numeric].mean()) / std).abs().dropna().sort_values(ascending=False)
     flagged = drift[drift > 1.0]
     if len(flagged):
-        _warn("feature drift vs training (|standardized mean shift| > 1): "
+        warn("feature drift vs training (|standardized mean shift| > 1): "
               + ", ".join(f"{c} {v:.2f}" for c, v in flagged.head(5).items()), "prediction")
 
 
@@ -250,7 +250,7 @@ def check_advisor_table(table):
     dupes = table["player_id"].duplicated()
     if dupes.any():
         errors.append(f"{int(dupes.sum())} duplicate player_id rows, e.g. {table.loc[dupes, 'player_id'].head(3).tolist()}")
-    for col in ["projected_ppr", "vor", "tier", "adp", "position", "market_estimate"]:
+    for col in ["projected_ppr", "vor", "adp", "position", "market_estimate"]:
         if col in table.columns and table[col].isna().any():
             errors.append(f"{int(table[col].isna().sum())} nulls in {col}")
     if "market_estimate" in table.columns and not table["market_estimate"].isin([True, False]).all():

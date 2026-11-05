@@ -42,7 +42,7 @@ public sealed class MockDraft
     public bool Run()
     {
         var league = settings.League;
-        var pool = Valuator.Value(file.Players, file.PositionRmse, league, new ValuationSettings(settings.TierGapRmse));
+        var pool = settings.Pool(file);
         var regret = new RegretCalculator(pool, league);
         var bots = Enumerable.Range(0, league.Teams).Select(t => t == slot ? null : OpponentBot.Create(pool, settings, seed, t)).ToArray();
         var state = new DraftState(pool, league);
@@ -150,8 +150,7 @@ public sealed class MockDraft
         {
             var pick = state.OverallPick + 1;
             output.WriteLine($"Reach control on: at pick {pick} one sigma is {reach.Sigma(pick):F1} picks; players with ADP past {pick + reach.CapSigmas * reach.Sigma(pick):F0} "
-                             + $"({reach.CapSigmas:0.#} sigma) are out; each sigma past the pick costs {reach.Lambda:0.##} x z^2 in score"
-                             + (reach.UseGapTerm ? "." : "; the ADP-gap term is off."));
+                             + $"({reach.CapSigmas:0.#} sigma) are out; each sigma past the pick costs {reach.Lambda:0.##} x z^2 in score.");
         }
         output.WriteLine();
         output.WriteLine("Recommender, step 1: which position? (unmet league demand / players left in the position's best tier)");
@@ -206,7 +205,7 @@ public sealed class MockDraft
         }
 
         output.WriteLine();
-        var explanations = Explainer.Explain(state, slot, candidates, settings);
+        var explanations = Explainer.Explain(state, slot, candidates);
         for (var i = 0; i < explanations.Count; i++)
         {
             output.WriteLine((i == 0 ? "Recommended: " : $"  Or #{i + 1}: ") + explanations[i].Headline);

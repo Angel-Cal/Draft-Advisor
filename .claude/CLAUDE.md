@@ -13,10 +13,10 @@ Contract between the two: `.claude/projection_schema_v1.md`.
 
 ## Layout
 
-- `src/data` scrape, clean, validate, export JSON | `src/features` feature engineering | `src/models` train/predict |
-  `src/evaluation` benchmarks and ablations | `src/draft` the old Python advisor (superseded by C#; `vor.py` and `market_fallback.py` are still used by the pipeline)
+- `src/data` scrape, clean, validate, advisor table, export JSON | `src/features` feature engineering | `src/models` train/predict |
+  `src/evaluation` walk-forward predictions, benchmark, the 2026 pre-registered scoring and the world-sweep driver
 - `csharp/src/DraftBot.Core` draft logic | `csharp/src/DraftBot.Sim` simulator and CLI (`Program.cs` lists the commands) | `csharp/src/DraftBot.App` app screens (Razor) | `csharp/src/DraftBot.Desktop` WPF host | `csharp/tests`
-- `archive/` dead code; `data/` is generated (gitignored), large, and should not be read wholesale
+- `archive/` concluded experiments and the superseded Python advisor (not built or tested; `archive/README.md` says how to rerun one); `data/` is generated (gitignored), large, and should not be read wholesale
 
 ## Commands
 
