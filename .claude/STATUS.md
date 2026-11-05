@@ -281,7 +281,7 @@ All tested with the standing protocol: 10-seed ablation + random-noise control, 
 
 ### 2026-11-04: "Fills a spot" label
 
-A card for a player who would take an open starting spot (his position or the FLEX) but projects at or below replacement now says "Fills a spot", not "Not a starter" (which wrongly called him insurance). LOG 2026-11-04. Bargain (price and tag) now needs half a standard deviation past ADP (`Explainer.BargainSigmas`), about 7 picks late at pick 77.
+A card for a player who would take an open starting spot (his position or the FLEX) but projects at or below replacement now says "Fills a spot", not "Not a starter" (which wrongly called him insurance). LOG 2026-11-04. The price reads Bargain at half a standard deviation past ADP (`Explainer.BargainSigmas`), about 7 picks late at pick 77; the separate Bargain tag was removed.
 
 ### 2026-11-04: a user who picks among the cards keeps under half the edge
 

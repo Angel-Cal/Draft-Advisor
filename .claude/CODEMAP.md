@@ -73,7 +73,7 @@ Data files, `archive/` and build output are not listed.
     - `int? NextPick(int team)`: The 1-based overall number of the team's next pick after the one on the clock; null if it has none left.
     - `IReadOnlyList<int> UpcomingPicks(int team, int count)`: The 1-based overall numbers of the team's next count picks after the one on the clock (fewer if the draft ends first).
     - `bool Draft(string playerId)`: Drafts the player for the team on the clock.
-- **Explainer.cs** (253 lines)
+- **Explainer.cs** (250 lines)
   - `enum ReasonLabel`: What a recommendation's reasons are about, for badges next to the text.
   - `static class ReasonLabels`: What a tag is called on screen.
     - `static string DisplayName(this ReasonLabel label)`

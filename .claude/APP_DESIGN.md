@@ -41,7 +41,7 @@ the reworded "Recommended" hover, the roster, and the drafter-tendency numbers (
 | Navigation | azure `#4DA3FF` | active tab underline, gear icon on Settings. Tried on the board and rejected |
 | QB / RB / WR / TE | pink / green / blue / violet (`#F4B3D0`, `#7FDBB6`, `#9BC3F7`, `#B79CFF`) | position pills, board cells, tendency bars |
 | Risk | red `#F3A0A0` | Injury history tag, negative over-replacement |
-| Bargain | lime `#B6E65A`, solid fill | the Bargain tag only: a player available well after his ADP. Lime is the hue farthest from every other color in use, but it is the nearest to amber of the free ones, so watch it |
+| Bargain | none | the Bargain tag was removed 2026-11-04: the card's Price (Fair / Bargain / Early by N) already says it |
 | Caution | purple `#C9B3F5` | Role caution tag, "Planned" badge |
 | Everything else | off-white `#E7ECF2` / greys | primary buttons on Setup/Settings, selected options, your board column |
 

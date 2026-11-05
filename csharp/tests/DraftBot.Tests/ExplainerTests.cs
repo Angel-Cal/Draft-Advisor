@@ -157,7 +157,7 @@ public class ExplainerTests
     }
 
     [Fact]
-    public void A_reach_and_a_bargain_are_told_apart_by_how_far_his_ADP_is_from_the_pick()
+    public void A_reach_gets_a_tag_and_a_late_pick_does_not()
     {
         var late = V("late", Position.RB, 200, 20);
         var early = V("early", Position.RB, 200, 1);
@@ -170,8 +170,8 @@ public class ExplainerTests
         Assert.Contains(ReasonLabel.Reach, reach.Labels);
         Assert.Contains("#20", reach.Reasons.Last());
         Assert.Contains("#11", reach.Reasons.Last());
-        Assert.Contains(ReasonLabel.Discount, bargain.Labels);
         Assert.DoesNotContain(ReasonLabel.Reach, bargain.Labels);
+        Assert.DoesNotContain(bargain.Reasons, r => r.Contains("bargain", StringComparison.OrdinalIgnoreCase));   // shown by the card's price, not a tag (user, 2026-11-04)
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 namespace DraftBot.Core;
 
 /// <summary>What a recommendation's reasons are about, for badges next to the text.</summary>
-public enum ReasonLabel { Starter, Backup, RunningOut, Discount, Reach, InjuryHistory, EstimatedProjection, RoleMayNotCarryOver, FillsSpot }
+public enum ReasonLabel { Starter, Backup, RunningOut, Reach, InjuryHistory, EstimatedProjection, RoleMayNotCarryOver, FillsSpot }
 
 /// <summary>What a tag is called on screen. "Recommended" is the waiting-cost reason: it is about this particular player, not about the position.</summary>
 public static class ReasonLabels
@@ -11,7 +11,6 @@ public static class ReasonLabels
         ReasonLabel.Starter => "Starter",
         ReasonLabel.Backup => "Not a starter",
         ReasonLabel.FillsSpot => "Fills a spot",        ReasonLabel.RunningOut => "Recommended",
-        ReasonLabel.Discount => "Bargain",
         ReasonLabel.Reach => "Early pick",
         ReasonLabel.InjuryHistory => "Injury history",
         ReasonLabel.EstimatedProjection => "Estimate",
@@ -45,7 +44,7 @@ public static class Explainer
     public const double EarlyPickSigmas = 1;
 
     /// <summary>
-    /// How many standard deviations past his ADP the pick must be for "Bargain" (the price and the tag): half a sigma, about 7 picks late at pick 77 and 1-2 in round 1.
+    /// How many standard deviations past his ADP the pick must be for the card's price to read "Bargain": half a sigma, about 7 picks late at pick 77 and 1-2 in round 1.
     /// Was 1 sigma, which needed a 14-pick slide at pick 77 while "Early" shows 2-3 picks ahead (user, 2026-11-04). A display choice, not a tested one.
     /// </summary>
     public const double BargainSigmas = 0.5;
@@ -246,8 +245,6 @@ public static class Explainer
         var sigma = reach.Sigma(pick);
         if (c.ReachSigmas >= EarlyPickSigmas)
             return ($"This is an early pick for him: drafters usually take him around #{adp:F0} and you pick at #{pick}. The recommender still likes him enough to pay that price.", ReasonLabel.Reach);
-        if ((pick - adp) / sigma >= BargainSigmas)
-            return ($"He is a bargain here: drafters usually take him around #{adp:F0} and you pick at #{pick}.", ReasonLabel.Discount);
         return null;
     }
 }

@@ -70,7 +70,6 @@ details summary{cursor:pointer;list-style:none}
 details summary::-webkit-details-marker{display:none}
 .pause-btn{min-height:36px;padding:7px 18px}
 .btn:disabled{opacity:.45;cursor:not-allowed}
-.b-bargain{background:#F2F6FA;color:#12161C;border-color:#F2F6FA}
 .v-costly{color:#E7ECF2;border-color:#4A5667}
 .board{display:grid;gap:6px;min-width:1260px}
 .bhead{text-align:center;padding:8px 4px;border-radius:8px;background:#222B36;font-weight:600;font-size:13px}
