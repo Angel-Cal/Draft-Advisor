@@ -6,7 +6,7 @@ from src.paths import LIVE
 from src.data import validate as v
 from src.data.export_projections import attach_injury_history, build_backtest, games_history, injury_flag, to_document, weekly_lists
 from src.data.major_injuries import season_ending_candidates
-from src.draft.market_fallback import fit_position_curves
+from src.data.market_fallback import fit_position_curves
 
 
 def seasonal_rows(rows):

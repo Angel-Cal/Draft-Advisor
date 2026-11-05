@@ -19,7 +19,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.paths import LIVE
-from src.draft.market_fallback import fit_position_curves, load_history
+from src.data.market_fallback import fit_position_curves, load_history
 from src.evaluation.benchmark import TOP_N_ADP
 from src.evaluation.gap_reliability import load_rows, slope_interval
 from src.evaluation.target_competition import add_context, add_measures, diff_interval, load_start_roster, load_weekly

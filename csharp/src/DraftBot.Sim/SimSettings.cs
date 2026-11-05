@@ -33,4 +33,7 @@ public sealed record SimSettings(
     public SeasonFormat SeasonRules => Season ?? new SeasonFormat();
 
     public double NoiseSd(double adp) => (NoiseBase + NoisePerAdp * adp) * NoiseScale;
+
+    /// <summary>The file's players valued for this league and tier gap: the pool every simulated draft starts from.</summary>
+    public List<ValuedPlayer> Pool(ProjectionFile file) => Valuator.Value(file.Players, file.PositionRmse, League, new ValuationSettings(TierGapRmse));
 }

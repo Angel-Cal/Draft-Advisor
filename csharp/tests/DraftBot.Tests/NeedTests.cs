@@ -122,16 +122,6 @@ public class NeedTests
     }
 
     [Fact]
-    public void The_need_sweep_reports_the_bench_fraction_arms_and_the_value_control()
-    {
-        var files = new Dictionary<int, ProjectionFile> { [2023] = BacktestFile(2023), [2024] = BacktestFile(2024) };
-
-        var text = ReachTuning.ReportNeed(files, new SimSettings(new LeagueSettings(), StrategyFollowsRules: false), seeds: 1);
-
-        foreach (var expected in new[] { "need b=0 l=1000", "need b=1 l=400", "value", "adp", "held-out gain over value" }) Assert.Contains(expected, text);
-    }
-
-    [Fact]
     public void The_mock_draft_shows_lineup_gain_when_need_is_on()
     {
         var output = new StringWriter();

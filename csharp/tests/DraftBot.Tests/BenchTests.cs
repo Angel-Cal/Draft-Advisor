@@ -139,12 +139,8 @@ public class BenchTests
     }
 
     [Fact]
-    public void The_bench_sweep_and_the_structural_mock_draft_run()
+    public void The_structural_mock_draft_runs()
     {
-        var files = new Dictionary<int, ProjectionFile> { [2023] = BacktestFile(2023), [2024] = BacktestFile(2024) };
-        var text = ReachTuning.ReportBench(files, new SimSettings(new LeagueSettings(), StrategyFollowsRules: false), seeds: 1);
-        foreach (var expected in new[] { "bench flat 0.25", "bench structural q=0.23", "need (no bench)", "held-out gain over need (no bench)" }) Assert.Contains(expected, text);
-
         var output = new StringWriter();
         var finished = new MockDraft(BacktestFile(), new SimSettings(new LeagueSettings()), 5, 0, false,
             new StringReader(string.Concat(Enumerable.Repeat("\n", 16))), output, ValueRecommender.DefaultReach, singleScore: true, need: NeedSettings.Structural).Run();

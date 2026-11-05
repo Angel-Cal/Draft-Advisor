@@ -1,21 +1,14 @@
-"""NFL data scraping and API integration module."""
+"""Raw nflverse downloads into data/raw: season and weekly stats, rosters, play-by-play, snap counts, advanced sources and injury reports (pipeline step 1)."""
 
-import requests
-from bs4 import BeautifulSoup
-import pandas as pd
+import sys
 from pathlib import Path
-from typing import Optional
-import time
-import logging
 import nflreadpy as nflread
-from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.paths import ROOT
 
-
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-DATA_DIR = Path("data/raw")
+DATA_DIR = ROOT / "data" / "raw"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+
 
 def _import_data():
     file_path = DATA_DIR/ "seasonal_20_25.parquet"

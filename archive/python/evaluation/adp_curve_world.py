@@ -15,7 +15,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.paths import LIVE, WORLDS
-from src.draft.market_fallback import fit_position_curves, load_history
+from src.data.market_fallback import fit_position_curves, load_history
 
 ROOT = Path(__file__).parent.parent.parent
 SEASONS = range(2019, 2026)

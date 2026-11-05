@@ -15,16 +15,17 @@ from pathlib import Path
 import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.paths import LIVE, OOS, PIPELINE
-from src.data.run_manifest import _git, check_freshness, update_manifest
+from src.data.run_manifest import check_freshness, git, update_manifest
 from src.data.validate import NO_TEAM, check_projection_file
-from src.draft.market_fallback import fit_position_curves, load_history, market_projections
+from src.data.market_fallback import fit_position_curves, load_history, market_projections
 from src.data.major_injuries import load_major_injuries
-from src.draft.vor import RMSE
 from src.features.role_context import build_role_context
 from src.features.team_context import TEAM_MAP
 
 ROOT = Path(__file__).parent.parent.parent
 POSITIONS = ["QB", "RB", "WR", "TE"]
+# position_rmse in every file: pooled walk-forward RMSE, test seasons 2021-2025, mean over 5 model seeds (tests/test_data_integrity.py keeps this honest)
+RMSE = {"QB": 84.28, "RB": 58.86, "WR": 53.48, "TE": 38.69}
 BACKTEST_SEASONS = range(2021, 2026)
 WEEKS = 18
 POOL_RANK = 300  # the live advisor table holds the ~300 players ranked by ADP
@@ -172,7 +173,7 @@ def to_document(df, season, kind, adp_source):
     return {
         "schema_version": "v1", "kind": kind, "season": season, "adp_source": adp_source,
         "position_rmse": RMSE, "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "git_commit": _git("rev-parse", "--short", "HEAD"),
+        "git_commit": git("rev-parse", "--short", "HEAD"),
         "players": json.loads(df.to_json(orient="records")),  # NaN -> null, numpy types -> JSON types
     }
 

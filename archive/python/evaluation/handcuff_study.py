@@ -18,7 +18,7 @@ from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.paths import ABLATIONS
-from src.features.team_context import _norm
+from src.features.team_context import norm_team
 
 ROOT = Path(__file__).parent.parent.parent
 RAW = ROOT / "data" / "raw"
@@ -33,7 +33,7 @@ def load_weekly():
     cols = ["player_id", "position", "season", "week", "season_type", "team", "carries", "targets", "fantasy_points_ppr"]
     w = pd.read_parquet(RAW / "weekly_20_25.parquet", columns=cols)
     w = w[w["season_type"] == "REG"].copy()
-    w["team"] = _norm(w["team"])
+    w["team"] = norm_team(w["team"])
     w["touches"] = w["carries"].fillna(0) + w["targets"].fillna(0)
     return w
 
@@ -43,7 +43,7 @@ def load_chart():
     d = pd.read_parquet(RAW / "depth_old_14_24.parquet")
     d = d[d["depth_position"].isin(["RB", "HB"])].copy()
     d["season"] = d["season"].astype(int)
-    d["team"] = _norm(d["club_code"])
+    d["team"] = norm_team(d["club_code"])
     d["tier"] = pd.to_numeric(d["depth_team"], errors="coerce")
     return d.dropna(subset=["tier", "gsis_id"]).rename(columns={"gsis_id": "player_id"})[["season", "team", "player_id", "tier"]].drop_duplicates()
 

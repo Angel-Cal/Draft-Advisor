@@ -221,18 +221,4 @@ public class SimulatorTests
         Assert.Equal(10.0, se, 9);          // 2 clusters; treating the four drafts as independent would give 11.5
     }
 
-    [Fact]
-    public void The_slot_choice_check_scores_each_slots_best_arm_on_the_held_out_season()
-    {
-        var files = new Dictionary<int, ProjectionFile> { [2023] = BacktestFile(2023), [2024] = BacktestFile(2024), [2025] = BacktestFile(2025) };
-        IDraftStrategy[] strategies = [new AdpStrategy(), new VorStrategy()];
-        var rows = Experiment.Run(files, Settings, strategies, noiseScales: [1.0], seeds: 2).Rows;
-
-        var report = Experiment.SlotChoiceCheck(rows, ["vor"], baseline: "adp");
-        var onlyBaseline = Experiment.SlotChoiceCheck(rows, [], baseline: "adp");
-
-        Assert.Contains("gain over adp", report);
-        Assert.Contains("2025:", report);
-        Assert.Contains("0.0 +/- 0.0", onlyBaseline);          // choosing among the baseline alone changes nothing
-    }
 }

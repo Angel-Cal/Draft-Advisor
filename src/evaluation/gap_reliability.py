@@ -18,7 +18,7 @@ from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.paths import PIPELINE, WORLDS
-from src.draft.market_fallback import load_history
+from src.data.market_fallback import load_history
 from src.evaluation.benchmark import load_season
 from src.evaluation.blend_test import SEASONS, blended, curve_points, rmse
 from src.evaluation.refit_oos import write_backtest_files

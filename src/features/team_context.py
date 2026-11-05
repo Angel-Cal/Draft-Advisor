@@ -27,22 +27,24 @@ MIN_QB_ATTEMPTS = 100  # below this a QB1 has no usable prior-season quality est
 FIRST_ROUND_PICKS = 32
 
 
-def _norm(team):
+def norm_team(team):
+    """Team abbreviations in one spelling (relocated and renamed franchises mapped by TEAM_MAP)."""
     return team.replace(TEAM_MAP)
 
 
 def _prior_season_stats(seasonal):
     """One row per player-season, keyed by the season the stats will be used FOR (t = stats season + 1)."""
     s = seasonal[seasonal["position"].isin(SKILL_POSITIONS)].copy()
-    s["team"] = _norm(s["recent_team"])
+    s["team"] = norm_team(s["recent_team"])
     return s[["player_id", "season", "team", "carries", "targets", "attempts", "games"]]
 
 
-def _roster_start(roster):
+def roster_start(roster):
+    """Each skill player's team at the start of each season: his earliest roster row of that season."""
     r = roster[roster["position"].isin(SKILL_POSITIONS)].copy()
     r = (r.sort_values(["season", "week"]).groupby(["gsis_id", "season"], as_index=False).first()
           .rename(columns={"gsis_id": "player_id"}))
-    r["team_now"] = _norm(r["team"])
+    r["team_now"] = norm_team(r["team"])
     return r[["player_id", "season", "position", "team_now"]]
 
 
@@ -50,13 +52,13 @@ def _roster_qbs(seasonal, roster):
     """Start-of-season roster QBs with their prior-season stats and whether they are first-round rookies."""
     stats = seasonal[seasonal["position"] == "QB"][["player_id", "season", "recent_team", "attempts",
                                                      "passing_yards", "passing_epa"]].copy()
-    stats["team"] = _norm(stats["recent_team"])
+    stats["team"] = norm_team(stats["recent_team"])
     prev = stats.assign(season=stats["season"] + 1).rename(
         columns={"attempts": "prev_att", "passing_yards": "prev_yds", "passing_epa": "prev_epa"})
 
     qbs = roster[roster["position"] == "QB"].sort_values(["season", "week"])
     qbs = qbs.groupby(["gsis_id", "season"], as_index=False).first().rename(columns={"gsis_id": "player_id"})
-    qbs["team_now"] = _norm(qbs["team"])
+    qbs["team_now"] = norm_team(qbs["team"])
     qbs["first_round_rookie"] = ((qbs["rookie_year"] == qbs["season"])
                                  & (pd.to_numeric(qbs["draft_number"], errors="coerce") <= FIRST_ROUND_PICKS))
     qbs = qbs.merge(prev[["player_id", "season", "prev_att", "prev_yds", "prev_epa"]],
@@ -113,13 +115,13 @@ def _team_points_per_game(schedules):
     home = sched[["season", "home_team", "home_score"]].set_axis(["season", "team", "points"], axis=1)
     away = sched[["season", "away_team", "away_score"]].set_axis(["season", "team", "points"], axis=1)
     pts = pd.concat([home, away])
-    pts["team"] = _norm(pts["team"])
+    pts["team"] = norm_team(pts["team"])
     return pts.groupby(["team", "season"])["points"].mean().rename("team_ppg_prev").reset_index()
 
 
 def build_team_context(seasonal, roster, schedules=None):
     stats = _prior_season_stats(seasonal)
-    roster_now = _roster_start(roster)
+    roster_now = roster_start(roster)
 
     # previous-season stats re-keyed to the season they predict
     prev = stats.assign(season=stats["season"] + 1).rename(
@@ -209,7 +211,7 @@ def build_rb_depth_features(seasonal, roster):
             .rename(columns={"carries": "prev_carries"}))
     rbs = roster[roster["position"] == "RB"].sort_values(["season", "week"])
     rbs = rbs.groupby(["gsis_id", "season"], as_index=False).first().rename(columns={"gsis_id": "player_id"})
-    rbs["team_now"] = _norm(rbs["team"])
+    rbs["team_now"] = norm_team(rbs["team"])
     rbs = rbs.merge(prev, on=["player_id", "season"], how="left")
     rbs["prev_carries"] = rbs["prev_carries"].fillna(0)
     rbs["early_rookie"] = ((rbs["rookie_year"] == rbs["season"])

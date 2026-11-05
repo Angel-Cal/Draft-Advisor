@@ -4,41 +4,6 @@ using static DraftBot.Tests.TestData;
 
 namespace DraftBot.Tests;
 
-public class TierTuningTests
-{
-    [Fact]
-    public void Adjusted_r2_charges_for_the_number_of_groups()
-    {
-        // groups {10,12} and {2,4}: within = 4, total = 68, n = 4, g = 2 -> 1 - (4/2) / (68/3)
-        var score = TierTuning.AdjustedR2([0, 0, 1, 1], [10, 12, 2, 4]);
-
-        Assert.Equal(1 - 2.0 / (68.0 / 3), score!.Value, 9);
-    }
-
-    [Fact]
-    public void Adjusted_r2_is_undefined_without_variance_or_when_every_player_has_a_tier()
-    {
-        Assert.Null(TierTuning.AdjustedR2([0, 0, 1, 1], [5, 5, 5, 5]));
-        Assert.Null(TierTuning.AdjustedR2([0, 1, 2, 3], [1, 2, 3, 4]));
-    }
-
-    [Fact]
-    public void Gap_tiers_are_compared_with_equal_size_tiers_of_the_same_count()
-    {
-        // projections 300, 250, 240, 100 with threshold 0.3 x 100: tiers {300} {250,240} {100}; actuals 10, 6, 8, 1
-        var projections = new[] { 300.0, 250, 240, 100 };
-        var actuals = new[] { 10.0, 6, 8, 1 };
-        var players = projections.Select((p, i) => Player($"WR{i}", Position.WR, p, actual: actuals[i])).ToList();
-
-        var result = TierTuning.ScorePosition(players, Rmse, Position.WR, gapRmse: 0.3)!.Value;
-
-        Assert.Equal(3, result.Tiers);
-        Assert.Equal(1 - 2.0 / (44.75 / 3), result.AdjustedR2, 9);          // gap tiers: within = 0 + 2 + 0
-        Assert.Equal(1 - 8.0 / (44.75 / 3), result.QuantileR2, 9);          // equal-size tiers {10,6} {8} {1}: within = 8
-        Assert.Equal(2, result.Largest);
-    }
-}
-
 public class RegretTests
 {
     static readonly LeagueSettings OneTeam = new(Teams: 1, Qb: 1, Rb: 1, Wr: 1, Te: 1, Flex: 0, Bench: 0);

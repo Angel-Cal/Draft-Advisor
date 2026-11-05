@@ -10,7 +10,7 @@ import pandas as pd
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from src.features.team_context import _norm, _roster_start
+from src.features.team_context import norm_team, roster_start
 
 RAW = Path(__file__).parent.parent.parent / "data" / "raw"
 MAX_DEPTH_TIER = 3
@@ -80,7 +80,7 @@ def _on_field_counts(participation, pbp):
     plays = pbp[(pbp["season_type"] == "REG") & (pbp["pass"] == 1) | (pbp["season_type"] == "REG") & (pbp["rush"] == 1)]
     plays = plays[["game_id", "play_id", "season", "pass"]].rename(columns={"game_id": "nflverse_game_id"})
     on_field = participation.merge(plays, on=["nflverse_game_id", "play_id"], how="inner")
-    on_field["team"] = _norm(on_field["possession_team"])
+    on_field["team"] = norm_team(on_field["possession_team"])
     on_field["is_pass"] = on_field["pass"] == 1
 
     team_totals = on_field.groupby(["team", "season"]).agg(team_pass=("is_pass", "sum"), team_plays=("is_pass", "size"))
@@ -117,7 +117,7 @@ def build_rookie_competition_features(roster):
     r["years_exp"] = pd.to_numeric(r["years_exp"], errors="coerce")
     first = (r.sort_values(["season", "week"]).groupby(["gsis_id", "season"], as_index=False).first()
              .rename(columns={"gsis_id": "player_id"}))
-    first["team_now"] = _norm(first["team"])
+    first["team_now"] = norm_team(first["team"])
     rookies = first[first["position"].isin(["WR", "TE"]) & (first["years_exp"] == 0) & (first["draft_number"] <= FIRST_ROUND_PICKS)
                     & ~first["player_id"].isin(TWO_WAY_PLAYERS)]
     by_team = {k: g[["player_id", "draft_number"]] for k, g in rookies.groupby(["team_now", "season"])}
@@ -142,13 +142,13 @@ def build_ol_features(participation, pbp, roster):
     ol_roster = roster[roster["position"] == "OL"].sort_values(["season", "week"])
     roster_ol = (ol_roster.groupby(["gsis_id", "season"], as_index=False).first()
                  .rename(columns={"gsis_id": "player_id"}))
-    roster_ol["team_now"] = _norm(roster_ol["team"])
+    roster_ol["team_now"] = norm_team(roster_ol["team"])
     roster_ol = roster_ol[["player_id", "season", "team_now"]]
     counts = _on_field_counts(participation, pbp)
     ol = counts[counts["player_id"].isin(set(roster_ol["player_id"]))][["player_id", "team", "season", "plays"]]
 
     prior = ol.assign(season=ol["season"] + 1)                                        # last season's usage, keyed to t
-    start = _roster_start(roster)                                                      # skill players receive the features
+    start = roster_start(roster)                                                      # skill players receive the features
     on_roster = prior.merge(roster_ol, on=["player_id", "season"], how="left")
     on_roster["stayed"] = on_roster["team_now"] == on_roster["team"]
 
@@ -185,7 +185,7 @@ def build_ol_quality_features(pbp, roster, ol_features):
     with the back and the quarterback, so they are noisy measures of the line.
     """
     plays = pbp[(pbp["season_type"] == "REG") & pbp["down"].notna()].copy()
-    plays["team"] = _norm(plays["posteam"])
+    plays["team"] = norm_team(plays["posteam"])
     plays["situation"] = _situation(plays)
 
     runs = plays[(plays["play_type"] == "run") & (plays["qb_scramble"] != 1) & (plays["qb_kneel"] != 1)
@@ -199,7 +199,7 @@ def build_ol_quality_features(pbp, roster, ol_features):
     team = pd.concat([runs.groupby(["team", "season"])["aly"].mean().rename("ol_aly_prev"),
                       dropbacks.groupby(["team", "season"])["asr"].mean().rename("ol_asr_prev")], axis=1).reset_index()
     team = _shift_to_next_season(team).rename(columns={"team": "team_now"})
-    out = _roster_start(roster).merge(team, on=["team_now", "season"], how="left")
+    out = roster_start(roster).merge(team, on=["team_now", "season"], how="left")
     out = out.merge(ol_features[["player_id", "season", "ol_snap_continuity"]], on=["player_id", "season"], how="left")
     out["ol_aly_x_cont"] = out["ol_aly_prev"] * out["ol_snap_continuity"]
     out["ol_asr_x_cont"] = out["ol_asr_prev"] * out["ol_snap_continuity"]
@@ -234,13 +234,13 @@ def build_depth_features(depth_old, depth_new_by_season):
 def build_team_epa_features(pbp, roster):
     """Prior-season offensive EPA/play (pass, rush) and success rate of the team a player starts season t with."""
     plays = pbp[(pbp["season_type"] == "REG") & pbp["play_type"].isin(["pass", "run"]) & pbp["epa"].notna()].copy()
-    plays["team"] = _norm(plays["posteam"])
+    plays["team"] = norm_team(plays["posteam"])
     team = plays.groupby(["team", "season"]).apply(lambda g: pd.Series({
         "team_pass_epa_prev": g.loc[g["play_type"] == "pass", "epa"].mean(),
         "team_rush_epa_prev": g.loc[g["play_type"] == "run", "epa"].mean(),
         "team_success_prev": g["success"].mean()})).reset_index()
     team = _shift_to_next_season(team).rename(columns={"team": "team_now"})
-    return _roster_start(roster).merge(team, on=["team_now", "season"], how="left")[
+    return roster_start(roster).merge(team, on=["team_now", "season"], how="left")[
         ["player_id", "season"] + ADVANCED_GROUPS["team_epa"]]
 
 

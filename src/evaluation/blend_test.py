@@ -14,7 +14,7 @@ from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.paths import LIVE, WORLDS
-from src.draft.market_fallback import fit_position_curves, load_history
+from src.data.market_fallback import fit_position_curves, load_history
 from src.evaluation.benchmark import load_season
 
 ROOT = Path(__file__).parent.parent.parent

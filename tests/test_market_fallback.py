@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from src.data import validate as v
-from src.draft.market_fallback import fit_position_curves, market_projections, SYNTHETIC_PREFIX
+from src.data.market_fallback import fit_position_curves, market_projections, SYNTHETIC_PREFIX
 
 
 def history():

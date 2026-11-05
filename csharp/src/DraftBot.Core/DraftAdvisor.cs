@@ -123,7 +123,7 @@ public static class DraftAdvisor
         // a dead pick (can never start, never needed as cover) is never a card, even when it would fill an empty slot
         var sane = ranked.Where(c => !Explainer.IsReach(c) && c.Score > ValueRecommender.DeadPickScore / 2).Take(RecommendedCount).ToList();
         var top = sane.Count > 0 ? sane : ranked.Take(RecommendedCount).ToList();          // never an empty screen: if only early picks are left, they are the picks
-        var explanations = Explainer.Explain(state, teamIndex, top, reach);
+        var explanations = Explainer.Explain(state, teamIndex, top);
         var shares = confidenceSamples > 0 ? TopShares(state, teamIndex, reach, need, wait, confidenceSamples) : null;
         var rival = RivalPosition(top) ?? ShareRival(top, shares);
 
