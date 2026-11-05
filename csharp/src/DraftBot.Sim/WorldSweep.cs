@@ -72,10 +72,21 @@ public static class WorldSweep
         return arms;
     }
 
+    /// <summary>
+    /// The "cards" arm set (LOG 2026-11-04): a user who picks among the app's recommendation cards (<see cref="CardChoiceStrategy"/>) instead of always the top-ranked player:
+    /// the first card, a random card, or the card with the lowest ADP. Measures how much of the edge survives the user's choice; nothing is tuned.
+    /// </summary>
+    public static List<IDraftStrategy> CardArms() =>
+    [
+        new CardChoiceStrategy("card 1", CardChoice.First),
+        new CardChoiceStrategy("random card", CardChoice.Random),
+        new CardChoiceStrategy("lowest-ADP card", CardChoice.LowestAdp),
+    ];
+
     public static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale, int firstSeed, string set = "reach")
     {
         var headline = new ValueRecommenderStrategy(HeadlineName, ValueRecommender.DefaultReach, NeedSettings.Default, ValueRecommender.DefaultWait);
-        var arms = set == "qb" ? QbArms(headline) : Arms(set).Cast<IDraftStrategy>().ToList();
+        var arms = set switch { "qb" => QbArms(headline), "cards" => CardArms(), _ => Arms(set).Cast<IDraftStrategy>().ToList() };
         var strategies = new List<IDraftStrategy> { new AdpStrategy(), headline };
         strategies.AddRange(arms);
         var rows = Experiment.Run(files, settings, strategies, [noiseScale], seeds, firstSeed).Rows;

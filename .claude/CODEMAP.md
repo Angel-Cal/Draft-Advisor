@@ -52,15 +52,19 @@ Data files, `archive/` and build output are not listed.
     - `ByeSchedule(IReadOnlyDictionary<string, int> weeks)`
     - `int? WeekOf(string team)`: The team's bye week, or null when it is unknown.
     - `static ByeSchedule Infer(IEnumerable<Player> players)`: Infers each team's bye from weekly points: the one week in the bye window (weeks 4-14) with the fewest scorers on the team, if it is unique and has at most one scorer in six players (a player trade...
-- **DraftAdvisor.cs** (164 lines)
+- **DraftAdvisor.cs** (202 lines)
   - `record AdviceTag(ReasonLabel Label, string Name, string Text)`: One reason tag on a recommendation: which reason it is, its name on screen, and the sentence shown when the user hovers it.
-  - `record RankedPick(int Rank, ValueCandidate Candidate, string Headline, IReadOnlyList<AdviceTag> Tags, double? TopShare = null)`: A ranked recommendation (1 is best) with its plain-language headline and reason tags.
+  - `record RankedPick(int Rank, ValueCandidate Candidate, string Headline, IReadOnlyList<AdviceTag> Tags, double? TopShare = null, double BehindTop = 0, bool NearTop = true, bool TooEarly = false, double PointsBehindTop = 0)`: A ranked recommendation (1 is best) with its plain-language headline and reason tags.
   - `record PositionAdvice(Position Position, ValueCandidate Top, double CostOfWaiting, bool TakeNow, IReadOnlyList<WaitAlternative> LikelyThere, bool IsRecommended, bool TopIsReach = false)`: What waiting means at one position: the advisor's top player there now, the projected points expected to be lost by waiting for someone else, whether that loss is large enough to say "take now" (Ex...
   - `record PastTheWallPlayer(ValuedPlayer Player, double PicksEarly)`: A player the model likes who is further above his ADP than the advisor will recommend; PicksEarly is how many picks before his ADP this pick falls.
-  - `record Advice(int Pick, int? NextPick, IReadOnlyList<RankedPick> Recommended, IReadOnlyList<PositionAdvice> Positions, IReadOnlyList<PastTheWallPlayer> PastTheWall, IReadOnlyDictionary<Position, double> Replacement, Position? Rival = null)`: Everything the draft screen shows for one team's pick (see DraftAdvisor).
+  - `record Advice(int Pick, int? NextPick, IReadOnlyList<RankedPick> Recommended, IReadOnlyList<PositionAdvice> Positions, IReadOnlyList<PastTheWallPlayer> PastTheWall, IReadOnlyDictionary<Position, double> Replacement, Position? Rival = null, RankedPick? TossUp = null)`: Everything the draft screen shows for one team's pick (see DraftAdvisor).
   - `static class DraftAdvisor`: The one call the app makes at each pick: ranks the pool with the adopted settings (single score with roster need, the waiting bonus and the reach limit) and packages the result for the screen, so t...
     - `static Position? RivalPosition(IReadOnlyList<ValueCandidate> bestFirst)`: The position of the best candidate at a different position than the first one, if his score is within CloseCallShare of the top score (CloseCallMinPoints at least); null when the top pick is clearl...
+    - `static bool WithinCloseCall(double topScore, double score)`: True when score is within CloseCallShare of topScore (CloseCallMinPoints at least): a gap the advice treats as a tie.
+    - `static double RealPoints(ValueCandidate c)`: A candidate's value in projected points: what he adds to the roster (ValueCandidate.BaseValue) plus the points expected to be lost at his position by waiting (ValueCandidate.WaitShortfall, unweight...
+    - `static bool MostlyReach(ValueCandidate top, ValueCandidate candidate)`: True when at least half of candidate's score gap to top is his extra reach cost: the gap says "too early for this pick", not "worth this many points less".
     - `static Advice Advise(DraftState state, int teamIndex, ReachSettings? reach = null, NeedSettings? need = null, WaitSettings? wait = null, int confidenceSamples = ConfidenceSamples)`: The advice for teamIndex at the current pick; settings default to the adopted ones.
+    - `static RankedPick? TossUpWith(IReadOnlyList<RankedPick> recommended)`: The recommended pick below the top one that comes out first in the most nudged re-rankings, if that share is at least CloseCallTopShare (any position); null otherwise or without shares.
 - **DraftState.cs** (82 lines)
   - `record Pick(int Round, int PickInRound, int Team, ValuedPlayer Player)`
   - `class DraftState`: Snake draft: team order reverses every round.
@@ -300,7 +304,7 @@ Data files, `archive/` and build output are not listed.
 - **SimSettings.cs** (36 lines)
   - `record SimSettings(LeagueSettings League, double NoiseBase = 1.0, double NoisePerAdp = 0.12, double NoiseScale = 1.0, int MaxQb = 2, int MaxTe = 2, int ForceStartersAfterRound = 10, double TierGapRmse = 0.1, bool StrategyFollowsRules = true, bool WeeklyLineups = true, SeasonFormat? Season = null, int ScheduleSamples = 200, OpponentStyle? Style = null)`: Simulator knobs.
     - `double NoiseSd(double adp)`
-- **Strategies.cs** (115 lines)
+- **Strategies.cs** (164 lines)
   - `interface IDraftStrategy`: How the drafter being evaluated chooses.
     - `ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)`
   - `class AdpStrategy`: Takes the best ADP available, no noise: an opponent who always agrees with the market.
@@ -316,6 +320,9 @@ Data files, `archive/` and build output are not listed.
   - `class QbTimingStrategy(string name, IDraftStrategy inner, int notBeforeRound, int allowTopRanks = 0)`: Another strategy with a QB timing rule (LOG 2026-11-04): before round notBeforeRound it may not take a QB, except one ranked within the season's top allowTopRanks QBs by ADP (0 = no exception).
     - `ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)`
     - `static int QbAdpRank(DraftState state, ValuedPlayer qb)`: 1-based rank of a QB by ADP among every QB in the season's pool (still available or already drafted); a QB with no ADP ranks last.
+  - `enum CardChoice`: How a user picks among the recommendation cards the app shows.
+  - `class CardChoiceStrategy(string name, CardChoice choice)`: A user of the app (LOG 2026-11-04): takes one of the first ShownCards recommendations of DraftAdvisor.Advise (reaches already left out) by choice; the best legal player of the adopted ranking when...
+    - `ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)`
   - `class RolloutStrategy(string name, ReachSettings reach, NeedSettings need, RolloutSettings rollout, WaitSettings? baseWait = null)`: The recommender with a rollout on top (see Rollout): the base recommender proposes, simulated completions of the draft decide.
     - `ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)`
 - **SurvivalCalibration.cs** (96 lines)
@@ -338,18 +345,20 @@ Data files, `archive/` and build output are not listed.
     - `static TierScore Score(ProjectionFile file, double gapRmse)`: Season score: adjusted R-squared per position, weighted by players per position.
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, double current)`: Leave-one-season-out on the advantage over equal-size tiers: pick the grid value with the best mean advantage on the other seasons, score it on the held-out season, and compare with the current thr...
   - `record TierScore(double AdjustedR2, double QuantileR2, int Tiers, double LargestTierShare)`
-- **WorldSweep.cs** (99 lines)
+- **WorldSweep.cs** (110 lines)
   - `static class WorldSweep`: One arm set on one projection world (a `--data` folder), reported both ways at once (mean starter points and title odds, each against the adopted advisor, paired) in tab-separated RESULT lines that...
     - `static List<ValueRecommenderStrategy> Arms(string set = "reach")`: The arm sets: "reach" = the waiting-bonus weight (0 = plain `need`) at lambda 300 / 1000 / 3000, the reach cap and the first free pick; "need" = the roster-need terms (bench weights, the option val...
     - `static List<IDraftStrategy> QbArms(IDraftStrategy adopted)`: The "qb" arm set (LOG 2026-11-04): the adopted advisor with no QB before round 6 / 7 / 8 / 9, and the barbell (no QB before round 8 unless he is a QB1-2 by ADP), testing whether skipping the mid-ti...
+    - `static List<IDraftStrategy> CardArms()`: The "cards" arm set (LOG 2026-11-04): a user who picks among the app's recommendation cards (CardChoiceStrategy) instead of always the top-ranked player: the first card, a random card, or the card...
     - `static string Report(IReadOnlyDictionary<int, ProjectionFile> files, SimSettings settings, int seeds, double noiseScale, int firstSeed, string set = "reach")`
 
 ## csharp/tests/DraftBot.Tests/
 
-- **AdvisorTests.cs** (205 lines): 15 tests
+- **AdvisorTests.cs** (263 lines): 18 tests
 - **AppTests.cs** (198 lines): 10 tests
 - **BenchTests.cs** (239 lines): 16 tests
 - **ByeTests.cs** (110 lines): 5 tests
+- **CardChoiceTests.cs** (49 lines): 2 tests
 - **DiagnosticsTests.cs** (68 lines): 5 tests
 - **DraftStateTests.cs** (125 lines): 8 tests
 - **ExplainerTests.cs** (277 lines): 18 tests

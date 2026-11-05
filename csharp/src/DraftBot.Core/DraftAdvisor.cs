@@ -8,7 +8,15 @@ public sealed record AdviceTag(ReasonLabel Label, string Name, string Text);
 /// How firmly the advisor stands behind it: the share of re-rankings with every ADP nudged by about a pick (<see cref="DraftAdvisor.ConfidenceJitterPicks"/>) in which he comes first among the picks the advice backs;
 /// null when the advice was asked to skip the check. Several picks with a real share are interchangeable at this spot.
 /// </param>
-public sealed record RankedPick(int Rank, ValueCandidate Candidate, string Headline, IReadOnlyList<AdviceTag> Tags, double? TopShare = null);
+/// <param name="BehindTop">How many points of the advisor's score he gives up against the first pick (0 for the first pick).</param>
+/// <param name="NearTop">He is within the close-call margin of the first pick (<see cref="DraftAdvisor.WithinCloseCall"/>), so taking him instead costs next to nothing.</param>
+/// <param name="PointsBehindTop">
+/// The same gap in projected points (<see cref="DraftAdvisor.RealPoints"/>: what he adds to the roster plus the points expected to be lost at his position by waiting),
+/// without the waiting bonus's weight or the reach cost; this is the number the screen shows.
+/// </param>
+/// <param name="TooEarly">Most of <paramref name="BehindTop"/> is the reach cost (<see cref="DraftAdvisor.MostlyReach"/>): he trails because this pick is early for him, not because he is worth less.</param>
+public sealed record RankedPick(int Rank, ValueCandidate Candidate, string Headline, IReadOnlyList<AdviceTag> Tags, double? TopShare = null, double BehindTop = 0, bool NearTop = true,
+    bool TooEarly = false, double PointsBehindTop = 0);
 
 /// <summary>
 /// What waiting means at one position: the advisor's top player there now, the projected points expected to be lost by waiting for someone else, whether that
@@ -29,14 +37,15 @@ public sealed record PastTheWallPlayer(ValuedPlayer Player, double PicksEarly);
 /// <param name="NextPick">The team's next pick, or null when it has none left.</param>
 /// <param name="Recommended">
 /// The advisor's top <see cref="DraftAdvisor.RecommendedCount"/> sane picks, best first: players who would be a reach (<see cref="Explainer.IsReach"/>)
-/// are left out and appear under <paramref name="PastTheWall"/> instead (unless nothing else is left).
+/// are left out and appear under <paramref name="PastTheWall"/> instead, and dead picks (<see cref="ValueRecommender.DeadPickScore"/>) are left out too (unless nothing else is left).
 /// </param>
 /// <param name="Positions">One entry per position that has a candidate, in QB, RB, WR, TE order.</param>
 /// <param name="PastTheWall">Unranked: players beyond the reach limit, by value without the reach cost.</param>
 /// <param name="Replacement">Replacement-level projected points per position.</param>
 /// <param name="Rival">Set when the best pick at another position scores almost the same as the top pick (a close call): that other position (see <see cref="DraftAdvisor.RivalPosition"/>).</param>
+/// <param name="TossUp">The recommended pick that is as good as the top one at this spot (see <see cref="DraftAdvisor.TossUpWith"/>); null when the top pick stands clear or the check was skipped.</param>
 public sealed record Advice(int Pick, int? NextPick, IReadOnlyList<RankedPick> Recommended, IReadOnlyList<PositionAdvice> Positions,
-    IReadOnlyList<PastTheWallPlayer> PastTheWall, IReadOnlyDictionary<Position, double> Replacement, Position? Rival = null);
+    IReadOnlyList<PastTheWallPlayer> PastTheWall, IReadOnlyDictionary<Position, double> Replacement, Position? Rival = null, RankedPick? TossUp = null);
 
 /// <summary>
 /// The one call the app makes at each pick: ranks the pool with the adopted settings (single score with roster need, the waiting bonus and the reach limit)
@@ -78,7 +87,27 @@ public static class DraftAdvisor
         var best = bestFirst[0];
         var rival = bestFirst.Skip(1).FirstOrDefault(c => c.Player.Position != best.Player.Position);
         if (rival is null) return null;
-        return best.Score - rival.Score <= Math.Max(CloseCallMinPoints, CloseCallShare * Math.Abs(best.Score)) ? rival.Player.Position : null;
+        return WithinCloseCall(best.Score, rival.Score) ? rival.Player.Position : null;
+    }
+
+    /// <summary>True when <paramref name="score"/> is within <see cref="CloseCallShare"/> of <paramref name="topScore"/> (<see cref="CloseCallMinPoints"/> at least): a gap the advice treats as a tie.</summary>
+    public static bool WithinCloseCall(double topScore, double score) =>
+        topScore - score <= Math.Max(CloseCallMinPoints, CloseCallShare * Math.Abs(topScore));
+
+    /// <summary>
+    /// A candidate's value in projected points: what he adds to the roster (<see cref="ValueCandidate.BaseValue"/>) plus the points expected to be lost at his position by
+    /// waiting (<see cref="ValueCandidate.WaitShortfall"/>, unweighted). The score weights the waiting part (x4) and subtracts the reach cost, so it is not in points.
+    /// </summary>
+    public static double RealPoints(ValueCandidate c) => c.BaseValue + (c.WaitShortfall ?? 0);
+
+    /// <summary>
+    /// True when at least half of <paramref name="candidate"/>'s score gap to <paramref name="top"/> is his extra reach cost: the gap says "too early for this pick",
+    /// not "worth this many points less". A display rule, not a tested one.
+    /// </summary>
+    public static bool MostlyReach(ValueCandidate top, ValueCandidate candidate)
+    {
+        var gap = top.Score - candidate.Score;
+        return gap > 0 && candidate.ReachPenalty - top.ReachPenalty >= gap / 2;
     }
 
     /// <summary>The advice for <paramref name="teamIndex"/> at the current pick; settings default to the adopted ones.</summary>
@@ -91,7 +120,8 @@ public static class DraftAdvisor
         var pick = state.OverallPick + 1;
 
         var ranked = ValueRecommender.Rank(state, reach, need, teamIndex, wait);
-        var sane = ranked.Where(c => !Explainer.IsReach(c)).Take(RecommendedCount).ToList();
+        // a dead pick (can never start, never needed as cover) is never a card, even when it would fill an empty slot
+        var sane = ranked.Where(c => !Explainer.IsReach(c) && c.Score > ValueRecommender.DeadPickScore / 2).Take(RecommendedCount).ToList();
         var top = sane.Count > 0 ? sane : ranked.Take(RecommendedCount).ToList();          // never an empty screen: if only early picks are left, they are the picks
         var explanations = Explainer.Explain(state, teamIndex, top, reach);
         var shares = confidenceSamples > 0 ? TopShares(state, teamIndex, reach, need, wait, confidenceSamples) : null;
@@ -108,7 +138,8 @@ public static class DraftAdvisor
             // a backed pick is always tagged "Recommended": with the waiting-cost reason when waiting is costly, else with the best-overall reason
             if (backed.Contains(c.Player.Id) && tags.All(t => t.Label != ReasonLabel.RunningOut))
                 tags.Insert(Math.Min(1, tags.Count), new AdviceTag(ReasonLabel.RunningOut, ReasonLabel.RunningOut.DisplayName(), Explainer.BestPickReason(c, pick)));
-            return new RankedPick(i + 1, c, explanations[i].Headline, tags, shares is null ? null : shares.GetValueOrDefault(c.Player.Id));
+            return new RankedPick(i + 1, c, explanations[i].Headline, tags, shares is null ? null : shares.GetValueOrDefault(c.Player.Id),
+                top[0].Score - c.Score, WithinCloseCall(top[0].Score, c.Score), MostlyReach(top[0], c), RealPoints(top[0]) - RealPoints(c));
         }).ToList();
 
         var positions = new List<PositionAdvice>();
@@ -130,8 +161,15 @@ public static class DraftAdvisor
             .Select(c => new PastTheWallPlayer(c.Player, (c.Player.Player.Adp ?? pick) - pick))
             .ToList();
 
-        return new Advice(pick, state.NextPick(teamIndex), recommended, positions, pastTheWall, LineupValue.Replacement(state), rival);
+        return new Advice(pick, state.NextPick(teamIndex), recommended, positions, pastTheWall, LineupValue.Replacement(state), rival, TossUpWith(recommended));
     }
+
+    /// <summary>
+    /// The recommended pick below the top one that comes out first in the most nudged re-rankings, if that share is at least <see cref="CloseCallTopShare"/>
+    /// (any position); null otherwise or without shares. The screen shows it as a toss-up instead of a confidence level, which read as certainty about the projection.
+    /// </summary>
+    public static RankedPick? TossUpWith(IReadOnlyList<RankedPick> recommended) =>
+        recommended.Skip(1).Where(p => p.TopShare >= CloseCallTopShare).OrderByDescending(p => p.TopShare).FirstOrDefault();
 
     /// <summary>The position of the best pick at another position whose <see cref="RankedPick.TopShare"/> is at least <see cref="CloseCallTopShare"/>; null without shares or without such a pick.</summary>
     static Position? ShareRival(IReadOnlyList<ValueCandidate> top, IReadOnlyDictionary<string, double>? shares)

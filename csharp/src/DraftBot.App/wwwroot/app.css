@@ -65,7 +65,7 @@ x-dc{display:block}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px}
 .stats .v{font-size:16px}
 .draft-btn{min-height:36px;padding:7px 32px}
-.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(max(250px,calc((100% - 28px) / 3)),1fr));gap:14px}
 details summary{cursor:pointer;list-style:none}
 details summary::-webkit-details-marker{display:none}
 .pause-btn{min-height:36px;padding:7px 18px}

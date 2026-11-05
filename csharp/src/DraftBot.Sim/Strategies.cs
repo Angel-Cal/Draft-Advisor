@@ -101,6 +101,55 @@ public sealed class QbTimingStrategy(string name, IDraftStrategy inner, int notB
     }
 }
 
+/// <summary>How a user picks among the recommendation cards the app shows.</summary>
+public enum CardChoice
+{
+    /// <summary>Always the first card.</summary>
+    First,
+    /// <summary>Any shown card, each equally likely.</summary>
+    Random,
+    /// <summary>The shown card with the lowest ADP: a user who leans to the market's favourite.</summary>
+    LowestAdp,
+}
+
+/// <summary>
+/// A user of the app (LOG 2026-11-04): takes one of the first <see cref="ShownCards"/> recommendations of <see cref="DraftAdvisor.Advise"/> (reaches already left out)
+/// by <paramref name="choice"/>; the best legal player of the adopted ranking when no shown card is legal. Random choices are seeded by the draft's own picks so a run is repeatable.
+/// </summary>
+public sealed class CardChoiceStrategy(string name, CardChoice choice) : IDraftStrategy
+{
+    /// <summary>Cards on the draft screen.</summary>
+    public const int ShownCards = 3;
+
+    public string Name => name;
+
+    public ValuedPlayer Pick(DraftState state, int team, IReadOnlyList<ValuedPlayer> legal)
+    {
+        var allowed = legal.Select(p => p.Id).ToHashSet();
+        var advice = DraftAdvisor.Advise(state, team, confidenceSamples: 0);
+        var cards = advice.Recommended.Take(ShownCards).Select(r => r.Candidate.Player).Where(p => allowed.Contains(p.Id)).ToList();
+        if (cards.Count == 0)
+            return ValueRecommender.Rank(state, ValueRecommender.DefaultReach, NeedSettings.Default, team, ValueRecommender.DefaultWait)
+                       .Select(c => c.Player).FirstOrDefault(p => allowed.Contains(p.Id)) ?? legal.MaxBy(p => p.Vor)!;
+        return choice switch
+        {
+            CardChoice.First => cards[0],
+            CardChoice.LowestAdp => cards.MinBy(p => p.Player.Adp ?? double.MaxValue)!,
+            _ => cards[(int)(DraftHash(state, team) % (ulong)cards.Count)],
+        };
+    }
+
+    /// <summary>A stable hash of the picks made so far and the team on the clock (FNV-1a; string.GetHashCode changes between runs).</summary>
+    static ulong DraftHash(DraftState state, int team)
+    {
+        var hash = 14695981039346656037UL;
+        void Mix(string s) { foreach (var ch in s) { hash ^= ch; hash *= 1099511628211UL; } }
+        foreach (var pick in state.History) Mix(pick.Player.Id);
+        Mix(team.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        return hash;
+    }
+}
+
 /// <summary>The recommender with a rollout on top (see <see cref="Rollout"/>): the base recommender proposes, simulated completions of the draft decide.</summary>
 public sealed class RolloutStrategy(string name, ReachSettings reach, NeedSettings need, RolloutSettings rollout, WaitSettings? baseWait = null) : IDraftStrategy
 {

@@ -278,6 +278,18 @@ All tested with the standing protocol: 10-seed ablation + random-noise control, 
 
 ## Hand-off (read this first in a new session)
 
+### 2026-11-04: a user who picks among the cards keeps under half the edge
+
+`world-sweep --arms cards` (7 worlds, 2019-2025, 100 seeds): edge over ADP is +31.7 points / +4.4 pp for the adopted advisor, +30.6 / +4.1 always taking card 1, +14.2 / +1.7 for a random card, +22.4 / +1.7 for the lowest-ADP card (rerun after dead picks were kept off the cards). Cards 2-3 are not interchangeable with card 1, so they now say what they give up against it (or "About as good as #1"); "Too early for this pick." when the gap is mostly reach cost. The number is real points (lineup and bench value plus the unweighted waiting loss), not the score gap, whose waiting bonus is weighted x4. Dead picks no longer reach the cards. Card 1 trails the advisor by ~1 point because the cards drop reaches even when one is the top score. LOG 2026-11-04.
+
+### 2026-11-04: OPEN, designed not implemented: the reach wall and early second TEs
+
+At pick 68 of the user's mock the only card was a second TE (Fannin, with Warren rostered): the reach cost makes anyone 2+ picks ahead of ADP unshowable (fewer than 3 cards at 38/40 round-2 picks from slot 5), and the lineup gain counts a second TE as a FLEX fix for an empty RB2 (every practice draft takes a second TE; 6/40 in round 7). Diagnosis, mechanisms, candidate arms and the test rule: LOG 2026-11-04 "the reach wall and early second TEs". Advisor defaults are frozen until 2026 is scored, so any change is a 2027 hypothesis. A display-only fix (say why when fewer than 3 cards) was declined: the app is not in production.
+
+### 2026-11-04: the confidence line became a toss-up note
+
+The cards no longer show High/Medium/Low confidence. When another recommended pick is first in 20%+ of the ADP-nudged re-rankings, the top card and that card read "Toss-up with X" (`Advice.TossUp`). The share itself (`RankedPick.TopShare`) and the share-based close call are unchanged. LOG 2026-11-04.
+
 ### 2026-11-04: the injury tag was tightened and now says why
 
 `injury_flag` is now "4+ missed games a season over the last 3 seasons, or a confirmed torn knee ligament / Achilles last season" (2026 file: 2 of the top 24, 7 of the top 60, 19 of the top 120, was 8 / 23 / 48). The tag's tooltip lists the major injury and the games played season by season (`Explainer.InjuryReason`). Major injuries come from `data/external/major_injuries.csv` (tracked in git, 219 reviewed candidates 2018-2025, 61 major); nflverse injury reports name only the body part, so `src/data/major_injuries.py` finds candidates and each is checked by hand. Rows whose source says "reviewed from memory" were not cross-checked against a news report. The adopted advisor does not read the flag, so simulator results are unchanged. All projection files were re-exported (2019-2026). **The frozen advisor-edge file now lives at `.claude/snapshots/projections_2026_v1_frozen.json`** (the re-export overwrote the old path; the original was rebuilt byte for byte, same SHA-256 `ebe202...`, commit a871a26); score 2026 from it. See the LOG entry of 2026-11-04 on the injury tag.

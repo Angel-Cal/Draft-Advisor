@@ -111,11 +111,17 @@ else
         <Tag Value="tag" Large="true" />
     }
     </div>
-    @if (pick.TopShare is { } share)
+    <div style="margin-top:auto">
+    @if (TossUpPartner(advice, pick) is { } partner)
     {
-        <div class="muted" style="font-size:12px;display:flex;align-items:center">@ConfidenceText(share)<Tip Class="fromleft" Label="What confidence means"><b>Confidence</b> is how well this pick holds up. We re-run the ranking 30 times, each time moving every player's ADP by about a pick, which is as precise as an ADP can be.<br><br><b>High</b>: he comes out on top almost every time.<br><b>Medium</b>: he is often on top, but another player sometimes edges past him.<br><b>Low</b>: he is rarely on top.<br><br>When two players are both close to the top, they are interchangeable here: take the one you prefer.</Tip></div>
+        <div class="muted" style="font-size:12px;display:flex;align-items:center;margin-bottom:8px">Toss-up with @partner.Candidate.Player.Player.PlayerName: either is a fine pick here.<Tip Class="fromleft" Label="What a toss-up means">These two are about equally good picks right now. We re-ran the ranking 30 times, each time moving every player's ADP by about a pick, and both came out on top. Take the one you prefer.<br><br>It says nothing about how sure the projections are.</Tip></div>
     }
-    <div style="margin-top:auto"><button class="@(pick.Rank == 1 ? "btn btn-primary draft-btn" : "btn btn-ghost draft-btn")" type="button" disabled="@Session.IsPaused" @onclick="() => Session.Draft(pick.Candidate.Player.Id)">Draft</button></div>
+    else if (pick.Rank > 1)
+    {
+        <div class="muted" style="font-size:12px;display:flex;align-items:center;margin-bottom:8px">@(pick.NearTop || Math.Round(pick.PointsBehindTop) < 1 && !pick.TooEarly ? "About as good as #1." : pick.TooEarly ? "Too early for this pick." : $"Gives up about {Math.Round(pick.PointsBehindTop)} pts vs #1.")<Tip Class="fromleft" Label="What this cost means">@if (pick.TooEarly && !pick.NearTop) {<text>Drafters usually take him later than this. He trails the first card mostly because taking him now would be a reach, and reaching lost points in our simulations; he may well be the right pick a little later.</text>} else {<text>How many projected points this pick gives up against the first card: what each adds to your lineup and bench, plus the points you are expected to lose at his position by waiting.</text>}<br><br>The first card is the pick. In our simulations, drafters who picked among the cards instead kept less than half of the advantage over drafting by ADP.</Tip></div>
+    }
+    <button class="@(pick.Rank == 1 ? "btn btn-primary draft-btn" : "btn btn-ghost draft-btn")" type="button" disabled="@Session.IsPaused" @onclick="() => Session.Draft(pick.Candidate.Player.Id)">Draft</button>
+    </div>
     </article>
 }
 </div>
@@ -239,9 +245,9 @@ else
 
     static string Adp(ValueCandidate c) => Format1(c.Player.Player.Adp);
 
-    // how firmly a pick stands when every ADP is nudged by about a pick (the share of nudged re-rankings in which he is first); the cutoffs are a display choice, not a tested one
-    static string ConfidenceText(double share) =>
-        share >= 0.8 ? "High confidence" : share >= 0.3 ? "Medium confidence" : "Low confidence";
+    // the top pick and the toss-up pick (DraftAdvisor.TossUpWith) each name the other; every other card shows nothing
+    static RankedPick? TossUpPartner(Advice advice, RankedPick pick) =>
+        advice.TossUp is not { } tossUp ? null : pick.Rank == 1 ? tossUp : pick.Rank == tossUp.Rank ? advice.Recommended[0] : null;
 
     static string Points(ValueCandidate c) => Math.Round(c.Player.Player.ProjectedPpr).ToString(System.Globalization.CultureInfo.InvariantCulture);
 

@@ -152,6 +152,64 @@ public class AdvisorTests
         Assert.InRange(tied.Recommended[0].TopShare!.Value, 0.3, 0.8);
         Assert.NotNull(tied.Rival);
         Assert.Equal(tied.Recommended.Take(2).Sum(r => r.TopShare!.Value), tied.Recommended.Sum(r => r.TopShare!.Value), 9);   // the shares of a tie add up (nobody else is first)
+
+        Assert.Null(clear.TossUp);
+        Assert.Equal(2, tied.TossUp!.Rank);
+
+        // each card says what it gives up against the first: nothing for the first, a real gap behind a clear pick, a tie behind a tied one
+        Assert.Equal(0, clear.Recommended[0].BehindTop);
+        Assert.True(clear.Recommended[0].NearTop);
+        var gap = DraftAdvisor.Advise(new DraftState([V("star", Position.RB, 300, 1), V("w1", Position.WR, 150, 1.2), V("t1", Position.TE, 120, 9)], Four), 0);
+        Assert.Equal(gap.Recommended[0].Candidate.Score - gap.Recommended[1].Candidate.Score, gap.Recommended[1].BehindTop, 9);
+        Assert.False(gap.Recommended[1].NearTop);
+        Assert.Equal(DraftAdvisor.RealPoints(gap.Recommended[0].Candidate) - DraftAdvisor.RealPoints(gap.Recommended[1].Candidate), gap.Recommended[1].PointsBehindTop, 9);
+        var weighted = new ValueCandidate(Valued("w", Position.TE), 300, 10, 0, Gain: 80, BenchValue: 5, WaitBonus: 200, WaitShortfall: 50);
+        Assert.Equal(135, DraftAdvisor.RealPoints(weighted), 9);       // 80 + 5 + the unweighted 50: no x4 weight, no reach cost
+        var even = DraftAdvisor.Advise(new DraftState([V("rb", Position.RB, 250, 1), V("wr", Position.WR, 250, 1.1), V("t1", Position.TE, 120, 9)], Four), 0);
+        Assert.True(even.Recommended[1].NearTop);
+    }
+
+    [Fact]
+    public void A_dead_pick_is_never_a_card()
+    {
+        // late in a real practice draft, the structural bench weights mark players who can never start or be needed as dead picks; none may reach the cards
+        var file = BacktestFile();
+        var state = new DraftState(Valuator.Value(file.Players, file.PositionRmse, new LeagueSettings()), new LeagueSettings());
+        var checkedPicks = 0;
+        while (!state.IsComplete)
+        {
+            var team = state.CurrentTeam;
+            var advice = DraftAdvisor.Advise(state, team, confidenceSamples: 0);
+            if (advice.Recommended.Any(r => r.Candidate.Score > ValueRecommender.DeadPickScore / 2))
+            {
+                Assert.All(advice.Recommended, r => Assert.True(r.Candidate.Score > ValueRecommender.DeadPickScore / 2, $"pick {advice.Pick}: {r.Candidate.Player.Player.PlayerName}"));
+                checkedPicks++;
+            }
+            state.Draft(advice.Recommended[0].Candidate.Player.Id);
+        }
+        Assert.True(checkedPicks > 0);
+    }
+
+    [Fact]
+    public void A_gap_that_is_mostly_reach_cost_reads_as_too_early()
+    {
+        ValueCandidate C(double score, double reach) => new(Valued("x", Position.RB), score, 0, 0) { ReachPenalty = reach };
+
+        Assert.True(DraftAdvisor.MostlyReach(C(100, 0), C(-80, 170)));      // 180 behind, 170 of it reach cost
+        Assert.False(DraftAdvisor.MostlyReach(C(100, 0), C(70, 10)));       // 30 behind, 10 of it reach cost: a real value gap
+        Assert.True(DraftAdvisor.MostlyReach(C(100, 20), C(60, 40)));       // only the extra reach over the first card counts: 20 of 40
+        Assert.False(DraftAdvisor.MostlyReach(C(100, 0), C(100, 0)));       // no gap
+    }
+
+    [Fact]
+    public void The_toss_up_is_the_next_pick_with_the_largest_share_of_at_least_a_fifth()
+    {
+        RankedPick R(int rank, double? share) => new(rank, new ValueCandidate(Valued($"p{rank}", Position.RB), 0, 0, 0), "", [], share);
+
+        Assert.Equal(3, DraftAdvisor.TossUpWith([R(1, 0.5), R(2, 0.2), R(3, 0.3)])!.Rank);
+        Assert.Null(DraftAdvisor.TossUpWith([R(1, 0.85), R(2, 0.15)]));                 // under a fifth: the top pick stands clear
+        Assert.Null(DraftAdvisor.TossUpWith([R(1, null), R(2, null)]));                 // the check was skipped
+        Assert.Equal(2, DraftAdvisor.TossUpWith([R(1, 0.1), R(2, 0.9)])!.Rank);          // never the top pick itself
     }
 
     [Fact]
