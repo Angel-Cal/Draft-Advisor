@@ -41,13 +41,15 @@ Strict JSON (no `NaN`; missing values are `null`).
 | `games` | int | Games played in the most recent qualifying season (the season before `season`). |
 | `games_delta` | int | Change in games vs the season before that. C# derives the availability adjustment from `games < 13 AND games_delta < -5`. |
 | `adp` | float | ADP from `adp_source`. Present for every player the exporter writes (the pool is the ADP-ranked players); readers still treat `null` as unranked. |
-| `injury_flag` | bool | Durability flag: averaged under 15 games over their qualifying seasons (>= 2 seasons of >= 4 games) before `season`. The recommender's risk penalty reads this. Always `false` for market-estimate rows. |
+| `injury_flag` | bool | True if he missed 4 or more games per season on average over `games_history`, or `major_injury` is set. Computed point-in-time for every row with history, market-estimate rows included (`false` with no history). Only the old baseline recommender's risk penalty reads it; the adopted advisor shows it as the Injury tag. |
 | `market_estimate` | bool | `true` if the projection is the ADP-derived fallback (rookies, anyone the model cannot score). |
 | `actual_ppr` | float\|null | Backtest files only: the player's actual season PPR (`0` if they never played). `null` in live files. |
 | `weekly_ppr` | array(18) | Backtest files only, optional: regular-season PPR for weeks 1-18, `null` where the player did not play (bye, injury, inactive). Sums to `actual_ppr`; the simulator uses it for weekly lineup scoring. Absent in live files. |
 | `absence_share_prev` | float\|null | Optional, WR rows only (null for everyone else and for players with no history). Share of last season's targets earned in weeks the team's top rival (highest targets per game among teammates, 3+ games) did not play, 0 to 1. Computed by `src/features/role_context.py`. |
 | `team_changed` | bool\|null | Optional, WR rows only. His start-of-season team differs from the team he played most games for last season. |
 | `rookie_r1_teammate` | bool\|null | Optional, WR rows only. A first-round rookie WR/TE (not himself; two-way players excluded) is on his start roster. |
+| `games_history` | array\|null | Optional. His last 3 regular seasons before `season` (fewer for newer players), oldest first: `{"season", "games", "of"}`, `of` = 16 before 2021, 17 from 2021. A season inside that span with no stats counts as 0 games. `null` for players with no history. |
+| `major_injury` | object\|null | Optional. A confirmed torn knee ligament (ACL, PCL, MCL or LCL, surgically repaired) or torn Achilles in the season before `season`: `{"season", "week", "injury"}`, `week` null when it happened outside the season, `injury` free text. Source: `data/external/major_injuries.csv` (hand-checked candidates from `src/data/major_injuries.py`). |
 
 ---
 
@@ -66,6 +68,7 @@ Strict JSON (no `NaN`; missing values are `null`).
 | Version | Date | Changes |
 |---------|------|---------|
 | v1 | 2026-10 | Initial schema, drafted in Phase 0 as parquet + CSV. Finalized in Phase 2 as JSON with a header: `underdog_adp` became `adp` + header `adp_source`; `position_rmse` and `schema_version` moved from per-row to the header; added `kind`, `season`, `actual_ppr`, optional backtest `weekly_ppr`; `injury_flag` redefined to match the code (durability flag; the old "games < 13" rule is the availability adjustment, now derived in C#); `team` may be `"FA"`. |
+| v1 | 2026-11-04 | `injury_flag` redefined (4+ missed games a season over the last 3 seasons, or a confirmed major injury last season; was: average under 15 games over all qualifying seasons, which flagged 40-50% of the pool) and computed for market rows too. Added the optional `games_history` and `major_injury` fields behind it (older files still load; C# reads them as null). |
 | v1 | 2026-10-28 | Added three optional WR-only fields, `absence_share_prev`, `team_changed`, `rookie_r1_teammate` (older files without them still load; C# reads them as null). Same schema version: additive and optional. They drive the role caution in the draft advisor (`Explainer`). |
 
 ---

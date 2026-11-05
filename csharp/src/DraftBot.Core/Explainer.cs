@@ -89,13 +89,33 @@ public static class Explainer
         var roleCaution = RoleCaution(player.Player);
         if (roleCaution is not null) Add(roleCaution, ReasonLabel.RoleMayNotCarryOver);
 
-        if (player.Player.InjuryFlag) Add("He has missed time in past seasons (under 15 games a year on average), so his projection carries more risk than most.", ReasonLabel.InjuryHistory);
+        if (player.Player.InjuryFlag) Add(InjuryReason(player.Player), ReasonLabel.InjuryHistory);
         if (player.Player.MarketEstimate) Add("His projection is an estimate taken from where drafters rank him (a rookie or a player the model cannot score), so it is less reliable.", ReasonLabel.EstimatedProjection);
 
         var pick = state.OverallPick + 1;
         if (PriceReason(c, reach, pick) is { } price) Add(price.Text, price.Label);
 
         return new Explanation(player, Headline(c, starts, scarcity is not null) + (roleCaution is null ? "" : " Caution: his role may not carry over."), reasons.Take(MaxReasons).ToList(), labels.Take(MaxReasons).ToList());
+    }
+
+    /// <summary>
+    /// The injury tag's text: the major injury he is coming off, if any, then the games he missed season by season, e.g. "Missed 14 games over
+    /// the last 3 seasons (2023: 16 of 17, 2024: 4 of 17, 2025: 17 of 17), so his projection carries more risk than most."
+    /// </summary>
+    public static string InjuryReason(Player player)
+    {
+        var parts = new List<string>();
+        if (player.MajorInjury is { } major)
+            parts.Add($"Major injury last season: {major.Injury}{(major.Week is { } week ? $" (week {week})" : "")}.");
+        if (player.GamesHistory is { Count: > 0 } history)
+        {
+            var missed = history.Sum(h => h.Of - h.Games);
+            var span = history.Count == 1 ? $"in {history[0].Season} (played {history[0].Games} of {history[0].Of})"
+                : $"over the last {history.Count} seasons ({string.Join(", ", history.Select(h => $"{h.Season}: {h.Games} of {h.Of}"))})";
+            parts.Add($"Missed {missed} {(missed == 1 ? "game" : "games")} {span}, so his projection carries more risk than most.");
+        }
+        else parts.Add("He has missed significant time recently, so his projection carries more risk than most.");
+        return string.Join(" ", parts);
     }
 
     static string Headline(ValueCandidate c, bool starts, bool scarce)

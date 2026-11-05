@@ -69,7 +69,7 @@ Data files, `archive/` and build output are not listed.
     - `int? NextPick(int team)`: The 1-based overall number of the team's next pick after the one on the clock; null if it has none left.
     - `IReadOnlyList<int> UpcomingPicks(int team, int count)`: The 1-based overall numbers of the team's next count picks after the one on the clock (fewer if the draft ends first).
     - `bool Draft(string playerId)`: Drafts the player for the team on the clock.
-- **Explainer.cs** (196 lines)
+- **Explainer.cs** (216 lines)
   - `enum ReasonLabel`: What a recommendation's reasons are about, for badges next to the text.
   - `static class ReasonLabels`: What a tag is called on screen.
     - `static string DisplayName(this ReasonLabel label)`
@@ -77,6 +77,7 @@ Data files, `archive/` and build output are not listed.
   - `static class Explainer`: Turns the recommender's candidates into explanations for beginners.
     - `static bool IsReach(ValueCandidate c)`: True when the advisor charges at least ReachCostPoints for taking the player at this pick.
     - `static IReadOnlyList<Explanation> Explain(DraftState state, int teamIndex, IReadOnlyList<ValueCandidate> candidates, ReachSettings reach)`: One explanation per candidate, in the order given.
+    - `static string InjuryReason(Player player)`: The injury tag's text: the major injury he is coming off, if any, then the games he missed season by season, e.g. "Missed 14 games over the last 3 seasons (2023: 16 of 17, 2024: 4 of 17, 2025: 17 o...
     - `static string BestPickReason(ValueCandidate c, int pick)`: Why a pick the advice backs is recommended when waiting on him is cheap (so there is no waiting-cost reason to show): it is the best overall once everything is weighed, and whether he would be a re...
     - `static bool HasRoleCaution(Player player)`: True for a receiver whose last season is the kind that was often over-projected: at least half of his targets came while the team's top receiver was out, AND he has changed teams or a first-round r...
 - **LeagueSettings.cs** (26 lines)
@@ -90,8 +91,10 @@ Data files, `archive/` and build output are not listed.
     - `static double Best(IEnumerable<ValuedPlayer> players, LeagueSettings league, IReadOnlyDictionary<Position, double> replacement)`: Best lineup: each position's dedicated slots take its best players, then the FLEX slots take the best of the leftover RB/WR/TE.
     - `static double ByeCover(IReadOnlyList<ValuedPlayer> roster, LeagueSettings league, IReadOnlyDictionary<Position, double> replacement, ByeSchedule byes)`: What a roster earns in bye weeks beyond its season-total lineup.
     - `static double Gain(IReadOnlyList<ValuedPlayer> roster, ValuedPlayer candidate, LeagueSettings league, IReadOnlyDictionary<Position, double> replacement)`: How many points candidate adds to the roster's best lineup (0 if he would not start).
-- **Player.cs** (23 lines)
-  - `record Player(string PlayerId, string PlayerName, Position Position, string Team, double ProjectedPpr, int Games, int GamesDelta, double? Adp, bool InjuryFlag, bool MarketEstimate, double? ActualPpr, IReadOnlyList<double?>? WeeklyPpr = null, double? AbsenceSharePrev = null, bool? TeamChanged = null, bool? RookieR1Teammate = null)`: One row of a projection file (.claude/projection_schema_v1.md).
+- **Player.cs** (32 lines)
+  - `record Player(string PlayerId, string PlayerName, Position Position, string Team, double ProjectedPpr, int Games, int GamesDelta, double? Adp, bool InjuryFlag, bool MarketEstimate, double? ActualPpr, IReadOnlyList<double?>? WeeklyPpr = null, double? AbsenceSharePrev = null, bool? TeamChanged = null, bool? RookieR1Teammate = null, IReadOnlyList<SeasonGames>? GamesHistory = null, MajorInjury? MajorInjury = null)`: One row of a projection file (.claude/projection_schema_v1.md).
+  - `record SeasonGames(int Season, int Games, int Of)`: Games he played in one regular season, out of the games his team played (16 before 2021, 17 from 2021).
+  - `record MajorInjury(int Season, int? Week, string Injury)`: A confirmed major injury (torn knee ligament or Achilles) in the season before the draft; Week is null for one suffered outside the season.
 - **Position.cs** (12 lines)
   - `enum Position`
   - `enum Slot`: A lineup slot: a position, or the FLEX slot that RB/WR/TE can fill.
@@ -349,7 +352,7 @@ Data files, `archive/` and build output are not listed.
 - **ByeTests.cs** (110 lines): 5 tests
 - **DiagnosticsTests.cs** (68 lines): 5 tests
 - **DraftStateTests.cs** (125 lines): 8 tests
-- **ExplainerTests.cs** (257 lines): 16 tests
+- **ExplainerTests.cs** (277 lines): 18 tests
 - **LeagueSeasonTests.cs** (112 lines): 8 tests
 - **LookaheadTests.cs** (96 lines): 6 tests
 - **MockDraftTests.cs** (131 lines): 12 tests
@@ -381,9 +384,12 @@ Data files, `archive/` and build output are not listed.
   - `parse_adp_csv(path, season, snapshot)`: FantasyPros' own CSV export of the ADP page (columns Rank, "Player (Bye)", POS, ESPN, Sleeper, CBS, RTSports, Fantrax, AVG, Real-Time): same frame as parse_adp.
   - `attach_player_ids(adp, ids)`
   - `fill_from_roster(adp, roster)`: Fill missing player_ids by (name, position) from a season roster (ids.parquet predates that year's draft, so its rookies are absent).
-- **export_projections.py** (191 lines): Export projections_<season>_v1.json for the C# side (contract: .claude/projection_schema_v1.md). (runnable)
+- **export_projections.py** (229 lines): Export projections_<season>_v1.json for the C# side (contract: .claude/projection_schema_v1.md). (runnable)
   - `attach_role_context(df, context, season)`: Add the optional role-context fields (src/features/role_context.py) for this season; null for everyone but WRs and for players with no history.
-  - `durability_flag(seasonal, before_season)`: player_id -> True if they averaged under 15 games over their qualifying seasons before `before_season`.
+  - `season_games(season)`: Regular-season games a team played that season (16 before 2021, 17 from 2021).
+  - `games_history(seasonal, before_season)`: player_id -> [{"season", "games", "of"}, ...], oldest first: his last HISTORY_SEASONS seasons before `before_season`.
+  - `injury_flag(history, major_injury)`: True if he missed MISSED_PER_SEASON or more games per season on average over his history, or is coming off a confirmed major injury (torn knee ligament or Achilles, data/external/major_injuries.csv...
+  - `attach_injury_history(df, seasonal, season, major)`: Add the optional games_history and major_injury fields and set injury_flag from them (the same rule live and in backtests, point-in-time: only seasons before `season`).
   - `build_live(table, roster, adp_table)`: table: predictions_table.parquet; roster: roster_2026; adp_table: adp_table.csv (FantasyPros ADP + player_id).
   - `weekly_lists(weekly, season)`: player_id -> 18 values, regular-season PPR for weeks 1-18; None where the player did not play (bye, injury, inactive).
   - `build_backtest(season, oos, adp, training, seasonal, curves, weekly)`: oos: season_<year>.parquet; adp: adp_<year>.csv; training: training_data; seasonal: raw season stats.
@@ -391,6 +397,10 @@ Data files, `archive/` and build output are not listed.
   - `write(doc)`
 - **ffc_scraper.py** (42 lines): Real draft-to-draft pick spread: Fantasy Football Calculator's public ADP API, 12-team PPR, one file per season. (runnable)
   - `fetch(season)`
+- **major_injuries.py** (96 lines): Major injuries (torn ACL, torn Achilles and the like): candidates found in nflverse data, confirmed by hand. (runnable)
+  - `regular_season_weeks(season)`: Weeks in the regular season, byes included (17 before the 17-game era, 18 from 2021).
+  - `season_ending_candidates(injuries, weekly, roster, pools)`: Players whose season S may have ended with a major injury, limited to players in the draft pool of season S+1.
+  - `load_major_injuries(path)`: (player_id, season) -> {"season", "week", "injury"} for every confirmed major injury in the curated file.
 - **pipeline.py** (232 lines): (runnable)
   - `load_data()`
   - `load_predictions()`
@@ -404,8 +414,8 @@ Data files, `archive/` and build output are not listed.
   - `params_checksums()`
   - `update_manifest(stage, info)`: Record a pipeline stage (pipeline, predict, ...) with the commit, timestamp and params that produced it.
   - `check_freshness(inputs, outputs, label, strict)`: Every output must be at least as new as every input; otherwise it was built from older data.
-- **scraper.py** (87 lines): NFL data scraping and API integration module. (runnable)
-- **validate.py** (253 lines): Data-integrity checks.
+- **scraper.py** (96 lines): NFL data scraping and API integration module. (runnable)
+- **validate.py** (258 lines): Data-integrity checks.
   - `class DataIntegrityError`
   - `class DataIntegrityWarning`
   - `drop_junk_rows(df, id_col)`: Raw nflverse files contain team-total rows with no player ID (games = 256-272).
@@ -737,7 +747,7 @@ Data files, `archive/` and build output are not listed.
 - **test_advanced_features.py** (120 lines): 9 tests
 - **test_data_integrity.py** (192 lines): 16 tests
 - **test_draft_state.py** (79 lines): 10 tests
-- **test_export_projections.py** (170 lines): 13 tests
+- **test_export_projections.py** (206 lines): 16 tests
 - **test_frozen_file_outcomes.py** (41 lines): 2 tests
 - **test_market_fallback.py** (66 lines): 5 tests
 - **test_ol_features.py** (40 lines): 2 tests

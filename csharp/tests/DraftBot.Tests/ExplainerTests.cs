@@ -254,4 +254,24 @@ public class ExplainerTests
         Assert.Equal(["b", "a"], all.Select(e => e.Player.Id));
         Assert.All(all.SelectMany(e => e.Reasons.Append(e.Headline)), text => Assert.DoesNotContain("score", text, StringComparison.OrdinalIgnoreCase));
     }
+    [Fact]
+    public void Injury_reason_lists_the_major_injury_and_the_games_missed_season_by_season()
+    {
+        var p = Player("x", Position.WR, 200, injury: true) with
+        {
+            GamesHistory = [new(2023, 16, 17), new(2024, 4, 17), new(2025, 17, 17)],
+            MajorInjury = new(2025, 4, "torn ACL"),
+        };
+
+        Assert.Equal("Major injury last season: torn ACL (week 4). Missed 14 games over the last 3 seasons (2023: 16 of 17, 2024: 4 of 17, 2025: 17 of 17), "
+                     + "so his projection carries more risk than most.", Explainer.InjuryReason(p));
+    }
+
+    [Fact]
+    public void Injury_reason_handles_one_season_and_files_without_history()
+    {
+        var rookie = Player("r", Position.RB, 200, injury: true) with { GamesHistory = [new(2025, 9, 17)] };
+        Assert.Equal("Missed 8 games in 2025 (played 9 of 17), so his projection carries more risk than most.", Explainer.InjuryReason(rookie));
+        Assert.Contains("missed significant time", Explainer.InjuryReason(Player("o", Position.RB, 200, injury: true)));
+    }
 }

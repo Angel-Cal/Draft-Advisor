@@ -3,7 +3,8 @@ import numpy as np
 import pandas as pd
 import pytest
 from src.data import validate as v
-from src.data.export_projections import PROCESSED, build_backtest, durability_flag, to_document, weekly_lists
+from src.data.export_projections import PROCESSED, attach_injury_history, build_backtest, games_history, injury_flag, to_document, weekly_lists
+from src.data.major_injuries import season_ending_candidates
 from src.draft.market_fallback import fit_position_curves
 
 
@@ -27,23 +28,51 @@ def valid_doc(**changes):
     return {**doc, **changes}
 
 
-# ---- durability flag ------------------------------------------------------------------------------------------
+# ---- injury flag ----------------------------------------------------------------------------------------------
 
-def test_durability_flag_needs_two_qualifying_seasons_and_an_average_under_15():
-    s = seasonal_rows([("fragile", 2022, 10, "RB", 0), ("fragile", 2023, 12, "RB", 0),
-                       ("iron", 2022, 17, "RB", 0), ("iron", 2023, 16, "RB", 0),
-                       ("one_year", 2023, 8, "RB", 0),
-                       ("short_year_ignored", 2022, 2, "RB", 0), ("short_year_ignored", 2023, 17, "RB", 0)])
-    flag = durability_flag(s, before_season=2024)
-    assert flag["fragile"] and not flag["iron"]
-    assert "one_year" not in flag.index or not flag["one_year"]                # a single season is not enough
-    assert "short_year_ignored" not in flag.index or not flag["short_year_ignored"]   # <4 games does not count
+def test_games_history_is_the_last_three_seasons_with_lost_seasons_as_zero():
+    s = seasonal_rows([("vet", 2019, 16, "RB", 0), ("vet", 2021, 17, "RB", 0), ("vet", 2023, 4, "RB", 0),
+                       ("rookie", 2023, 9, "WR", 0), ("traded", 2023, 18, "WR", 0)])
+    h = games_history(s, before_season=2024)
+    assert h["vet"] == [{"season": 2021, "games": 17, "of": 17}, {"season": 2022, "games": 0, "of": 17},
+                        {"season": 2023, "games": 4, "of": 17}]          # 2022 had no stats: lost to injury
+    assert h["rookie"] == [{"season": 2023, "games": 9, "of": 17}]       # newer players have fewer seasons
+    assert h["traded"][0]["games"] == 17                                 # capped at the season length
+    assert games_history(s, before_season=2020)["vet"] == [{"season": 2019, "games": 16, "of": 16}]   # point-in-time
 
 
-def test_durability_flag_is_point_in_time():
-    s = seasonal_rows([("p", 2021, 17, "WR", 0), ("p", 2022, 17, "WR", 0), ("p", 2023, 5, "WR", 0)])
-    assert not durability_flag(s, before_season=2023)["p"]       # sees 17 and 17
-    assert durability_flag(s, before_season=2024)["p"]           # 2023's 5 games now drags the average to 13
+def test_injury_flag_needs_four_missed_games_a_season_or_a_major_injury():
+    def h(*games):
+        return [{"season": 2021 + i, "games": g, "of": 17} for i, g in enumerate(games)]
+    assert injury_flag(h(13, 13, 13), None)            # 4 missed a season: flagged
+    assert not injury_flag(h(14, 13, 13), None)        # 3.67: not flagged
+    assert not injury_flag(h(17, 17, 17), None) and not injury_flag(None, None)
+    assert injury_flag(h(17, 17, 17), {"season": 2023, "week": 15, "injury": "torn ACL"})
+
+
+def test_attach_injury_history_reads_the_major_injury_from_last_season_only():
+    s = seasonal_rows([("a", 2023, 17, "WR", 0), ("b", 2023, 17, "WR", 0)])
+    df = pd.DataFrame({"player_id": ["a", "b", "market:c"]})
+    major = {("a", 2023): {"season": 2023, "week": 16, "injury": "torn ACL"},
+             ("b", 2022): {"season": 2022, "week": 3, "injury": "torn Achilles"}}
+    out = attach_injury_history(df, s, 2024, major).set_index("player_id")
+    assert out.loc["a", "injury_flag"] and out.loc["a", "major_injury"]["injury"] == "torn ACL"
+    assert not out.loc["b", "injury_flag"] and out.loc["b", "major_injury"] is None   # two seasons ago does not count
+    assert out.loc["market:c", "games_history"] is None and not out.loc["market:c", "injury_flag"]
+
+
+def test_season_ending_candidates():
+    weekly = pd.DataFrame([("early", 2023, w, "REG") for w in (1, 2, 3, 4)] + [("late_acl", 2023, w, "REG") for w in range(1, 16)] +
+                          [("full", 2023, w, "REG") for w in range(1, 19)] + [("rested", 2023, w, "REG") for w in range(1, 18)] +
+                          [("lost", 2022, 1, "REG")],
+                          columns=["player_id", "season", "week", "season_type"])
+    injuries = pd.DataFrame({"season": [2023, 2023], "week": [16, 18], "gsis_id": ["late_acl", "rested"],
+                             "report_primary_injury": ["Knee", "Not injury related - resting player"], "report_secondary_injury": [None, None]})
+    roster = pd.DataFrame({"gsis_id": [], "season": [], "week": [], "status": []})
+    pools = {2024: {"early", "late_acl", "full", "rested", "lost", "never"}}
+    found = season_ending_candidates(injuries, weekly, roster, pools).set_index("player_id")
+    assert set(found.index) == {"early", "late_acl", "lost"}
+    assert found.loc["late_acl", "why"] == "knee/Achilles report" and found.loc["lost", "why"] == "missed the whole season"
 
 
 # ---- backtest builder -----------------------------------------------------------------------------------------
@@ -76,7 +105,6 @@ def test_backtest_flags_and_team_spelling():
     oos, adp, training, seasonal = backtest_inputs()
     df = build_backtest(2024, oos, adp, training, seasonal, curves()).set_index("player_id")
     assert df.loc["m1", "team"] == "JAX" and df.loc["r1", "team"] == "LA" and df.loc["z1", "team"] == "FA"
-    assert not df.loc["m1", "injury_flag"] and df.loc["m2", "injury_flag"]  # avg 8.5 games before 2024
     assert df.loc["m2", "games"] == 8 and df.loc["m2", "games_delta"] == -7
     assert df["adp"].is_monotonic_increasing                                # sorted by ADP
 
@@ -111,6 +139,14 @@ def test_validator_checks_weekly_points_against_the_season_total():
         v.check_projection_file(valid_doc(kind="backtest", players=[{**players[0], "actual_ppr": 25.0}, players[1]]))
     with pytest.raises(v.DataIntegrityError, match="18 weeks"):
         v.check_projection_file(valid_doc(kind="backtest", players=[{**players[0], "weekly_ppr": [20.0]}, players[1]]))
+
+
+def test_validator_checks_games_history():
+    players = valid_doc()["players"]
+    ok = [{**players[0], "games_history": [{"season": 2025, "games": 12, "of": 17}]}, {**players[1], "games_history": None}]
+    v.check_projection_file(valid_doc(players=ok))
+    with pytest.raises(v.DataIntegrityError, match="games_history"):
+        v.check_projection_file(valid_doc(players=[{**ok[0], "games_history": [{"season": 2025, "games": 18, "of": 17}]}, ok[1]]))
 
 
 def test_backtest_document_passes_validation():

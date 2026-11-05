@@ -72,6 +72,14 @@ def _import_advanced_sources():
         new[new["pos_abb"].isin(skill)][["dt", "team", "pos_abb", "pos_rank", "gsis_id"]].to_parquet(DATA_DIR / f"depth_new_{season}.parquet")
 
 
+def _import_injuries():
+    """Weekly official injury reports 2018-2025 (nflverse): body part only, the candidate source for the major-injury list."""
+    injuries = nflread.load_injuries(seasons=list(range(2018, 2026))).to_pandas()
+    injuries = injuries[injuries["game_type"] == "REG"]
+    injuries[["season", "week", "gsis_id", "full_name", "position", "team", "report_primary_injury",
+              "report_secondary_injury", "report_status"]].to_parquet(DATA_DIR / "injuries_18_25.parquet")
+
+
 def _import_roster_2026():
     """Start-of-season roster for the prediction season (vacated-volume features)."""
     raw_roster = nflread.load_rosters([2026]).to_pandas()
@@ -84,4 +92,5 @@ if __name__ == "__main__":
     _import_data()
     _import_roster_2026()
     _import_advanced_sources()
+    _import_injuries()
 

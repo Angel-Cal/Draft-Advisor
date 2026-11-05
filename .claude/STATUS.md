@@ -154,6 +154,7 @@ python src/evaluation/oos_predictions.py         # walk-forward predictions, 5 s
 python src/evaluation/benchmark.py               # model vs ADP vs last-year -> benchmark_v1.csv
 python src/models/predict.py                     # 2026 projections -> *_predictions.parquet (close the CSVs in Excel first); short-season players are routed (src/models/short_season.py)
 python src/draft/vor.py                          # advisor table -> predictions_table.parquet (adds ADP fallback rows)
+python src/data/major_injuries.py --print        # lists season-ending injuries not yet in data/external/major_injuries.csv; check each against a news report and add a row (major = true only for a torn knee ligament or Achilles)
 python src/data/export_projections.py            # projections_<season>_v1.json: live 2026 + backtests 2021-2025 (C# reads these)
 python src/data/adp_scraper.py                   # only to refresh historical ADP (Wayback Machine, cached in data/raw/adp_html)
 python src/data/ffc_scraper.py                   # real pick-spread data from FFC mock drafts (cached in data/raw/ffc); used to calibrate the simulator
@@ -276,6 +277,10 @@ All tested with the standing protocol: 10-seed ablation + random-noise control, 
 ---
 
 ## Hand-off (read this first in a new session)
+
+### 2026-11-04: the injury tag was tightened and now says why
+
+`injury_flag` is now "4+ missed games a season over the last 3 seasons, or a confirmed torn knee ligament / Achilles last season" (2026 file: 2 of the top 24, 7 of the top 60, 19 of the top 120, was 8 / 23 / 48). The tag's tooltip lists the major injury and the games played season by season (`Explainer.InjuryReason`). Major injuries come from `data/external/major_injuries.csv` (tracked in git, 219 reviewed candidates 2018-2025, 61 major); nflverse injury reports name only the body part, so `src/data/major_injuries.py` finds candidates and each is checked by hand. Rows whose source says "reviewed from memory" were not cross-checked against a news report. The adopted advisor does not read the flag, so simulator results are unchanged. All projection files were re-exported (2019-2026). **The frozen advisor-edge file now lives at `.claude/snapshots/projections_2026_v1_frozen.json`** (the re-export overwrote the old path; the original was rebuilt byte for byte, same SHA-256 `ebe202...`, commit a871a26); score 2026 from it. See the LOG entry of 2026-11-04 on the injury tag.
 
 ### Session handoff, 2026-10-28 evening (updated 2026-10-29): the app is being built; the reach-cost experiment and the short-season fix are done (DONE lines below)
 

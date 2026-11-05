@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.data.run_manifest import _git, check_freshness, update_manifest
 from src.data.validate import NO_TEAM, check_projection_file
 from src.draft.market_fallback import fit_position_curves, load_history, market_projections
+from src.data.major_injuries import load_major_injuries
 from src.draft.vor import RMSE
 from src.features.role_context import build_role_context
 from src.features.team_context import TEAM_MAP
@@ -33,6 +34,8 @@ SCHEMA_COLUMNS = ["player_id", "player_name", "position", "team", "projected_ppr
 
 
 ROLE_COLUMNS = ["absence_share_prev", "team_changed", "rookie_r1_teammate"]    # optional schema fields, WR rows only (the study behind them is WR-only)
+HISTORY_SEASONS = 3     # the injury flag looks at this many seasons before the draft
+MISSED_PER_SEASON = 4   # ... and flags an average of this many missed games or more per season
 
 
 def attach_role_context(df, context, season):
@@ -59,7 +62,7 @@ def _finish(df):
         df["actual_ppr"] = float("nan")
     df["games"] = df["games"].round().astype("Int64")
     df["games_delta"] = df["games_delta"].round().astype("Int64")
-    df["injury_flag"] = df["injury_flag"].astype(bool)
+    df["injury_flag"] = df["injury_flag"].astype(bool) if "injury_flag" in df.columns else False   # set by attach_injury_history
     df["market_estimate"] = df["market_estimate"].astype(bool)
     for col in ["projected_ppr", "adp", "actual_ppr"]:
         df[col] = df[col].astype(float).round(2)
@@ -67,15 +70,48 @@ def _finish(df):
     return df[columns].sort_values("adp").reset_index(drop=True)
 
 
-def durability_flag(seasonal, before_season):
-    """player_id -> True if they averaged under 15 games over their qualifying seasons before `before_season`.
+def season_games(season):
+    """Regular-season games a team played that season (16 before 2021, 17 from 2021)."""
+    return 16 if season < 2021 else 17
 
-    Same rule as build_features.add_injury_flag (>= 2 seasons of >= 4 games), recomputed point-in-time so a backtest
-    row only sees seasons the drafter would have known. The recommender reads this as `injury_flag`.
+
+def games_history(seasonal, before_season):
+    """player_id -> [{"season", "games", "of"}, ...], oldest first: his last HISTORY_SEASONS seasons before `before_season`.
+
+    Seasons start at the first one he has stats for, so a newer player has fewer. A season inside that span with no stats
+    counts as 0 games (a season lost to injury drops out of the stats entirely). Games are capped at the season length
+    (a mid-season trade can show one extra).
     """
-    s = seasonal[seasonal["position"].isin(POSITIONS) & (seasonal["games"] >= 4) & (seasonal["season"] < before_season)]
-    per_season = s.groupby(["player_id", "season"])["games"].sum().groupby("player_id").agg(["mean", "count"])
-    return (per_season["count"] >= 2) & (per_season["mean"] < 15)
+    s = seasonal[seasonal["position"].isin(POSITIONS) & (seasonal["season"] < before_season)]
+    played = s.groupby(["player_id", "season"])["games"].sum()
+    first = s.groupby("player_id")["season"].min()
+    history = {}
+    for player_id, start in first.items():
+        seasons = range(max(start, before_season - HISTORY_SEASONS), before_season)
+        history[player_id] = [{"season": int(y), "games": int(min(played.get((player_id, y), 0), season_games(y))),
+                               "of": season_games(y)} for y in seasons]
+    return history
+
+
+def injury_flag(history, major_injury):
+    """True if he missed MISSED_PER_SEASON or more games per season on average over his history, or is coming off a
+    confirmed major injury (torn knee ligament or Achilles, data/external/major_injuries.csv) last season."""
+    if major_injury is not None:
+        return True
+    if not history:
+        return False
+    return sum(h["of"] - h["games"] for h in history) / len(history) >= MISSED_PER_SEASON
+
+
+def attach_injury_history(df, seasonal, season, major):
+    """Add the optional games_history and major_injury fields and set injury_flag from them (the same rule live and in
+    backtests, point-in-time: only seasons before `season`). major: load_major_injuries() output."""
+    history = games_history(seasonal, season)
+    df = df.copy()
+    df["games_history"] = [history.get(player_id) for player_id in df["player_id"]]
+    df["major_injury"] = [major.get((player_id, season - 1)) for player_id in df["player_id"]]
+    df["injury_flag"] = [injury_flag(h, m) for h, m in zip(df["games_history"], df["major_injury"])]
+    return df
 
 
 def build_live(table, roster, adp_table):
@@ -110,7 +146,6 @@ def build_backtest(season, oos, adp, training, seasonal, curves, weekly=None):
     scored = oos.merge(pool[["player_id", "team", "adp"]], on="player_id")
     lagged = training[training["season"] == season].set_index("player_id")[["games", "games_delta"]]
     scored = scored.join(lagged, on="player_id")
-    scored["injury_flag"] = scored["player_id"].map(durability_flag(seasonal, season)).fillna(False)
     scored = scored.rename(columns={"oos_pred_ppr": "projected_ppr"}).assign(market_estimate=False)
 
     # market rows go through the same function the live advisor uses, which expects the live ADP table's shape
@@ -165,17 +200,19 @@ if __name__ == "__main__":
     roster = pd.concat([pd.read_parquet(ROOT / "data" / "raw" / "seasonal_roster_20_25.parquet", columns=roster_columns),
                         pd.read_parquet(ROOT / "data" / "raw" / "roster_2026.parquet", columns=roster_columns)], ignore_index=True)
     context = build_role_context(weekly, roster)
+    seasonal = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_20_25.parquet")
+    seasonal = seasonal[seasonal["player_id"].notna()]
+    major = load_major_injuries()
     written = []
     if only is None:
         live = build_live(pd.read_parquet(PROCESSED / "predictions_table.parquet"),
                           pd.read_parquet(ROOT / "data" / "raw" / "roster_2026.parquet"),
                           pd.read_csv(PROCESSED / "adp_table.csv"))
         live = attach_role_context(live, context, live_season)
+        live = attach_injury_history(live, seasonal, live_season, major)
         written.append(write(to_document(live, live_season, "live", "fantasypros")))
 
     training = pd.read_parquet(PROCESSED / "training_data.parquet")
-    seasonal = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_20_25.parquet")
-    seasonal = seasonal[seasonal["player_id"].notna()]
     history = load_history()
     for season in only or BACKTEST_SEASONS:
         oos_path = PROCESSED / f"season_{season}.parquet"
@@ -185,6 +222,7 @@ if __name__ == "__main__":
                                   pd.read_csv(ROOT / "data" / "external" / f"adp_{season}.csv"),
                                   training, seasonal, curves, weekly)
         backtest = attach_role_context(backtest, context, season)
+        backtest = attach_injury_history(backtest, seasonal, season, major)
         written.append(write(to_document(backtest, season, "backtest", "fantasypros")))
 
     if only is None:
