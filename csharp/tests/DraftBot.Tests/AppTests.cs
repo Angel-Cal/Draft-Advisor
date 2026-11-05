@@ -160,7 +160,7 @@ public class AppTests
         Assert.Contains("Cost of waiting", html);
         Assert.Contains("Your roster", html);
         Assert.Contains("Practice draft", html);
-        Assert.Contains("Adds to lineup", html);
+        Assert.Contains("Points added", html);
         Assert.Contains("Price", html);
         var cards = Math.Min(3, draft.Advice!.Recommended.Count);
         Assert.InRange(cards, 1, 3);
