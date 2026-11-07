@@ -10,6 +10,7 @@ Contract between the two: `.claude/projection_schema_v1.md`.
   Grep it for a name or concept, or read only the directory section you need, before searching or opening source files.
 - `.claude/STATUS.md`, section "Hand-off": current state, settled decisions, next candidates.
 - `.claude/LOG.md`: why each decision was made (read the relevant entry, not the whole file). `.claude/ROADMAP.md`: phases and goals.
+- `.claude/STATE_MACHINES.md`: the app's state machines (states, invariants, transition tables) and the issues found in them; add rows when adding a screen, user action, timer or background step.
 
 ## Layout
 

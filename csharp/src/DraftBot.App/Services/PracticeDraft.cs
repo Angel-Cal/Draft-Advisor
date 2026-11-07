@@ -14,18 +14,21 @@ public sealed class PracticeDraft
 
     readonly SimSettings sim;
     readonly OpponentBot?[] bots;
+    readonly TimeProvider time;
 
     /// <summary>A fresh draft from a projection file: <paramref name="slot"/> is the user's 0-based draft slot.</summary>
-    public PracticeDraft(ProjectionFile file, LeagueSettings league, int slot, int seed)
-        : this(NewState(file, league), slot, seed)
+    /// <param name="time">The pick clock's time source (monotonic timestamps); the system's by default.</param>
+    public PracticeDraft(ProjectionFile file, LeagueSettings league, int slot, int seed, TimeProvider? time = null)
+        : this(NewState(file, league), slot, seed, time)
     {
     }
 
     /// <summary>A practice draft continuing from a draft state that already has picks (the bots pick for every team but <paramref name="slot"/>).</summary>
-    public PracticeDraft(DraftState state, int slot, int seed)
+    public PracticeDraft(DraftState state, int slot, int seed, TimeProvider? time = null)
     {
         State = state;
         Slot = slot;
+        this.time = time ?? TimeProvider.System;
         sim = new SimSettings(state.League);
         var pool = state.Available.Concat(state.Teams.SelectMany(t => t.Picks)).ToList();
         bots = Enumerable.Range(0, state.League.Teams).Select(team => team == slot ? null : OpponentBot.Create(pool, sim, seed, team)).ToArray();
@@ -44,29 +47,37 @@ public sealed class PracticeDraft
 
     public bool IsComplete => State.IsComplete;
 
-    /// <summary>When the advice for the current pick was produced, for the pick clock (moved forward by the time spent paused).</summary>
-    public DateTime PickStartedUtc { get; private set; }
-
-    DateTime? pausedAtUtc;
+    // the pick clock, in monotonic timestamps (a wall-clock change during a pick must not move it): when the advice for the current pick was produced, moved forward by the time spent paused
+    long pickStarted;
+    long? pausedAt;
 
     /// <summary>While paused the pick clock stands still and nothing can be drafted; for testing, so a screen can be looked at as long as needed.</summary>
-    public bool IsPaused => pausedAtUtc is not null;
+    public bool IsPaused => pausedAt is not null;
 
     /// <summary>Time on the current pick so far, not counting time paused.</summary>
-    public TimeSpan ElapsedOnPick => (pausedAtUtc ?? DateTime.UtcNow) - PickStartedUtc;
+    public TimeSpan ElapsedOnPick => time.GetElapsedTime(pickStarted, pausedAt ?? time.GetTimestamp());
+
+    /// <summary>How long a new pick's advice is on the clock before a pick is accepted: the Windows double-click time, so the second click of a double-click cannot draft at the next pick.</summary>
+    public static readonly TimeSpan DefaultRepeatGuard = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>The repeat guard in use (<see cref="DefaultRepeatGuard"/>; tests that draft without a clock set it to zero).</summary>
+    public TimeSpan RepeatGuard { get; init; } = DefaultRepeatGuard;
+
+    /// <summary>True when <see cref="Draft"/> would take a pick now: the user is on the clock, not paused, and the pick's advice has been up for <see cref="RepeatGuard"/>.</summary>
+    public bool AcceptsPicks => !IsPaused && !State.IsComplete && State.CurrentTeam == Slot && ElapsedOnPick >= RepeatGuard;
 
     public void Pause()
     {
-        if (pausedAtUtc is not null || State.IsComplete) return;
-        pausedAtUtc = DateTime.UtcNow;
+        if (pausedAt is not null || State.IsComplete) return;
+        pausedAt = time.GetTimestamp();
         Changed?.Invoke();
     }
 
     public void Resume()
     {
-        if (pausedAtUtc is not { } at) return;
-        PickStartedUtc += DateTime.UtcNow - at;
-        pausedAtUtc = null;
+        if (pausedAt is not { } at) return;
+        pickStarted += time.GetTimestamp() - at;
+        pausedAt = null;
         Changed?.Invoke();
     }
 
@@ -75,10 +86,14 @@ public sealed class PracticeDraft
 
     public event Action? Changed;
 
-    /// <summary>The user drafts the player; the opponents then pick until the user's next turn. False if it is not the user's turn, the draft is paused, or the player is gone.</summary>
-    public bool Draft(string playerId)
+    /// <summary>
+    /// The user drafts the player at overall pick <paramref name="pick"/> (1-based, <see cref="Core.Advice.Pick"/> of the advice the choice was made from); the opponents then
+    /// pick until the user's next turn. False if that is not the current pick (a click left over from an earlier pick), the pick's advice has been up for less than
+    /// <see cref="RepeatGuard"/> (the second click of a double-click), it is not the user's turn, the draft is paused, or the player is gone (STATE_MACHINES.md, ISSUE-1).
+    /// </summary>
+    public bool Draft(string playerId, int pick)
     {
-        if (IsPaused || State.IsComplete || State.CurrentTeam != Slot || !State.Draft(playerId)) return false;
+        if (!AcceptsPicks || pick != State.OverallPick + 1 || !State.Draft(playerId)) return false;
         AdvanceToMyTurn();
         Changed?.Invoke();
         return true;
@@ -98,7 +113,7 @@ public sealed class PracticeDraft
             var team = State.CurrentTeam;
             State.Draft(bots[team]!.Pick(DraftRules.LegalPicks(State, team, sim)).Id);
         }
-        PickStartedUtc = DateTime.UtcNow;
         Advice = State.IsComplete ? null : DraftAdvisor.Advise(State, Slot);
+        pickStarted = time.GetTimestamp();
     }
 }

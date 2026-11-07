@@ -60,6 +60,7 @@ that Settings promises has no screen).
 **Draft screen, top to bottom:**
 - *Status strip.* Clock (amber label, tinted panel, white digits), round/pick, next pick and distance, last five picks, one summary sentence. **Needs a pick log and a run
   detector** to write "Four receivers in a row"; nothing in the engine produces that sentence yet.
+- *Last pick.* At the user's last pick (no next pick) the take/wait band is replaced by "Your last pick / Take the best player left." with no tiles. *Draft buttons* are greyed out for 0.5 s after each new pick appears (`PracticeDraft.DefaultRepeatGuard`), so a double-click cannot draft twice.
 - *Take/wait band.* Headline + one line, then four tiles (QB, RB, WR, TE): verdict pill, cost of waiting (points), the top player now, and the two best players likely to last
   to the next pick with their chance of lasting. Tiles are display-only (they used to filter the table). **Engine needs a per-position advice call**: top candidate, expected shortfall
   (`WaitBonus / Weight`), and the two best likely-to-last alternatives. `ValueCandidate.WaitFallback` gives only one alternative per candidate, so a second must be exposed.

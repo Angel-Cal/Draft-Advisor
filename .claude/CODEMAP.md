@@ -11,15 +11,18 @@ Data files, `archive/` and build output are not listed.
 
 ## csharp/src/DraftBot.App/Services/
 
-- **PracticeDraft.cs** (104 lines)
+- **PracticeDraft.cs** (119 lines)
   - `class PracticeDraft`: A practice draft: the user picks for one slot and the simulator's opponents (the bots the experiments use) pick for everyone else.
-    - `PracticeDraft(ProjectionFile file, LeagueSettings league, int slot, int seed)`: A fresh draft from a projection file: slot is the user's 0-based draft slot.
-    - `PracticeDraft(DraftState state, int slot, int seed)`: A practice draft continuing from a draft state that already has picks (the bots pick for every team but slot).
+    - `PracticeDraft(ProjectionFile file, LeagueSettings league, int slot, int seed, TimeProvider? time = null)`: A fresh draft from a projection file: slot is the user's 0-based draft slot.
+    - `PracticeDraft(DraftState state, int slot, int seed, TimeProvider? time = null)`: A practice draft continuing from a draft state that already has picks (the bots pick for every team but slot).
     - `void Pause()`
     - `void Resume()`
-    - `bool Draft(string playerId)`: The user drafts the player; the opponents then pick until the user's next turn.
+    - `bool Draft(string playerId, int pick)`: The user drafts the player at overall pick pick (1-based, Core.Advice.Pick of the advice the choice was made from); the opponents then pick until the user's next turn.
     - `string TeamName(int team)`: "You" for the user's team, otherwise "Team n".
     - `int? PickNumber(string playerId)`: The overall pick number (1-based) at which the player was taken, or null if he is still available.
+- **PracticeStartup.cs** (32 lines)
+  - `static class PracticeStartup`: Opens the practice draft the app starts with, or says why it cannot: no projections file, or one that does not load (truncated, malformed, wrong schema, unreadable).
+    - `static (PracticeDraft? Draft, string? Error) Open(string? path, LeagueSettings league, int slot, int seed)`: The draft from the projections file at path (null when none was found), or the message to show instead.
 - **ProjectionLocator.cs** (20 lines)
   - `static class ProjectionLocator`: Finds the live projections file during development: the DRAFTBOT_PROJECTIONS variable, else data/processed/live/projections_2026_v1.json in a parent folder.
     - `static string? Find()`
@@ -143,11 +146,11 @@ Data files, `archive/` and build output are not listed.
 
 ## csharp/src/DraftBot.Desktop/
 
-- **App.xaml.cs** (7 lines)
+- **App.xaml.cs** (25 lines)
   - `class App`
-- **MainWindow.xaml.cs** (32 lines)
+- **MainWindow.xaml.cs** (18 lines)
   - `class MainWindow`
-    - `MainWindow()`
+    - `MainWindow(PracticeDraft draft)`: The window hosting the app's screens over an opened practice draft (see App.OnStartup).
 
 ## csharp/src/DraftBot.Sim/
 
@@ -259,7 +262,7 @@ Data files, `archive/` and build output are not listed.
 ## csharp/tests/DraftBot.Tests/
 
 - **AdvisorTests.cs** (263 lines): 18 tests
-- **AppTests.cs** (198 lines): 10 tests
+- **AppTests.cs** (222 lines): 11 tests
 - **BenchTests.cs** (235 lines): 16 tests
 - **CardChoiceTests.cs** (49 lines): 2 tests
 - **DraftStateTests.cs** (125 lines): 8 tests
@@ -275,6 +278,7 @@ Data files, `archive/` and build output are not listed.
 - **RecommenderTests.cs** (157 lines): 10 tests
 - **RegretTests.cs** (75 lines): 4 tests
 - **SimulatorTests.cs** (224 lines): 15 tests
+- **StateMachineTests.cs** (320 lines): 14 tests
 - **TestData.cs** (58 lines): shared fixtures
 - **ValuationTests.cs** (141 lines): 9 tests
 - **ValueRecommenderTests.cs** (110 lines): 8 tests
@@ -298,7 +302,7 @@ Data files, `archive/` and build output are not listed.
   - `normalize_names(df)`: A merge_name column: the Player name lower-cased, without periods, apostrophes and suffixes.
   - `compute_vor(df, baseline_pos)`: Sorted by projection, with vor = projection minus the projection at row baseline_pos (the replacement player).
   - `rank_by_vor(df)`: The table ordered by VOR, best first (the order export_projections' pool and ADP tie-breaks inherit).
-- **export_projections.py** (230 lines): Export projections_<season>_v1.json for the C# side (contract: .claude/projection_schema_v1.md). (runnable)
+- **export_projections.py** (235 lines): Export projections_<season>_v1.json for the C# side (contract: .claude/projection_schema_v1.md). (runnable)
   - `attach_role_context(df, context, season)`: Add the optional role-context fields (src/features/role_context.py) for this season; null for everyone but WRs and for players with no history.
   - `season_games(season)`: Regular-season games a team played that season (16 before 2021, 17 from 2021).
   - `games_history(seasonal, before_season)`: player_id -> [{"season", "games", "of"}, ...], oldest first: his last HISTORY_SEASONS seasons before `before_season`.
@@ -308,7 +312,7 @@ Data files, `archive/` and build output are not listed.
   - `weekly_lists(weekly, season)`: player_id -> 18 values, regular-season PPR for weeks 1-18; None where the player did not play (bye, injury, inactive).
   - `build_backtest(season, oos, adp, training, seasonal, curves, weekly)`: oos: season_<year>.parquet; adp: adp_<year>.csv; training: training_data; seasonal: raw season stats.
   - `to_document(df, season, kind, adp_source)`
-  - `write(doc)`
+  - `write(doc, directory)`: Validates the document and writes projections_<season>_v1.json atomically: a temporary file next to it, then a rename over the old one.
 - **ffc_scraper.py** (42 lines): Real draft-to-draft pick spread: Fantasy Football Calculator's public ADP API, 12-team PPR, one file per season. (runnable)
   - `fetch(season)`
 - **major_injuries.py** (98 lines): Major injuries (torn ACL, torn Achilles and the like): candidates found in nflverse data, confirmed by hand. (runnable)
@@ -399,6 +403,11 @@ Data files, `archive/` and build output are not listed.
 - **refit_oos.py** (98 lines): Does the refit recipe (`Model.refit_predict`) recover the validated walk-forward accuracy that the live-style training loses? (runnable)
   - `refit_predictions()`: One row per player-season in 2021-2025 with a prediction column per refit variant.
   - `write_backtest_files(predictions, column, out_dir, note, ratios, seasons)`: Copies of the backtest projection files with projected_ppr replaced by `column` (`backtest --data <out_dir>` then scores them).
+- **rookie_late.py** (97 lines): Are rookies mispriced in the late rounds? (runnable)
+  - `rookie_flags()`: (player_id, season) -> True for a player in his rookie season.
+  - `build()`
+  - `rookie_coef(d, y)`: OLS coefficient on the rookie dummy, controls ADP and position.
+  - `gap_table(D, label, rng)`
 - **target_competition.py** (313 lines): Does the model over-project wide receivers whose target competition got tougher, or whose last-year volume came while a teammate was out? (runnable)
   - `load_weekly()`: Regular-season weekly rows of the pass catchers: player, season, week, team, targets.
   - `load_start_roster()`: Each player's team and rookie status on his earliest roster row of the season (the file is sparse after week 1, so this is how the pipeline finds the start team).
@@ -508,7 +517,7 @@ Data files, `archive/` and build output are not listed.
 - **test_advanced_features.py** (120 lines): 9 tests
 - **test_advisor_table.py** (63 lines): 7 tests
 - **test_data_integrity.py** (193 lines): 16 tests
-- **test_export_projections.py** (207 lines): 16 tests
+- **test_export_projections.py** (228 lines): 18 tests
 - **test_frozen_file_outcomes.py** (41 lines): 2 tests
 - **test_market_fallback.py** (66 lines): 5 tests
 - **test_ol_features.py** (40 lines): 2 tests
