@@ -4,7 +4,8 @@ import pandas as pd
 import pytest
 from src.paths import LIVE
 from src.data import validate as v
-from src.data.export_projections import attach_injury_history, build_backtest, games_history, injury_flag, to_document, weekly_lists
+from src.data import export_projections
+from src.data.export_projections import attach_injury_history, build_backtest, games_history, injury_flag, to_document, weekly_lists, write
 from src.data.major_injuries import season_ending_candidates
 from src.data.market_fallback import fit_position_curves
 
@@ -155,6 +156,26 @@ def test_backtest_document_passes_validation():
     df = build_backtest(2024, oos, adp, training, seasonal, curves())
     v.check_projection_file(to_document(df, 2024, "backtest", "fantasypros"))
 
+
+
+def test_write_replaces_the_file_in_one_step_and_leaves_no_temporary_file(tmp_path):
+    path = write(valid_doc(), tmp_path)
+    assert json.loads(path.read_text())["players"][0]["player_id"] == "a"
+    assert [f.name for f in tmp_path.iterdir()] == ["projections_2026_v1.json"]
+
+
+def test_a_write_that_fails_before_the_rename_leaves_the_old_file_whole(tmp_path, monkeypatch):
+    # the app reads this file at startup (STATE_MACHINES.md, ISSUE-2): it must never see a half-written one
+    path = write(valid_doc(), tmp_path)
+    before = path.read_bytes()
+
+    def interrupted(source, target):
+        raise OSError("interrupted")
+    monkeypatch.setattr(export_projections.os, "replace", interrupted)
+    with pytest.raises(OSError):
+        write(valid_doc(season=2026, players=valid_doc()["players"][:1]), tmp_path)
+
+    assert path.read_bytes() == before
 
 # ---- validator ------------------------------------------------------------------------------------------------
 

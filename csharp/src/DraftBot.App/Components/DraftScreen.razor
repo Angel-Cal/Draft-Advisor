@@ -54,6 +54,17 @@ else
 </div>
 </section>
 
+@if (advice.NextPick is null)
+{
+    // the user's last pick: there is nothing to wait for, so no tiles and no cost of waiting (STATE_MACHINES.md, ISSUE-3)
+    <section class="panel" style="padding:22px 24px;display:flex;flex-direction:column;gap:8px" aria-label="Your last pick">
+    <div class="eyebrow">Your last pick</div>
+    <h2 style="margin:0;font-size:30px;line-height:1.15;font-weight:600">Take the best player left.</h2>
+    <p style="margin:0;font-size:15px">There is no later pick to wait for, so the cost of waiting does not apply.</p>
+    </section>
+}
+else
+{
 <section class="panel" style="padding:22px 24px;display:flex;flex-wrap:wrap;gap:22px 32px;align-items:stretch" aria-label="Take now or wait">
 <div style="flex:1 1 280px;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:8px">
 <div class="eyebrow">Take now or wait until #@(advice.NextPick)?</div>
@@ -81,6 +92,7 @@ else
 }
 </div>
 </section>
+}
 
 <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
 
@@ -120,7 +132,7 @@ else
     {
         <div class="muted" style="font-size:12px;display:flex;align-items:center;margin-bottom:8px">@(pick.NearTop || Math.Round(pick.PointsBehindTop) < 1 && !pick.TooEarly ? "About as good as #1." : pick.TooEarly ? "Too early for this pick." : $"Gives up ~{Math.Round(pick.PointsBehindTop)} pts vs #1.")<Tip Class="fromleft" Label="What this cost means">@if (pick.TooEarly && !pick.NearTop) {<text>Drafters usually take him later than this. He trails the first card mostly because taking him now would be a reach, and reaching lost points in our simulations; he may well be the right pick a little later.</text>} else {<text>How many projected points this pick gives up against the recommended pick: what each adds to your lineup and bench, plus the points you are expected to lose at his position by waiting.</text>}<br><br>In our simulations, drafters who picked against the recommended performed worse .</Tip></div>
     }
-    <button class="@(pick.Rank == 1 ? "btn btn-primary draft-btn" : "btn btn-ghost draft-btn")" type="button" disabled="@Session.IsPaused" @onclick="() => Session.Draft(pick.Candidate.Player.Id)">Draft</button>
+    <button class="@(pick.Rank == 1 ? "btn btn-primary draft-btn" : "btn btn-ghost draft-btn")" type="button" disabled="@(!Session.AcceptsPicks)" @onclick="() => Session.Draft(pick.Candidate.Player.Id, advice.Pick)">Draft</button>
     </div>
     </article>
 }
@@ -197,12 +209,23 @@ else
 
 @code {
     Timer? clock;
+    Timer? unlock;
     RosterView roster = default!;
 
     protected override void OnInitialized()
     {
         Session.Changed += OnChanged;
         Refresh();
+        ScheduleUnlock();
+    }
+
+    // the Draft buttons stay disabled until the pick's advice has been up for PracticeDraft.RepeatGuard (STATE_MACHINES.md, ISSUE-1); re-render as they unlock, a little after so the guard has passed
+    void ScheduleUnlock()
+    {
+        var wait = Session.RepeatGuard - Session.ElapsedOnPick;
+        if (Session.IsPaused || wait <= TimeSpan.Zero) return;
+        unlock?.Dispose();
+        unlock = new Timer(_ => InvokeAsync(StateHasChanged), null, wait + TimeSpan.FromMilliseconds(20), Timeout.InfiniteTimeSpan);
     }
 
     protected override void OnAfterRender(bool firstRender)
@@ -220,6 +243,7 @@ else
     {
         Refresh();
         InvokeAsync(StateHasChanged);
+        ScheduleUnlock();
     }
 
     void Refresh()
@@ -232,6 +256,7 @@ else
     {
         Session.Changed -= OnChanged;
         clock?.Dispose();
+        unlock?.Dispose();
     }
 
     IEnumerable<(Pick Pick, int Number)> LastPicks() =>

@@ -13,9 +13,9 @@ public class AppTests
 {
     static readonly LeagueSettings League = new();      // 12 teams, 1 QB, 2 RB, 3 WR, 1 TE, 1 FLEX, 8 bench
 
-    static PracticeDraft Start(int slot = 4) => new(BacktestFile(), League, slot, seed: 1);
+    static PracticeDraft Start(int slot = 4) => new(BacktestFile(), League, slot, seed: 1) { RepeatGuard = TimeSpan.Zero };          // these tests draft without a clock; StateMachineTests covers the guard
 
-    static void DraftTheTopRecommendation(PracticeDraft draft) => Assert.True(draft.Draft(draft.Advice!.Recommended[0].Candidate.Player.Id));
+    static void DraftTheTopRecommendation(PracticeDraft draft) => Assert.True(draft.Draft(draft.Advice!.Recommended[0].Candidate.Player.Id, draft.Advice.Pick));
 
     [Fact]
     public void A_practice_draft_plays_the_other_teams_until_it_is_my_turn()
@@ -35,7 +35,7 @@ public class AppTests
         var changed = 0;
         draft.Changed += () => changed++;
 
-        Assert.True(draft.Draft(pick.Id));
+        Assert.True(draft.Draft(pick.Id, 5));
 
         Assert.Contains(draft.State.Teams[4].Picks, p => p.Id == pick.Id);
         Assert.Equal(20, draft.Advice!.Pick);                // snake: pick 5, then 20 (slot 5 of 12)
@@ -51,7 +51,7 @@ public class AppTests
     {
         var draft = Start();
 
-        Assert.False(draft.Draft("nobody"));
+        Assert.False(draft.Draft("nobody", 5));
         Assert.Equal(5, draft.Advice!.Pick);
         Assert.Equal(4, draft.State.History.Count);
     }
@@ -69,7 +69,7 @@ public class AppTests
 
         Assert.True(draft.IsPaused);
         Assert.Equal(frozen, draft.ElapsedOnPick);                 // the clock stands still
-        Assert.False(draft.Draft(draft.Advice!.Recommended[0].Candidate.Player.Id));
+        Assert.False(draft.Draft(draft.Advice!.Recommended[0].Candidate.Player.Id, draft.Advice.Pick));
         Assert.Equal(4, draft.State.History.Count);
 
         draft.Resume();
@@ -89,7 +89,7 @@ public class AppTests
 
         Assert.Null(draft.Advice);
         Assert.Equal(League.RosterSize, draft.State.Teams[4].Picks.Count);
-        Assert.False(draft.Draft("anyone"));
+        Assert.False(draft.Draft("anyone", draft.State.OverallPick + 1));
     }
 
     [Fact]
@@ -125,6 +125,30 @@ public class AppTests
         var services = new ServiceCollection().AddLogging().AddSingleton(draft).BuildServiceProvider();
         await using var renderer = new HtmlRenderer(services, services.GetRequiredService<ILoggerFactory>());
         return await renderer.Dispatcher.InvokeAsync(async () => (await renderer.RenderComponentAsync<BoardScreen>(ParameterView.Empty)).ToHtmlString());
+    }
+
+    static async Task<string> RenderPlayers(PracticeDraft draft)
+    {
+        var services = new ServiceCollection().AddLogging().AddSingleton(draft).BuildServiceProvider();
+        await using var renderer = new HtmlRenderer(services, services.GetRequiredService<ILoggerFactory>());
+        return await renderer.Dispatcher.InvokeAsync(async () => (await renderer.RenderComponentAsync<PlayersScreen>(ParameterView.Empty)).ToHtmlString());
+    }
+
+    [Fact]
+    public async Task The_players_tab_lists_every_available_player_by_adp_with_the_top_five_ranked()
+    {
+        var draft = Start();
+        DraftTheTopRecommendation(draft);
+        var html = await RenderPlayers(draft);
+
+        Assert.Contains("Available at pick #20", html);
+        Assert.Equal(draft.State.Available.Count, html.Split("class=\"prow\"").Length - 1);
+        foreach (var pick in draft.State.History) Assert.DoesNotContain($">{pick.Player.Player.PlayerName}</span>", html);
+        var byAdp = draft.State.Available.Where(p => p.Player.Adp is not null).OrderBy(p => p.Player.Adp).Select(p => p.Player.PlayerName).Take(10).ToList();
+        var positions = byAdp.Select(n => html.IndexOf($">{n}</span>", StringComparison.Ordinal)).ToList();
+        Assert.All(positions, i => Assert.True(i > 0));
+        Assert.Equal(positions.Order(), positions);
+        Assert.Contains("Over replacement", html);
     }
 
     [Fact]

@@ -9,6 +9,7 @@ projection flagged market_estimate (backtests fit that curve leaving the exporte
 """
 
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -178,10 +179,14 @@ def to_document(df, season, kind, adp_source):
     }
 
 
-def write(doc):
+def write(doc, directory=LIVE):
+    """Validates the document and writes projections_<season>_v1.json atomically: a temporary file next to it, then a rename over the old one."""
     check_projection_file(doc)  # validate before writing, so a bad run can't leave a half-valid file behind
-    path = LIVE / f"projections_{doc['season']}_v1.json"
-    path.write_text(json.dumps(doc, indent=1, allow_nan=False))
+    path = directory / f"projections_{doc['season']}_v1.json"
+    # the app may open the file at any moment; writing in place would let it read a truncated file
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(json.dumps(doc, indent=1, allow_nan=False))
+    os.replace(temporary, path)
     print(f"wrote {path.name}: {len(doc['players'])} players ({doc['kind']}, adp={doc['adp_source']})")
     return path
 
