@@ -1,0 +1,93 @@
+@implements IDisposable
+@inject PracticeDraft Session
+
+@{
+    var ranks = Session.Advice?.Recommended.ToDictionary(r => r.Candidate.Player.Id, r => r.Rank) ?? [];
+    var rows = Rows().ToList();
+    var replacement = LineupValue.Replacement(Session.State);
+}
+
+<main style="padding:24px 28px 40px;display:flex;flex-direction:column;gap:16px;max-width:1440px;margin:0 auto">
+
+<div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 18px">
+<h1 style="margin:0;font-size:20px;font-weight:600">@(Session.Advice is { } advice ? $"Available at pick #{advice.Pick}" : "Players left undrafted")</h1>
+<span class="muted" style="font-size:13px">@rows.Count of @Session.State.Available.Count players · sorted by ADP</span>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+<button type="button" class="@(position is null ? "chip on" : "chip")" aria-pressed="@(position is null)" @onclick="() => position = null">All</button>
+@foreach (var p in Positions.All)
+{
+    <button type="button" class="@(position == p ? "chip on" : "chip")" aria-pressed="@(position == p)" @onclick="() => position = p">@p</button>
+}
+<input class="search" type="search" placeholder="Search players" aria-label="Search players" @bind="search" @bind:event="oninput" />
+</div>
+
+<section class="panel" style="overflow-x:auto" aria-label="Available players">
+<div style="min-width:900px">
+<div class="prow phead eyebrow">
+<span>Rec.</span><span>Player</span><span>Pos</span><span>Team</span><span style="text-align:right">Proj</span>
+<span style="text-align:right;display:flex;align-items:center;justify-content:flex-end">Over replacement<Tip Label="What over replacement means">How many more points he is projected to score than a replacement-level player at his position: the kind of player you could still pick up for free. It does not count your roster.</Tip></span>
+<span style="text-align:right">ADP</span><span style="text-align:right">Tier</span><span>Flags</span>
+</div>
+@foreach (var player in rows)
+{
+    <div class="prow">
+    <span class="mono muted">@(ranks.TryGetValue(player.Id, out var rank) ? rank.ToString() : "-")</span>
+    <span style="font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">@player.Player.PlayerName</span>
+    <span><span class="pos pos-@player.Position">@player.Position</span></span>
+    <span class="muted">@player.Player.Team</span>
+    <span class="mono" style="text-align:right">@Math.Round(player.Player.ProjectedPpr)</span>
+    <span class="mono" style="text-align:right;color:@(player.Vor >= 0 ? "#7FDBB6" : "#F3A0A0")">@Over(player.Vor)</span>
+    <span class="mono" style="text-align:right">@Adp(player)</span>
+    <span class="mono" style="text-align:right">@player.Tier</span>
+    <span style="display:flex;flex-wrap:wrap;gap:6px">
+    @if (player.Player.InjuryFlag)
+    {
+        <span class="badge b-risk has-tip" tabindex="0">Injury<span class="tipbox" role="tooltip">He has a recent injury history, so he is more likely than most to miss games.</span></span>
+    }
+    @if (Explainer.HasRoleCaution(player.Player))
+    {
+        <span class="badge b-caution has-tip" tabindex="0">Role<span class="tipbox" role="tooltip">Much of his production last season came while his team's top receiver was out, and his situation has changed, so his role may not carry over.</span></span>
+    }
+    @if (player.Player.MarketEstimate)
+    {
+        <span class="badge b-est has-tip" tabindex="0">Estimate<span class="tipbox" role="tooltip">His projection is an estimate taken from where drafters rank him (a rookie or a player the model cannot score), so it is less reliable.</span></span>
+    }
+    </span>
+    </div>
+}
+@if (rows.Count == 0)
+{
+    <div class="muted" style="padding:16px">No available player matches.</div>
+}
+</div>
+</section>
+
+<div class="muted" style="font-size:13px">Replacement level: @string.Join(", ", Positions.All.Select(p => $"{p} {Math.Round(replacement[p])}")) projected points. Rec. is the player's rank among the advisor's top five for this pick. Tiers group players at each position with similar projections; 1 is best.</div>
+
+</main>
+
+@code {
+    Position? position;
+    string search = "";
+
+    protected override void OnInitialized() => Session.Changed += OnChanged;
+
+    void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Session.Changed -= OnChanged;
+
+    // players with an ADP in ADP order, then the few without one by projection
+    IEnumerable<ValuedPlayer> Rows() =>
+        Session.State.Available
+            .Where(p => position is null || p.Position == position)
+            .Where(p => search.Length == 0 || p.Player.PlayerName.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase))
+            .OrderBy(p => p.Player.Adp is null)
+            .ThenBy(p => p.Player.Adp)
+            .ThenByDescending(p => p.Player.ProjectedPpr);
+
+    static string Adp(ValuedPlayer p) => p.Player.Adp is { } adp ? adp.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) : "-";
+
+    static string Over(double value) => (value >= 0 ? "+" : "-") + Math.Abs(Math.Round(value)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+}

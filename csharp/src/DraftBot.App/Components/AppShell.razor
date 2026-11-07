@@ -6,7 +6,7 @@
 </div>
 <nav aria-label="Screens" style="display:flex;flex-wrap:wrap;align-items:center">
 <a class="@(Current == Screen.Draft ? "navlink on" : "navlink")" href="#" aria-current="@(Current == Screen.Draft ? "page" : null)" @onclick="() => OnNavigate.InvokeAsync(Screen.Draft)" @onclick:preventDefault>Draft</a>
-<span class="navlink off" title="Coming in a later step">Players</span>
+<a class="@(Current == Screen.Players ? "navlink on" : "navlink")" href="#" aria-current="@(Current == Screen.Players ? "page" : null)" @onclick="() => OnNavigate.InvokeAsync(Screen.Players)" @onclick:preventDefault>Players</a>
 <a class="@(Current == Screen.Board ? "navlink on" : "navlink")" href="#" aria-current="@(Current == Screen.Board ? "page" : null)" @onclick="() => OnNavigate.InvokeAsync(Screen.Board)" @onclick:preventDefault>Board</a>
 </nav>
 <div style="margin-left:auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px">
