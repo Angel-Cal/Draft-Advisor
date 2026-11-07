@@ -8,6 +8,9 @@ from src.paths import ROOT
 
 DATA_DIR = ROOT / "data" / "raw"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+# roster statuses of a player who is on the team (active, reserve/IR, inactive, practice squad, PUP, suspended, exempt,
+# non-football lists); the rest (CUT, UFA, RFA, RET, UDF, trade codes) are listed under a team they are not on
+ON_TEAM_STATUSES = {"ACT", "RES", "INA", "DEV", "PUP", "SUS", "EXE", "RSN", "RSR", "NWT"}
 
 
 def _import_data():
@@ -73,16 +76,33 @@ def _import_injuries():
               "report_secondary_injury", "report_status"]].to_parquet(DATA_DIR / "injuries_18_25.parquet")
 
 
-def _import_roster_2026():
-    """Start-of-season roster for the prediction season (vacated-volume features)."""
-    raw_roster = nflread.load_rosters([2026]).to_pandas()
+def week1_rosters(seasons):
+    """Week-1 regular-season rosters: who is on each team when the season starts.
+
+    load_rosters keeps each player's LAST week (17-22), so its team and roster mates include in-season trades and
+    signings of the season being predicted; every start-of-season feature reads these week-1 rows instead.
+    """
+    raw = nflread.load_rosters_weekly(list(seasons)).to_pandas()
+    raw = raw[(raw["week"] == 1) & (raw["game_type"] == "REG") & raw["status"].isin(ON_TEAM_STATUSES)].copy()
+    raw = raw.sort_values("status", key=lambda s: s != "ACT").drop_duplicates(["gsis_id", "season"])   # two rows: the active one
     for col in ['jersey_number', 'draft_number', 'draft_club']:
-        raw_roster[col] = raw_roster[col].astype(str)
-    raw_roster.to_parquet(DATA_DIR / "roster_2026.parquet")
+        raw[col] = raw[col].astype(str)
+    return raw
+
+
+def _import_start_rosters():
+    """Week-1 rosters 2014-2025 (start-of-season context features for training and backtests)."""
+    week1_rosters(range(2014, 2026)).to_parquet(DATA_DIR / "roster_wk1_14_25.parquet")
+
+
+def _import_roster_2026():
+    """Week-1 roster of the prediction season (its start-of-season context features and team)."""
+    week1_rosters([2026]).to_parquet(DATA_DIR / "roster_2026.parquet")
 
 
 if __name__ == "__main__":
     _import_data()
+    _import_start_rosters()
     _import_roster_2026()
     _import_advanced_sources()
     _import_injuries()

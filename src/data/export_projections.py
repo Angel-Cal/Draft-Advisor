@@ -203,7 +203,7 @@ if __name__ == "__main__":
     weekly = pd.read_parquet(ROOT / "data" / "raw" / "weekly_20_25.parquet",
                              columns=["player_id", "season", "week", "season_type", "fantasy_points_ppr", "team", "position", "targets"])
     roster_columns = ["gsis_id", "season", "week", "team", "position", "years_exp", "draft_number"]
-    roster = pd.concat([pd.read_parquet(ROOT / "data" / "raw" / "seasonal_roster_20_25.parquet", columns=roster_columns),
+    roster = pd.concat([pd.read_parquet(ROOT / "data" / "raw" / "roster_wk1_14_25.parquet", columns=roster_columns),   # start-of-season rosters
                         pd.read_parquet(ROOT / "data" / "raw" / "roster_2026.parquet", columns=roster_columns)], ignore_index=True)
     context = build_role_context(weekly, roster)
     seasonal = pd.read_parquet(ROOT / "data" / "raw" / "seasonal_20_25.parquet")

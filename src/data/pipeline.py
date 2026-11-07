@@ -185,7 +185,10 @@ if __name__ == "__main__":
 
     roster_2026 = pd.read_parquet(RAW_DIR / "roster_2026.parquet")
     prediction_df = advance_to_prediction_season(prediction_df, roster_2026, load_totals([2025]))
-    roster_all = pd.concat([roster, roster_2026], ignore_index=True)
+    start_roster = drop_junk_rows(pd.read_parquet(RAW_DIR / "roster_wk1_14_25.parquet"), "gsis_id")
+    check_raw_roster(start_roster)
+    # start-of-season features need week-1 rosters; `roster` holds each player's last week of the season
+    roster_all = pd.concat([start_roster, roster_2026], ignore_index=True)
     context = build_team_context(seasonal, roster_all)
     df = add_rb_features(df, context)
     prediction_df = add_rb_features(prediction_df, context, season_offset=1)

@@ -323,7 +323,7 @@ Data files, `archive/` and build output are not listed.
   - `load_history(seasons)`: One row per player-season in `seasons` with a position-rank by ADP and the actual season PPR (>= 4 games).
   - `fit_position_curves(history)`: {position: monotone-decreasing map from position rank to expected PPR}.
   - `market_projections(adp_table, model_player_ids, curves)`: Fallback rows for every skill player in the ADP table the model has no projection for.
-- **pipeline.py** (224 lines): (runnable)
+- **pipeline.py** (227 lines): (runnable)
   - `load_data()`
   - `clean_data(roster, season)`
   - `save_data_as_parquet(df, file_name)`
@@ -336,7 +336,8 @@ Data files, `archive/` and build output are not listed.
   - `params_checksums()`
   - `update_manifest(stage, info)`: Record a pipeline stage (pipeline, predict, ...) with the commit, timestamp and params that produced it.
   - `check_freshness(inputs, outputs, label, strict)`: Every output must be at least as new as every input; otherwise it was built from older data.
-- **scraper.py** (89 lines): Raw nflverse downloads into data/raw: season and weekly stats, rosters, play-by-play, snap counts, advanced sources and injury reports (pipeline step 1). (runnable)
+- **scraper.py** (109 lines): Raw nflverse downloads into data/raw: season and weekly stats, rosters, play-by-play, snap counts, advanced sources and injury reports (pipeline step 1). (runnable)
+  - `week1_rosters(seasons)`: Week-1 regular-season rosters: who is on each team when the season starts.
 - **validate.py** (258 lines): Data-integrity checks.
   - `class DataIntegrityError`
   - `class DataIntegrityWarning`
@@ -394,6 +395,37 @@ Data files, `archive/` and build output are not listed.
   - `h1(d, label, rng)`
   - `h2(d, label, rng)`
   - `score(season, snapshot_path, actuals_path, exclude)`
+- **qb_baseline_test.py** (139 lines): QB test 2: a linear baseline carries the stable components, the tree learns only the corrections (LightGBM init_score). (runnable)
+  - `baseline_inputs(x, share_fill)`: Baseline columns derived from the model's own feature frame, so a bump to x flows into the baseline too.
+  - `class Baseline`: Standardized ridge on a few columns; `per_game` fits points per game and scales by the training mean games.
+    - `fit(b, y, games_target)`: b: baseline inputs; y: season totals; games_target: target-season games (per-game arm only).
+    - `predict(b)`
+    - `weights()`: Season points per extra point per game of each input (raw units).
+  - `bump(x, kind)`: A consistent +4 fantasy points per game from rushing or passing: per-game, season-total and fantasy-total columns.
+  - `run_arm(qb, games_target, spec, params, seed)`: Walk-forward predictions for one arm and seed, plus bump responses and the fitted baseline weights per fold.
+- **qb_component_test.py** (126 lines): QB test 3: projection = expected games x expected points per game, two models so availability and skill stop competing. (runnable)
+  - `games_played()`: (player_id, season) -> regular-season games with at least one pass attempt or carry.
+  - `fit_tree(x_tr, y_tr, x_va, y_va, params, seed, w_tr, w_va, b_tr, b_va)`: LightGBM early-stopped on the validation season, optionally weighted and boosted from a baseline.
+  - `run_arm(qb, g1, arm, params, seed)`: Walk-forward predictions for one arm and seed, with the games and per-game parts and the bump responses.
+  - `part_ranks(preds, bench, comps)`: Rank of the games part vs games played and of the per-game part vs points per game (top-150, 8+ games for per game).
+- **qb_games_test.py** (115 lines): QB games model (the weak half of test 3's games x points-per-game projection): which inputs say who holds the job? (runnable)
+  - `attempt_margin()`: (player_id, season t) -> his season t-1 attempts / the most season t-1 attempts of any QB on his week-1 roster of t.
+  - `prepare(training)`: The QB frame with the games-model extras (depth tier, attempt margin, per-game points, two noise columns).
+  - `run_arm(qb, g1, extra, params, seed, first_test)`: Walk-forward games x per-game predictions; `extra` columns go to the games model only (None = the compact job set).
+- **qb_rushing_test.py** (109 lines): QB rushing test 1: does the QB model rank rushing better with one combined rushing column and/or linear leaves? (runnable)
+  - `add_combined(df)`: Last season's rushing and passing fantasy points per game as single columns.
+  - `bump(x)`: The rushing bump applied to every rushing column, the combined one included when present.
+  - `run_arm(df, params, seed)`: Walk-forward test-season predictions for one arm and seed, plus the mean rushing-bump response.
+  - `components()`: Actual target-season games played, passing and rushing fantasy points per game, from weekly regular-season data.
+  - `score(preds, bench, comps)`: Per-season-mean Spearman of predictions vs actual total (top-150 and all QBs) and vs each component (top-150).
+- **qb_split_world.py** (50 lines): Backtest world with the split QB model: the validated files with every model-scored QB's projected_ppr replaced. (runnable)
+  - `split_predictions()`: (player_id, season) -> 5-seed mean split-model QB projection, test seasons 2019-2025.
+- **rb_component_test.py** (165 lines): RB split test: projection = expected games x expected points per game, as QB test 3, with RB-specific halves. (runnable)
+  - `season_history()`: (player_id, season) -> RB games with a touch, PPR, PPR per game and last team, from weekly regular-season stats.
+  - `rate_and_games_inputs(rows, hist)`: Per (player_id, season t): last season's rate, the regressed 3-year weighted rate and the last three seasons' games.
+  - `run_arm(rb, extra, g1, arm, params, seed)`: Walk-forward predictions (total, games part, per-game part) for one arm and seed.
+  - `score(preds, bench)`: Per-season-mean Spearman: totals (top-150, all), and on top-150 the total's rank vs points per game (8+ games), vs points per game for stayers (8+ games both seasons, same team as last season's las...
+  - `benchmark_rows(hist)`: Benchmark RBs with actual games, per game, last season's games and whether he stayed on his team.
 - **rb_premium.py** (96 lines): What does the market's RB premium pay for that season value over replacement misses? (runnable)
   - `replacement(points)`: First non-starter at each position: dedicated slots first, then the best remaining RB/WR/TE fill the FLEX slots.
   - `player_seasons()`
@@ -408,6 +440,11 @@ Data files, `archive/` and build output are not listed.
   - `build()`
   - `rookie_coef(d, y)`: OLS coefficient on the rookie dummy, controls ADP and position.
   - `gap_table(D, label, rng)`
+- **site_benchmark.py** (71 lines): Model vs Sleeper's (Rotowire) preseason projections on the benchmark's per-position Spearman, seasons 2021-2025. (runnable)
+  - `sleeper_week1(season)`: Sleeper's week-1 PPR projection per gsis player_id for one season (downloaded once, then cached).
+  - `id_map()`: sleeper_id -> gsis player_id from the nflverse/DynastyProcess id table cached in data/raw/ids.parquet.
+  - `score(df, season, scope)`: Per-position Spearman vs actual PPR for model (5-seed mean), ADP and Sleeper week 1.
+- **sos_stability.py** (49 lines): Is strength of schedule predictable before the season?
 - **target_competition.py** (313 lines): Does the model over-project wide receivers whose target competition got tougher, or whose last-year volume came while a teammate was out? (runnable)
   - `load_weekly()`: Regular-season weekly rows of the pass catchers: player, season, week, team, targets.
   - `load_start_roster()`: Each player's team and rookie status on his earliest roster row of the season (the file is sparse after week 1, so this is how the pipeline finds the start team).
@@ -516,7 +553,7 @@ Data files, `archive/` and build output are not listed.
 - **test_adp_scraper.py** (21 lines): 2 tests
 - **test_advanced_features.py** (120 lines): 9 tests
 - **test_advisor_table.py** (63 lines): 7 tests
-- **test_data_integrity.py** (193 lines): 16 tests
+- **test_data_integrity.py** (211 lines): 18 tests
 - **test_export_projections.py** (228 lines): 18 tests
 - **test_frozen_file_outcomes.py** (41 lines): 2 tests
 - **test_market_fallback.py** (66 lines): 5 tests

@@ -108,6 +108,24 @@ def test_implied_total_uses_the_prior_season_not_the_target_season(training):
     assert basis("implied_total") == "preseason_known"
 
 
+@needs(RAW / "roster_wk1_14_25.parquet", RAW / "roster_2026.parquet")
+def test_start_of_season_rosters_are_week_one_and_only_players_on_the_team():
+    """The leak: load_rosters keeps each player's last week, so 'start-of-season' features saw in-season trades
+    (Flacco on CIN's 2025 roster cut Burrow's attempt share to 0.72). The context rosters must be week 1, on-team only."""
+    from src.data.scraper import ON_TEAM_STATUSES
+    for path in (RAW / "roster_wk1_14_25.parquet", RAW / "roster_2026.parquet"):
+        r = pd.read_parquet(path, columns=["season", "week", "status", "gsis_id"])
+        assert (r["week"] == 1).all(), path.name
+        assert set(r["status"]) <= ON_TEAM_STATUSES, path.name
+        assert not r.dropna(subset=["gsis_id"]).duplicated(["gsis_id", "season"]).any(), path.name
+
+
+def test_qb_attempt_share_ignores_quarterbacks_who_joined_during_the_season(training):
+    """Burrow threw every Bengals pass in 2024 and CIN's week-1 2025 room had no QB with prior attempts; Flacco came in October."""
+    burrow = training[(training["player_name"] == "J.Burrow") & (training["season"] == 2025)]
+    assert len(burrow) == 1 and burrow["qb_att_share_prev"].iloc[0] == 1.0
+
+
 @needs(*(EXTERNAL / f"adp_{s}.csv" for s in SEASONS))
 def test_adp_files_are_clean_and_cover_the_market():
     for season in SEASONS:
